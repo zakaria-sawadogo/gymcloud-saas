@@ -12,6 +12,7 @@ import {
   Building2,
   Layers,
   UserCog,
+  ShieldCheck,
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -35,6 +36,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
     { label: 'Plans SaaS', href: '/plans-saas', icon: Layers },
     { label: 'Facturation SaaS', href: '/facturation-saas', icon: CreditCard },
+    { label: 'Personnel interne', href: '/personnel-interne', icon: ShieldCheck },
   ],
   PROPRIETAIRE: [
     { label: 'Vue consolidée', href: '/', icon: LayoutDashboard },

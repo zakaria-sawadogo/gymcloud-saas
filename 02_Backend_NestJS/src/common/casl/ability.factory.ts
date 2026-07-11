@@ -16,6 +16,7 @@ export type Subjects =
   | 'SaasPlan'
   | 'SaasSubscription'
   | 'AuditLog'
+  | 'Role'
   | 'all';
 
 export type AppAbility = MongoAbility<[Actions, Subjects]>;

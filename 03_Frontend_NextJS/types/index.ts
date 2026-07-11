@@ -304,6 +304,25 @@ export interface SaasInvoice {
   };
 }
 
+export interface Role {
+  id: string;
+  code: string;
+  name: string;
+  scope: 'SYSTEM' | 'INTERNAL';
+}
+
+export interface InternalUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+  status: string;
+  createdAt: string;
+  role: { name: string; code: string };
+  country?: { name: string };
+}
+
 // ── API générique ─────────────────────────────────────────────
 
 export interface ApiError {

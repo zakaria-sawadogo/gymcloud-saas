@@ -274,14 +274,17 @@ export class UsersService {
     lastName: string;
     phone: string;
     email?: string;
-    roleCode: string;
+    roleCode?: string;
+    roleId?: string;
   }) {
     const existing = await this.prisma.user.findUnique({ where: { phone: input.phone } });
     if (existing) {
       throw new ConflictException('Un utilisateur existe déjà avec ce numéro de téléphone');
     }
 
-    const role = await this.prisma.role.findUniqueOrThrow({ where: { code: input.roleCode } });
+    const role = input.roleId
+      ? await this.prisma.role.findUniqueOrThrow({ where: { id: input.roleId } })
+      : await this.prisma.role.findUniqueOrThrow({ where: { code: input.roleCode } });
     const tempPassword = this.generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
 
@@ -303,5 +306,64 @@ export class UsersService {
 
   private generateTempPassword(): string {
     return randomBytes(9).toString('base64url'); // 12 caractères lisibles, cryptographiquement sûrs
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Personnel interne GymCloud (§2.2) — exclusivement SUPER_ADMIN
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Crée un compte de personnel interne GymCloud (Support, Finance,
+   * Commercial, Marketing, Superviseur Pays...) — rôles à portée
+   * INTERNAL, distincts des 5 rôles système fixes. Rejette toute
+   * tentative avec un rôle SYSTEM (ces comptes ont leurs propres
+   * parcours de création : createProprietaire, createGestionnaire...).
+   */
+  async createInternalUser(
+    dto: { firstName: string; lastName: string; phone: string; email?: string; roleId: string; countryId?: string },
+    actor: TenantContext,
+  ) {
+    if (!actor.isGlobalAccess) {
+      throw new ForbiddenException('Seul le SUPER_ADMIN peut créer un compte de personnel interne (§2.2)');
+    }
+
+    const role = await this.prisma.role.findUniqueOrThrow({ where: { id: dto.roleId } });
+    if (role.scope !== 'INTERNAL') {
+      throw new ForbiddenException(
+        'Ce rôle n\'est pas un rôle interne GymCloud — utilisez le parcours de création dédié (propriétaire, gestionnaire...)',
+      );
+    }
+
+    const { user, tempPassword } = await this.createBaseUser({
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      phone: dto.phone,
+      email: dto.email,
+      roleId: dto.roleId,
+    });
+
+    if (dto.countryId) {
+      await this.prisma.user.update({ where: { id: user.id }, data: { countryId: dto.countryId } });
+    }
+
+    await this.audit.log({
+      userId: actor.userId,
+      action: 'internal_user.create',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: { roleCode: role.code },
+    });
+
+    // TODO(module notifications): envoyer tempPassword par SMS/WhatsApp.
+    return { user, tempPassword };
+  }
+
+  /** Liste tous les comptes internes GymCloud (tous rôles à portée INTERNAL confondus). */
+  async listInternalUsers() {
+    return this.prisma.user.findMany({
+      where: { role: { scope: 'INTERNAL' } },
+      include: { role: true, country: true },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 }
