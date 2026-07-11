@@ -1,0 +1,122 @@
+name: GymCloud CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Backend NestJS
+  # ─────────────────────────────────────────────────────────────
+  backend:
+    name: Backend — Lint, Type-check, Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 02_Backend_NestJS
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gymcloud_app
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: gymcloud_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 02_Backend_NestJS/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Générer le client Prisma
+        run: npx prisma generate
+
+      - name: Vérification des types TypeScript
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Appliquer les migrations (base de test)
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://gymcloud_app:test_password@localhost:5432/gymcloud_test?schema=public
+
+      - name: Build
+        run: npm run build
+
+      - name: Tests
+        run: npm test
+        env:
+          DATABASE_URL: postgresql://gymcloud_app:test_password@localhost:5432/gymcloud_test?schema=public
+
+  # ─────────────────────────────────────────────────────────────
+  # Frontend Next.js
+  # ─────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend — Lint, Type-check, Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 03_Frontend_NextJS
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 03_Frontend_NextJS/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Vérification des types TypeScript
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+
+  # ─────────────────────────────────────────────────────────────
+  # Images Docker (uniquement sur push vers main — pas sur PR)
+  # ─────────────────────────────────────────────────────────────
+  docker-build:
+    name: Build des images Docker
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image backend
+        run: |
+          docker build -f 05_Infrastructure/docker/Dockerfile.backend -t gymcloud-api:${{ github.sha }} .
+
+      - name: Build image frontend
+        run: |
+          docker build -f 05_Infrastructure/docker/Dockerfile.frontend -t gymcloud-web:${{ github.sha }} .
+
+      # TODO: push vers un registre (GitHub Container Registry, ECR...)
+      # et déclenchement du déploiement (à adapter selon l'hébergeur retenu).

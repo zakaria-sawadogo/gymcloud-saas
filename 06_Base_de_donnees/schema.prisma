@@ -1,0 +1,881 @@
+// ═══════════════════════════════════════════════════════════════════════
+// GYMCLOUD SAAS — SCHÉMA DE DONNÉES (Prisma)
+// ═══════════════════════════════════════════════════════════════════════
+// Stratégie multi-tenant : base partagée avec discriminant "salleId" sur
+// chaque table métier + Row Level Security PostgreSQL en complément
+// (voir 06_Base_de_donnees/rls_policies.sql).
+//
+// Ce fichier est organisé pour refléter les sections du cahier des
+// charges fonctionnel (référencées en commentaire) afin de faciliter
+// la traçabilité entre spécification et implémentation.
+// ═══════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 1. INTERNATIONALISATION (§14.4, §14.5, §14.6)
+// ───────────────────────────────────────────────────────────────────────
+
+model Country {
+  id        String   @id @default(uuid())
+  code      String   @unique // ISO 3166-1 alpha-2, ex: "BF"
+  name      String
+  currency  String   // ISO 4217, ex: "XOF"
+  timezone  String   // ex: "Africa/Ouagadougou"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  salles        Salle[]
+  proprietaires Proprietaire[]
+  saasPricing   SaasCountryPricing[]
+  users         User[] // rôles internes rattachés à un pays (§14.4, ex. SUPERVISEUR_PAYS)
+
+  @@map("countries")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 2. RBAC — RÔLES ET PERMISSIONS (§2.2, §2.3)
+// ───────────────────────────────────────────────────────────────────────
+
+enum RoleScope {
+  SYSTEM   // SUPER_ADMIN, PROPRIETAIRE, GESTIONNAIRE, COACH, ADHERENT (non supprimables)
+  INTERNAL // Rôles internes GymCloud, configurables par le SUPER_ADMIN
+}
+
+model Role {
+  id          String    @id @default(uuid())
+  code        String    @unique // ex: "SUPER_ADMIN", "RESPONSABLE_SUPPORT"
+  name        String
+  description String?
+  scope       RoleScope
+  isDeletable Boolean   @default(true) // false pour les 5 rôles système
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  code        String   @unique // ex: "salle.create", "saas_plan.edit"
+  category    String   // ex: "Gestion des salles", "Facturation"
+  description String
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  grantedAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 3. UTILISATEURS (§4.1 à §4.15)
+// ───────────────────────────────────────────────────────────────────────
+
+enum UserStatus {
+  ACTIF
+  SUSPENDU
+  EN_ATTENTE_VALIDATION
+  DESACTIVE
+}
+
+enum Language {
+  FR
+  EN
+}
+
+model User {
+  id                String     @id @default(uuid())
+  email             String?    @unique
+  phone             String     @unique
+  passwordHash      String
+  firstName         String
+  lastName          String
+  photoUrl          String?
+  status            UserStatus @default(ACTIF)
+  language          Language   @default(FR)
+  roleId            String
+  role              Role       @relation(fields: [roleId], references: [id])
+
+  // Rattachement pays pour les rôles internes de type SUPERVISEUR_PAYS (§14.4)
+  countryId         String?
+  country           Country?   @relation(fields: [countryId], references: [id])
+
+  lastLoginAt       DateTime?
+  passwordChangedAt DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  // Profils métier (1-1 optionnels selon le rôle)
+  proprietaireProfile  Proprietaire?
+  gestionnaireProfile  GestionnaireProfile?
+  coachProfile         CoachProfile?
+  adherentProfile      AdherentProfile?
+
+  refreshTokens   RefreshToken[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  loginHistory    LoginHistory[]
+
+  @@index([roleId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress String?
+  userAgent String?
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("login_history")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 4. SAAS — PLANS, ABONNEMENTS, FACTURATION (§9.1 à §9.21, §14.9 à §14.13)
+// ───────────────────────────────────────────────────────────────────────
+
+enum SaasPlanStatus {
+  ACTIF
+  SUSPENDU
+  ARCHIVE
+}
+
+model SaasPlan {
+  id          String         @id @default(uuid())
+  code        String         @unique // "STARTER" | "PROFESSIONAL" | "ENTERPRISE" | code custom
+  name        String
+  description String?
+  status      SaasPlanStatus @default(ACTIF)
+  displayOrder Int           @default(0)
+
+  // Tarification (§9.3 — "Aucun montant ne doit être codé en dur")
+  priceMonthly        Decimal @db.Decimal(12, 2)
+  priceAnnual         Decimal @db.Decimal(12, 2)
+  extraSalleFee       Decimal @db.Decimal(12, 2)
+  annualDiscountPct   Decimal @default(0) @db.Decimal(5, 2)
+  trialDays           Int     @default(0)
+  taxRatePct          Decimal @default(0) @db.Decimal(5, 2)
+
+  // Quotas (§9.3 — null = illimité)
+  quotaSalles         Int
+  quotaGestionnaires  Int?
+  quotaCoachs         Int?
+  quotaAdherents      Int?
+
+  // Modules inclus (§9.3) — liste de codes modules
+  modules             String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions SaasSubscription[]
+  countryPricing SaasCountryPricing[]
+  addons        SaasPlanAddon[]
+
+  @@map("saas_plans")
+}
+
+// Tarification différenciée par pays (§14.15)
+model SaasCountryPricing {
+  id            String   @id @default(uuid())
+  saasPlanId    String
+  countryId     String
+  priceMonthly  Decimal  @db.Decimal(12, 2)
+  priceAnnual   Decimal  @db.Decimal(12, 2)
+  extraSalleFee Decimal  @db.Decimal(12, 2)
+
+  saasPlan SaasPlan @relation(fields: [saasPlanId], references: [id], onDelete: Cascade)
+  country  Country  @relation(fields: [countryId], references: [id], onDelete: Cascade)
+
+  @@unique([saasPlanId, countryId])
+  @@map("saas_country_pricing")
+}
+
+// Modules additionnels — Add-ons (§9.21, §14.13)
+model SaasAddon {
+  id          String  @id @default(uuid())
+  code        String  @unique
+  name        String
+  description String?
+  price       Decimal @db.Decimal(12, 2)
+  active      Boolean @default(true)
+
+  plans           SaasPlanAddon[]
+  subscriptionAddons SaasSubscriptionAddon[]
+
+  @@map("saas_addons")
+}
+
+model SaasPlanAddon {
+  saasPlanId String
+  addonId    String
+
+  saasPlan SaasPlan  @relation(fields: [saasPlanId], references: [id], onDelete: Cascade)
+  addon    SaasAddon @relation(fields: [addonId], references: [id], onDelete: Cascade)
+
+  @@id([saasPlanId, addonId])
+  @@map("saas_plan_addons")
+}
+
+enum SaasSubscriptionStatus {
+  ACTIF
+  EN_GRACE
+  SUSPENDU
+  EXPIRE
+}
+
+enum BillingCycle {
+  MENSUEL
+  ANNUEL
+}
+
+model SaasSubscription {
+  id              String                  @id @default(uuid())
+  proprietaireId  String                  @unique // un propriétaire = un abonnement SaaS actif
+  proprietaire    Proprietaire            @relation(fields: [proprietaireId], references: [id])
+  saasPlanId      String
+  saasPlan        SaasPlan                @relation(fields: [saasPlanId], references: [id])
+
+  billingCycle    BillingCycle            @default(MENSUEL)
+  status          SaasSubscriptionStatus  @default(ACTIF)
+  startDate       DateTime
+  currentPeriodEnd DateTime
+  graceEndsAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  addons   SaasSubscriptionAddon[]
+  invoices SaasInvoice[]
+  salles   Salle[]
+
+  @@map("saas_subscriptions")
+}
+
+model SaasSubscriptionAddon {
+  subscriptionId String
+  addonId        String
+  activatedAt    DateTime @default(now())
+
+  subscription SaasSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  addon        SaasAddon        @relation(fields: [addonId], references: [id], onDelete: Cascade)
+
+  @@id([subscriptionId, addonId])
+  @@map("saas_subscription_addons")
+}
+
+enum SaasInvoiceStatus {
+  EMISE
+  PAYEE
+  EN_RETARD
+  ANNULEE
+}
+
+// Facturation SaaS — inclut le calcul automatique des salles supplémentaires (§9.13, §13.20)
+model SaasInvoice {
+  id                String            @id @default(uuid())
+  subscriptionId    String
+  subscription      SaasSubscription  @relation(fields: [subscriptionId], references: [id])
+  invoiceNumber     String            @unique
+  periodStart       DateTime
+  periodEnd         DateTime
+
+  baseAmount        Decimal           @db.Decimal(12, 2)
+  extraSallesCount  Int               @default(0)
+  extraSallesAmount Decimal           @default(0) @db.Decimal(12, 2)
+  addonsAmount      Decimal           @default(0) @db.Decimal(12, 2)
+  taxAmount         Decimal           @default(0) @db.Decimal(12, 2)
+  totalAmount       Decimal           @db.Decimal(12, 2)
+  currency          String
+
+  status            SaasInvoiceStatus @default(EMISE)
+  issuedAt          DateTime          @default(now())
+  paidAt            DateTime?
+  pdfUrl            String?
+
+  @@index([subscriptionId])
+  @@map("saas_invoices")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 5. PROPRIÉTAIRES ET SALLES (§2.4, §3.1 à §3.15, §4.3)
+// ───────────────────────────────────────────────────────────────────────
+
+model Proprietaire {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  companyName  String?
+  countryId    String?
+  country      Country? @relation(fields: [countryId], references: [id])
+  createdAt    DateTime @default(now())
+
+  subscription SaasSubscription?
+  salles       Salle[]
+
+  @@map("proprietaires")
+}
+
+enum SalleStatus {
+  ACTIF
+  EN_GRACE
+  SUSPENDU
+  EXPIRE
+}
+
+model Salle {
+  id             String      @id @default(uuid())
+  proprietaireId String
+  proprietaire   Proprietaire @relation(fields: [proprietaireId], references: [id])
+  subscriptionId String
+  subscription   SaasSubscription @relation(fields: [subscriptionId], references: [id])
+
+  // Identification (§3.2)
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  slogan      String?
+  description String?
+
+  // Coordonnées (§3.2)
+  email       String?
+  phone       String
+  phoneAlt    String?
+  address     String
+  city        String
+  region      String?
+  countryId   String
+  country     Country  @relation(fields: [countryId], references: [id])
+  website     String?
+  socialLinks Json?    // { facebook, instagram, tiktok, linkedin, youtube }
+
+  // Branding (§3.4)
+  primaryColor    String? @default("#0F3B4D")
+  secondaryColor  String? @default("#2E75B6")
+  coverImageUrl   String?
+  receiptName     String? // nom affiché sur reçus/factures
+  cardName        String? // nom affiché sur cartes adhérents
+
+  // SaaS (§3.2, §13.20)
+  isSalleSupplementaire Boolean @default(false) // détectée automatiquement à la création
+  status          SalleStatus @default(ACTIF)
+  activatedAt     DateTime    @default(now())
+
+  // Paramètres (§3.5 à §3.13)
+  openingHours    Json?    // horaires par jour de la semaine
+  paymentMethods  String[] // codes des moyens de paiement activés
+  notificationSettings Json?
+  reservationSettings  Json? // délai max réservation, délai annulation
+  securitySettings     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gestionnaires   GestionnaireProfile[]
+  coachs          CoachProfile[]
+  adherents       AdherentProfile[]
+  abonnements     AbonnementCatalogue[]
+  payments        Payment[]
+  accessLogs      AccessLog[]
+  bookings        Booking[]
+  coursCollectifs CoursCollectif[]
+  campaigns       MarketingCampaign[]
+  coupons         Coupon[]
+  auditLogs       AuditLog[]
+  documents       SalleDocument[]
+
+  @@index([proprietaireId])
+  @@index([subscriptionId])
+  @@map("salles")
+}
+
+// Documents personnalisés par salle (§3.10) — CGU, reçus, contrats types
+model SalleDocument {
+  id        String   @id @default(uuid())
+  salleId   String
+  salle     Salle    @relation(fields: [salleId], references: [id], onDelete: Cascade)
+  type      String   // "CGU" | "CONTRAT_ADHESION" | "RECU_TYPE" ...
+  fileUrl   String
+  createdAt DateTime @default(now())
+
+  @@index([salleId])
+  @@map("salle_documents")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 6. GESTIONNAIRES, COACHS (§2.5, §2.6, §4.4, §4.5, §7.6, §7.7)
+// ───────────────────────────────────────────────────────────────────────
+
+model GestionnaireProfile {
+  id      String @id @default(uuid())
+  userId  String @unique
+  user    User   @relation(fields: [userId], references: [id])
+  salleId String // un gestionnaire = une seule salle (V1, §2.3)
+  salle   Salle  @relation(fields: [salleId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([salleId])
+  @@map("gestionnaire_profiles")
+}
+
+model CoachProfile {
+  id        String  @id @default(uuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id])
+  salleId   String  // une seule salle en V1 (§2.3) — extensible V2 vers table de jointure
+  salle     Salle   @relation(fields: [salleId], references: [id])
+  bio       String?
+  specialties String[]
+
+  createdAt DateTime @default(now())
+
+  availabilities CoachAvailability[]
+  bookings       Booking[]
+  coursCollectifs CoursCollectif[]
+
+  @@index([salleId])
+  @@map("coach_profiles")
+}
+
+model CoachAvailability {
+  id        String @id @default(uuid())
+  coachId   String
+  coach     CoachProfile @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  dayOfWeek Int    // 0 = dimanche ... 6 = samedi
+  startTime String // "08:00"
+  endTime   String // "12:00"
+
+  @@index([coachId])
+  @@map("coach_availabilities")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 7. ADHÉRENTS, ABONNEMENTS, FIDÉLISATION (§4.6, §5.1 à §5.22)
+// ───────────────────────────────────────────────────────────────────────
+
+enum AdherentStatus {
+  ACTIF
+  EN_GRACE
+  SUSPENDU
+  EXPIRE
+  INACTIF
+}
+
+model AdherentProfile {
+  id             String         @id @default(uuid())
+  userId         String         @unique
+  user           User           @relation(fields: [userId], references: [id])
+  salleId        String         // une seule salle en V1 (§2.3)
+  salle          Salle          @relation(fields: [salleId], references: [id])
+
+  memberCode     String         @unique // identifiant carte adhérent
+  qrCodeToken    String         @unique // jeton QR renouvelable (§6.3)
+  dateOfBirth    DateTime?
+  gender         String?
+  address        String?
+  emergencyContact String?
+  status         AdherentStatus @default(ACTIF)
+  loyaltyPoints  Int            @default(0) // programme de fidélité V2 (§5.18)
+
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions AdherentAbonnement[]
+  payments      Payment[]
+  accessLogs    AccessLog[]
+  bookings      Booking[]
+
+  @@index([salleId])
+  @@map("adherent_profiles")
+}
+
+// Catalogue d'abonnements configurable par salle (§3.8, §5.6)
+model AbonnementCatalogue {
+  id           String  @id @default(uuid())
+  salleId      String
+  salle        Salle   @relation(fields: [salleId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  durationDays Int
+  price        Decimal @db.Decimal(12, 2)
+  currency     String
+  active       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  attributions AdherentAbonnement[]
+
+  @@index([salleId])
+  @@map("abonnement_catalogues")
+}
+
+enum AbonnementInstanceStatus {
+  ACTIF
+  EN_GRACE
+  SUSPENDU
+  EXPIRE
+}
+
+// Attribution + historique des abonnements et réabonnements (§5.7, §5.8, §5.12, §5.13)
+model AdherentAbonnement {
+  id                     String                    @id @default(uuid())
+  adherentId             String
+  adherent               AdherentProfile           @relation(fields: [adherentId], references: [id])
+  abonnementCatalogueId  String
+  abonnementCatalogue    AbonnementCatalogue       @relation(fields: [abonnementCatalogueId], references: [id])
+
+  startDate DateTime
+  endDate   DateTime
+  status    AbonnementInstanceStatus @default(ACTIF)
+  isRenewal Boolean                  @default(false) // distingue 1re souscription / réabonnement
+
+  createdAt DateTime @default(now())
+
+  payments Payment[]
+
+  @@index([adherentId])
+  @@map("adherent_abonnements")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 8. CONTRÔLE D'ACCÈS QR CODE ET PRÉSENCES (§6.1 à §6.20)
+// ───────────────────────────────────────────────────────────────────────
+
+enum AccessMethod {
+  QR_CODE
+  MANUEL
+}
+
+model AccessLog {
+  id           String        @id @default(uuid())
+  salleId      String
+  salle        Salle         @relation(fields: [salleId], references: [id])
+  adherentId   String
+  adherent     AdherentProfile @relation(fields: [adherentId], references: [id])
+
+  method       AccessMethod  @default(QR_CODE)
+  checkInAt    DateTime      @default(now())
+  checkOutAt   DateTime?
+  autoClosed   Boolean       @default(false) // fermeture automatique (§6.8)
+  anomalyFlag  Boolean       @default(false) // détection d'anomalies (§6.13)
+  createdByUserId String?    // gestionnaire en cas de contrôle manuel
+
+  @@index([salleId, checkInAt])
+  @@index([adherentId])
+  @@map("access_logs")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 9. RÉSERVATIONS ET SÉANCES (§7.1 à §7.20)
+// ───────────────────────────────────────────────────────────────────────
+
+enum BookingType {
+  SEANCE_INDIVIDUELLE
+  COURS_COLLECTIF
+}
+
+enum BookingStatus {
+  CONFIRMEE
+  EN_ATTENTE
+  ANNULEE
+  TERMINEE
+  ABSENCE
+}
+
+model CoursCollectif {
+  id        String   @id @default(uuid())
+  salleId   String
+  salle     Salle    @relation(fields: [salleId], references: [id])
+  coachId   String
+  coach     CoachProfile @relation(fields: [coachId], references: [id])
+  name      String
+  capacity  Int
+  startAt   DateTime
+  endAt     DateTime
+  recurring Boolean  @default(false)
+  recurrenceRule String? // règle RRULE si récurrent
+
+  createdAt DateTime @default(now())
+
+  bookings Booking[]
+  waitingList WaitingListEntry[]
+
+  @@index([salleId, startAt])
+  @@map("cours_collectifs")
+}
+
+model Booking {
+  id               String         @id @default(uuid())
+  salleId          String
+  salle            Salle          @relation(fields: [salleId], references: [id])
+  adherentId       String
+  adherent         AdherentProfile @relation(fields: [adherentId], references: [id])
+  coachId          String?
+  coach            CoachProfile?  @relation(fields: [coachId], references: [id])
+  coursCollectifId String?
+  coursCollectif   CoursCollectif? @relation(fields: [coursCollectifId], references: [id])
+
+  type      BookingType
+  status    BookingStatus @default(CONFIRMEE)
+  startAt   DateTime
+  endAt     DateTime
+
+  cancelledAt DateTime?
+  cancelledBy String?
+  attendedAt  DateTime? // pointage de présence à la séance (§7.12)
+
+  createdAt DateTime @default(now())
+
+  @@index([salleId, startAt])
+  @@index([adherentId])
+  @@index([coachId])
+  @@map("bookings")
+}
+
+model WaitingListEntry {
+  id               String         @id @default(uuid())
+  coursCollectifId String
+  coursCollectif   CoursCollectif @relation(fields: [coursCollectifId], references: [id], onDelete: Cascade)
+  adherentId       String
+  position         Int
+  createdAt        DateTime       @default(now())
+
+  @@index([coursCollectifId])
+  @@map("waiting_list_entries")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 10. PAIEMENTS, CAISSE, FACTURATION SALLE (§8.1 à §8.21)
+// ───────────────────────────────────────────────────────────────────────
+
+enum PaymentMethod {
+  ESPECES
+  ORANGE_MONEY
+  MOOV_MONEY
+  WAVE
+  CARTE_BANCAIRE
+  VIREMENT
+}
+
+enum PaymentStatus {
+  EN_ATTENTE
+  VALIDE
+  REJETE
+  REMBOURSE
+}
+
+enum PaymentType {
+  ABONNEMENT
+  SEANCE
+  AUTRE
+}
+
+model Payment {
+  id                    String        @id @default(uuid())
+  salleId               String
+  salle                 Salle         @relation(fields: [salleId], references: [id])
+  adherentId            String?
+  adherent              AdherentProfile? @relation(fields: [adherentId], references: [id])
+  adherentAbonnementId  String?
+  adherentAbonnement    AdherentAbonnement? @relation(fields: [adherentAbonnementId], references: [id])
+
+  type      PaymentType
+  amount    Decimal       @db.Decimal(12, 2)
+  currency  String
+  method    PaymentMethod
+  status    PaymentStatus @default(EN_ATTENTE)
+  reference String?       // référence opérateur Mobile Money / carte
+
+  validatedByUserId String?
+  validatedAt       DateTime?
+
+  createdAt DateTime @default(now())
+
+  receipt Receipt?
+
+  @@index([salleId, createdAt])
+  @@index([adherentId])
+  @@map("payments")
+}
+
+model Receipt {
+  id        String   @id @default(uuid())
+  paymentId String   @unique
+  payment   Payment  @relation(fields: [paymentId], references: [id])
+  number    String   @unique
+  pdfUrl    String?
+  issuedAt  DateTime @default(now())
+
+  @@map("receipts")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 11. MARKETING ET FIDÉLISATION (§10.1 à §10.21)
+// ───────────────────────────────────────────────────────────────────────
+
+enum CampaignChannel {
+  SMS
+  EMAIL
+  WHATSAPP
+  PUSH
+}
+
+enum CampaignStatus {
+  BROUILLON
+  PLANIFIEE
+  ENVOYEE
+  ECHOUEE
+}
+
+model MessageTemplate {
+  id      String          @id @default(uuid())
+  salleId String
+  name    String
+  channel CampaignChannel
+  content String
+
+  createdAt DateTime @default(now())
+
+  @@index([salleId])
+  @@map("message_templates")
+}
+
+model MarketingCampaign {
+  id            String          @id @default(uuid())
+  salleId       String
+  salle         Salle           @relation(fields: [salleId], references: [id])
+  name          String
+  channel       CampaignChannel
+  targetSegment Json?           // critères de segmentation (inactifs 60j, etc. §10.x)
+  content       String
+  status        CampaignStatus  @default(BROUILLON)
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  recipientCount Int            @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([salleId])
+  @@map("marketing_campaigns")
+}
+
+model Coupon {
+  id            String   @id @default(uuid())
+  salleId       String
+  salle         Salle    @relation(fields: [salleId], references: [id])
+  code          String   @unique
+  discountType  String   // "PERCENT" | "FIXED"
+  discountValue Decimal  @db.Decimal(12, 2)
+  validFrom     DateTime
+  validTo       DateTime
+  usageLimit    Int?
+  usedCount     Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([salleId])
+  @@map("coupons")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 12. NOTIFICATIONS (§4.11, §12.8, §12.9)
+// ───────────────────────────────────────────────────────────────────────
+
+enum NotificationChannel {
+  PUSH
+  SMS
+  EMAIL
+  WHATSAPP
+  IN_APP
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id])
+  channel   NotificationChannel
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// 13. SÉCURITÉ, AUDIT, CLÉS API (§13.1 à §13.23)
+// ───────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  salleId    String?
+  salle      Salle?   @relation(fields: [salleId], references: [id])
+  action     String   // ex: "salle.create", "saas_plan.tarif_update"
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([salleId, createdAt])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// Gestion des clés API et secrets externes (§13.21) — valeurs chiffrées applicativement
+model ApiCredential {
+  id             String    @id @default(uuid())
+  provider       String    // "ORANGE_MONEY" | "MOOV_MONEY" | "WAVE" | "TWILIO" | "WHATSAPP_BUSINESS" ...
+  scope          String    // "GLOBAL" | "COUNTRY" | "SALLE"
+  scopeRefId     String?   // countryId ou salleId selon le scope
+  encryptedValue String    // secret chiffré (jamais exposé en clair)
+  lastRotatedAt  DateTime  @default(now())
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([provider, scope])
+  @@map("api_credentials")
+}

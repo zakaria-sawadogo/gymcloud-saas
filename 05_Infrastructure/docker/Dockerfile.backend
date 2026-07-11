@@ -1,0 +1,35 @@
+# ═══════════════════════════════════════════════════════════════
+# Dockerfile backend — le CONTEXTE DE BUILD est la racine du projet
+# GymCloud_SaaS/ (voir docker-compose.yml : context: ../..), pas le
+# dossier 02_Backend_NestJS lui-même. C'est nécessaire pour pouvoir
+# copier le script d'entrée depuis 05_Infrastructure/ — Docker
+# interdit COPY d'un chemin situé hors du contexte de build.
+# ═══════════════════════════════════════════════════════════════
+
+# ── Étape 1 : dépendances et build ──────────────────────────────
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY 02_Backend_NestJS/package*.json ./
+COPY 02_Backend_NestJS/prisma ./prisma/
+RUN npm ci
+
+COPY 02_Backend_NestJS/. .
+RUN npx prisma generate
+RUN npm run build
+
+# ── Étape 2 : image de production allégée ───────────────────────
+FROM node:20-alpine AS production
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY 02_Backend_NestJS/package*.json ./
+COPY 02_Backend_NestJS/prisma ./prisma/
+RUN npm ci --omit=dev && npx prisma generate
+
+COPY --from=builder /app/dist ./dist
+COPY 05_Infrastructure/docker/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
+EXPOSE 3000
+ENTRYPOINT ["./docker-entrypoint.sh"]

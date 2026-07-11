@@ -1,0 +1,10 @@
+**/node_modules
+**/.next
+**/dist
+**/.git
+**/.env
+**/.env.local
+**/*.log
+**/coverage
+04_Mobile_Flutter
+01_Documentation

@@ -1,0 +1,37 @@
+# ── Dépendances ──────────────────────────────────────────────
+**/node_modules/
+
+# ── Secrets — NE JAMAIS committer ────────────────────────────
+**/.env
+**/.env.local
+!**/.env.example
+!**/.env.local.example
+05_Infrastructure/docker/.env
+
+# ── Builds ────────────────────────────────────────────────────
+**/dist/
+**/.next/
+**/build/
+**/out/
+
+# ── Flutter ───────────────────────────────────────────────────
+04_Mobile_Flutter/.dart_tool/
+04_Mobile_Flutter/.flutter-plugins
+04_Mobile_Flutter/.flutter-plugins-dependencies
+04_Mobile_Flutter/.packages
+04_Mobile_Flutter/ios/Pods/
+04_Mobile_Flutter/android/.gradle/
+
+# ── Logs ──────────────────────────────────────────────────────
+**/*.log
+**/npm-debug.log*
+
+# ── OS / Éditeurs ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ── Divers ────────────────────────────────────────────────────
+*.tsbuildinfo
+coverage/

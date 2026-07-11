@@ -1,0 +1,91 @@
+@import 'tailwindcss';
+
+/*
+ * Tokens de design GymCloud — bloc natif Tailwind v4.
+ *
+ * IMPORTANT : en Tailwind CSS v4, les couleurs personnalisées définies
+ * uniquement dans tailwind.config.ts (approche v3) ne sont PAS reprises
+ * automatiquement par le moteur CSS-first (`@import "tailwindcss"`).
+ * Ce bloc @theme est la source de vérité réelle des classes utilitaires
+ * bg-primary-500, text-ink-900, etc. — tailwind.config.ts ne gère plus
+ * que `content`/`darkMode`, plus du tout les couleurs.
+ */
+@theme {
+  --color-primary-50: #e8f5f1;
+  --color-primary-100: #c3e5da;
+  --color-primary-200: #9ed5c3;
+  --color-primary-300: #63bc9f;
+  --color-primary-400: #2e9e7b;
+  --color-primary-500: #0f6e56;
+  --color-primary-600: #0c5a46;
+  --color-primary-700: #094537;
+  --color-primary-800: #073327;
+  --color-primary-900: #04211a;
+
+  --color-accent-50: #fdeee8;
+  --color-accent-100: #f9d2c2;
+  --color-accent-200: #f3ae8b;
+  --color-accent-300: #ea8459;
+  --color-accent-400: #e06b3e;
+  --color-accent-500: #d85a30;
+  --color-accent-600: #b0472a;
+  --color-accent-700: #873621;
+  --color-accent-800: #5f2617;
+  --color-accent-900: #38160d;
+
+  --color-ink-50: #f5f6f6;
+  --color-ink-100: #e5e7e8;
+  --color-ink-400: #71767a;
+  --color-ink-600: #494f54;
+  --color-ink-800: #262b2e;
+  --color-ink-900: #14181b;
+
+  --radius-card: 14px;
+
+  --shadow-card: 0 1px 2px rgba(20, 24, 27, 0.04), 0 4px 12px rgba(20, 24, 27, 0.04);
+  --shadow-card-hover: 0 2px 4px rgba(20, 24, 27, 0.06), 0 8px 20px rgba(20, 24, 27, 0.08);
+
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background-color: #fafaf9;
+  color: #14181b;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c3e5da;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ed5c3;
+}
+
+:focus-visible {
+  outline: 2px solid #0f6e56;
+  outline-offset: 2px;
+  border-radius: 4px;
+}

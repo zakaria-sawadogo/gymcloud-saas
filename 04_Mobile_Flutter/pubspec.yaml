@@ -1,0 +1,41 @@
+name: gymcloud_mobile
+description: Applications mobiles GymCloud (Adhérent, Coach, Gestionnaire, Propriétaire)
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Réseau & état
+  dio: ^5.7.0                    # client HTTP avec intercepteurs (refresh token automatique)
+  provider: ^6.1.2                # gestion d'état simple, cohérente avec l'équipe backend NestJS/DI
+
+  # Stockage sécurisé
+  flutter_secure_storage: ^9.2.2  # jetons JWT jamais en SharedPreferences en clair
+
+  # QR Code
+  qr_flutter: ^4.1.0               # affichage du QR code adhérent (§6, écran d'accès rapide)
+  mobile_scanner: ^6.0.2           # scan QR côté app Gestionnaire (contrôle d'accès mobile)
+
+  # UI & formatage
+  intl: ^0.19.0                    # dates et montants localisés (fr_FR)
+  cupertino_icons: ^1.0.8
+
+  # Notifications push (§12.x — préparation, intégration effective avec le module Notifications)
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
