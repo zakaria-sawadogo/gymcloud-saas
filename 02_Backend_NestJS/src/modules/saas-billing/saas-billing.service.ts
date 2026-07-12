@@ -216,6 +216,70 @@ export class SaasBillingService {
     return `GC-SAAS-${yyyymm}-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
+  private computeNextPeriodEnd(from: Date, billingCycle: 'MENSUEL' | 'ANNUEL'): Date {
+    const next = new Date(from);
+    if (billingCycle === 'ANNUEL') {
+      next.setFullYear(next.getFullYear() + 1);
+    } else {
+      next.setMonth(next.getMonth() + 1);
+    }
+    return next;
+  }
+
+  /**
+   * §9.8, §9.13 — Génère la facture de renouvellement pour la période
+   * à venir, dès qu'une souscription entre en grâce (voir
+   * processSubscriptionLifecycle). Recalcule le nombre de salles
+   * supplémentaires à partir du décompte RÉEL actuel plutôt que de
+   * reprendre l'ancien montant — le propriétaire peut avoir
+   * ajouté/retiré des salles depuis la dernière facture.
+   */
+  private async generateRenewalInvoice(subscription: {
+    id: string;
+    billingCycle: 'MENSUEL' | 'ANNUEL';
+    currentPeriodEnd: Date;
+    saasPlanId: string;
+    saasPlan: {
+      priceMonthly: any;
+      priceAnnual: any;
+      taxRatePct: any;
+      quotaSalles: number;
+      extraSalleFee: any;
+    };
+  }) {
+    const periodStart = subscription.currentPeriodEnd;
+    const periodEnd = this.computeNextPeriodEnd(periodStart, subscription.billingCycle);
+
+    const salleCount = await this.prisma.salle.count({ where: { subscriptionId: subscription.id } });
+    const extraSallesCount = Math.max(0, salleCount - subscription.saasPlan.quotaSalles);
+    const extraSallesAmount = extraSallesCount * Number(subscription.saasPlan.extraSalleFee);
+
+    const baseAmount =
+      subscription.billingCycle === 'ANNUEL'
+        ? subscription.saasPlan.priceAnnual
+        : subscription.saasPlan.priceMonthly;
+    const taxAmount =
+      ((Number(baseAmount) + extraSallesAmount) * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
+
+    return this.prisma.saasInvoice.create({
+      data: {
+        id: randomUUID(),
+        subscriptionId: subscription.id,
+        invoiceNumber: this.generateInvoiceNumber(),
+        periodStart,
+        periodEnd,
+        baseAmount,
+        extraSallesCount,
+        extraSallesAmount,
+        addonsAmount: 0,
+        taxAmount,
+        totalAmount: Number(baseAmount) + extraSallesAmount + taxAmount,
+        currency: 'XOF', // TODO: dériver de Country.currency selon proprietaire.countryId
+        status: 'EMISE',
+      },
+    });
+  }
+
   // ─────────────────────────────────────────────────────────────
   // Cycle de vie de l'abonnement (§9.7 à §9.12)
   // ─────────────────────────────────────────────────────────────
@@ -256,6 +320,66 @@ export class SaasBillingService {
     return updated;
   }
 
+  /**
+   * §9.7, §9.10 — Cycle de vie automatique des abonnements SaaS,
+   * exécuté quotidiennement (voir SaasBillingSchedulerService) :
+   *  - ACTIF → EN_GRACE dès que `currentPeriodEnd` est dépassé, avec
+   *    génération immédiate de la facture de renouvellement — sans
+   *    quoi rien ne permettrait de sortir de la grâce (le mode
+   *    dégradé à J+8 est déjà géré en temps réel par
+   *    SubscriptionAccessGuard à partir des mêmes dates, indépendamment
+   *    de ce job).
+   *  - EN_GRACE → SUSPENDU au-delà de `graceEndsAt` (J+15).
+   */
+  async processSubscriptionLifecycle() {
+    const now = new Date();
+    let movedToGrace = 0;
+    let movedToSuspended = 0;
+
+    const expiring = await this.prisma.saasSubscription.findMany({
+      where: { status: 'ACTIF', currentPeriodEnd: { lt: now } },
+      include: { saasPlan: true },
+    });
+    for (const sub of expiring) {
+      const graceEndsAt = new Date(sub.currentPeriodEnd);
+      graceEndsAt.setDate(graceEndsAt.getDate() + 15);
+
+      await this.prisma.saasSubscription.update({
+        where: { id: sub.id },
+        data: { status: 'EN_GRACE', graceEndsAt },
+      });
+      await this.generateRenewalInvoice(sub);
+      await this.audit.log({
+        action: 'saas_subscription.entered_grace',
+        entityType: 'SaasSubscription',
+        entityId: sub.id,
+      });
+      movedToGrace++;
+      // TODO(module notifications): notifier le propriétaire — J-30/15/7/3/1
+      // sont envoyés AVANT expiration (§9.9, pas encore implémenté) ;
+      // ce point-ci correspond au moment où l'expiration vient de se
+      // produire.
+    }
+
+    const overdue = await this.prisma.saasSubscription.findMany({
+      where: { status: 'EN_GRACE', graceEndsAt: { lt: now } },
+    });
+    for (const sub of overdue) {
+      await this.prisma.saasSubscription.update({
+        where: { id: sub.id },
+        data: { status: 'SUSPENDU' },
+      });
+      await this.audit.log({
+        action: 'saas_subscription.suspended_after_grace',
+        entityType: 'SaasSubscription',
+        entityId: sub.id,
+      });
+      movedToSuspended++;
+    }
+
+    return { movedToGrace, movedToSuspended };
+  }
+
   // ─────────────────────────────────────────────────────────────
   // Facturation SaaS — consultation et paiement (§9.13)
   // ─────────────────────────────────────────────────────────────
@@ -292,19 +416,34 @@ export class SaasBillingService {
 
   /**
    * Marque une facture SaaS comme payée. Le règlement effectif
-   * (virement bancaire, prélèvement...) a lieu hors plateforme à ce
-   * stade — cette action enregistre simplement la confirmation par le
-   * SUPER_ADMIN après vérification.
+   * (virement bancaire, Mobile Money, espèces...) a lieu hors
+   * plateforme à ce niveau B2B — cette action enregistre la
+   * confirmation par le SUPER_ADMIN/RESPONSABLE_FINANCE après
+   * vérification, avec la méthode et la référence de paiement pour
+   * traçabilité comptable (§9.13), à l'image de l'encaissement
+   * adhérent → salle (PaymentsService.recordCashPayment).
    */
-  async markInvoicePaid(invoiceId: string, actorUserId: string) {
-    const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({ where: { id: invoiceId } });
+  async markInvoicePaid(
+    invoiceId: string,
+    actorUserId: string,
+    details: { paymentMethod: string; paymentReference?: string },
+  ) {
+    const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      include: { subscription: true },
+    });
     if (invoice.status === 'PAYEE') {
       throw new BadRequestException('Cette facture est déjà marquée comme payée');
     }
 
     const updated = await this.prisma.saasInvoice.update({
       where: { id: invoiceId },
-      data: { status: 'PAYEE', paidAt: new Date() },
+      data: {
+        status: 'PAYEE',
+        paidAt: new Date(),
+        paymentMethod: details.paymentMethod,
+        paymentReference: details.paymentReference,
+      },
     });
 
     await this.audit.log({
@@ -312,8 +451,36 @@ export class SaasBillingService {
       action: 'saas_invoice.marked_paid',
       entityType: 'SaasInvoice',
       entityId: invoiceId,
-      metadata: { totalAmount: Number(invoice.totalAmount) },
+      metadata: {
+        totalAmount: Number(invoice.totalAmount),
+        paymentMethod: details.paymentMethod,
+        paymentReference: details.paymentReference,
+      },
     });
+
+    // §9.11 — Réactivation automatique si la souscription était en
+    // grâce ou suspendue : la période couverte par cette facture
+    // (calculée à l'émission, voir generateRenewalInvoice) devient la
+    // nouvelle échéance. Toutes les données restent conservées — on ne
+    // fait que changer le statut et la date, jamais de suppression.
+    if (invoice.subscription.status === 'EN_GRACE' || invoice.subscription.status === 'SUSPENDU') {
+      await this.prisma.saasSubscription.update({
+        where: { id: invoice.subscriptionId },
+        data: {
+          status: 'ACTIF',
+          currentPeriodEnd: invoice.periodEnd,
+          graceEndsAt: null,
+        },
+      });
+      await this.audit.log({
+        userId: actorUserId,
+        action: 'saas_subscription.reactivated',
+        entityType: 'SaasSubscription',
+        entityId: invoice.subscriptionId,
+        metadata: { viaInvoiceId: invoiceId, newPeriodEnd: invoice.periodEnd },
+      });
+      // TODO(module notifications): confirmer la réactivation au propriétaire.
+    }
 
     return updated;
   }

@@ -4,15 +4,19 @@ import { MarketingService } from './marketing.service';
 import { CreateCampaignDto, SegmentCriteriaDto } from './dto/marketing.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
+import { RestrictedInDegradedMode } from '../../common/decorators/restricted-in-degraded-mode.decorator';
 
 @ApiTags('Marketing — Campagnes')
 @ApiBearerAuth()
+@RequireModule('marketing')
 @Controller('salles/:salleId/campaigns')
 export class CampaignsController {
   constructor(private readonly marketingService: MarketingService) {}
 
   @Post()
   @RequirePermission('manage', 'MarketingCampaign')
+  @RestrictedInDegradedMode() // "lancement de campagnes marketing" bloqué en mode dégradé (§9.10)
   @ApiOperation({
     summary: 'Créer une campagne — envoyée immédiatement si aucune date planifiée (§10.1)',
   })

@@ -8,15 +8,19 @@ import {
 } from './dto/bookings.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
+import { RestrictedInDegradedMode } from '../../common/decorators/restricted-in-degraded-mode.decorator';
 
 @ApiTags('Réservations')
 @ApiBearerAuth()
+@RequireModule('reservations')
 @Controller('bookings')
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   @Post('cours-collectifs/:coursId')
   @RequirePermission('create', 'Booking')
+  @RestrictedInDegradedMode() // "création de réservations" bloquée en mode dégradé (§9.10)
   @ApiOperation({
     summary: 'Réserver un cours collectif — bascule en liste d\'attente si complet (§7.4)',
   })
@@ -30,6 +34,7 @@ export class BookingsController {
 
   @Post('salle/:salleId/seance-individuelle')
   @RequirePermission('create', 'Booking')
+  @RestrictedInDegradedMode()
   @ApiOperation({
     summary: 'Réserver une séance individuelle avec un coach (§7.6, §7.7)',
   })

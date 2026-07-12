@@ -296,6 +296,8 @@ export interface SaasInvoice {
   status: 'EMISE' | 'PAYEE' | 'EN_RETARD' | 'ANNULEE';
   issuedAt: string;
   paidAt?: string;
+  paymentMethod?: string;
+  paymentReference?: string;
   subscription: {
     proprietaire: {
       user: { firstName: string; lastName: string };

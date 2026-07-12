@@ -9,9 +9,11 @@ import {
 } from './dto/payments.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @ApiTags('Paiements')
 @ApiBearerAuth()
+@RequireModule('paiements')
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}

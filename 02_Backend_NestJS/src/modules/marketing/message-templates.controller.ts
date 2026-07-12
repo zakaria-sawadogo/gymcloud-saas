@@ -4,9 +4,11 @@ import { MarketingService } from './marketing.service';
 import { CreateMessageTemplateDto } from './dto/marketing.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @ApiTags('Marketing — Templates')
 @ApiBearerAuth()
+@RequireModule('marketing')
 @Controller('salles/:salleId/message-templates')
 export class MessageTemplatesController {
   constructor(private readonly marketingService: MarketingService) {}

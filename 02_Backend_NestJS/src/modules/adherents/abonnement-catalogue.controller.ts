@@ -4,6 +4,7 @@ import { AdherentsService } from './adherents.service';
 import { CreateAbonnementCatalogueDto, UpdateAbonnementCatalogueDto } from './dto/adherents.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 /**
  * §3.8, §5.6 — Chaque salle définit librement son propre catalogue
@@ -11,6 +12,7 @@ import { CurrentUser, TenantContext } from '../../common/decorators/current-user
  */
 @ApiTags('Adhérents — Catalogue d\'abonnements')
 @ApiBearerAuth()
+@RequireModule('abonnements')
 @Controller('salles/:salleId/abonnement-catalogue')
 export class AbonnementCatalogueController {
   constructor(private readonly adherentsService: AdherentsService) {}

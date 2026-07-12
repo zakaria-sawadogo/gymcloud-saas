@@ -3,9 +3,11 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { BookingsService } from './bookings.service';
 import { SetCoachAvailabilityDto } from './dto/bookings.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @ApiTags('Réservations — Disponibilités coach')
 @ApiBearerAuth()
+@RequireModule('reservations')
 @Controller('coachs/:coachId/availability')
 export class CoachAvailabilityController {
   constructor(private readonly bookingsService: BookingsService) {}

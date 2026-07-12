@@ -1,15 +1,27 @@
-import { Controller, Get, Param, Patch, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { IsString, IsOptional, IsIn } from 'class-validator';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SaasBillingService } from './saas-billing.service';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
 
+export class MarkInvoicePaidDto {
+  @ApiProperty({ enum: ['VIREMENT', 'ESPECES', 'MOBILE_MONEY', 'CHEQUE'] })
+  @IsIn(['VIREMENT', 'ESPECES', 'MOBILE_MONEY', 'CHEQUE'])
+  paymentMethod!: string;
+
+  @ApiPropertyOptional({ description: 'Référence bancaire, n° de transaction...' })
+  @IsOptional()
+  @IsString()
+  paymentReference?: string;
+}
+
 /**
  * §9.13 — Facturation SaaS (GymCloud facture ses propriétaires),
  * distincte du module Paiements (adhérent → salle). Réservée au
- * SUPER_ADMIN : c'est lui qui constate le règlement d'une facture
- * (virement bancaire habituellement, à ce niveau B2B) et la marque
- * payée.
+ * SUPER_ADMIN et au RESPONSABLE_FINANCE : c'est eux qui constatent le
+ * règlement d'une facture et la marquent payée, avec la méthode et la
+ * référence pour traçabilité comptable.
  */
 @ApiTags('SaaS — Facturation')
 @ApiBearerAuth()
@@ -26,8 +38,12 @@ export class SaasInvoicesController {
 
   @Patch(':id/mark-paid')
   @RequirePermission('manage', 'SaasPlan')
-  @ApiOperation({ summary: 'Marquer une facture SaaS comme payée (règlement constaté hors plateforme)' })
-  markPaid(@Param('id') id: string, @CurrentUser() user: TenantContext) {
-    return this.saasBillingService.markInvoicePaid(id, user.userId);
+  @ApiOperation({ summary: 'Encaisser une facture SaaS — méthode et référence de paiement requises' })
+  markPaid(
+    @Param('id') id: string,
+    @Body() dto: MarkInvoicePaidDto,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.saasBillingService.markInvoicePaid(id, user.userId, dto);
   }
 }

@@ -53,7 +53,7 @@ export class UsersService {
    * travers plusieurs services.
    */
   async createProprietaire(dto: CreateProprietaireDto, actor: TenantContext) {
-    if (!actor.isGlobalAccess) {
+    if (actor.roleCode !== 'SUPER_ADMIN') {
       throw new ForbiddenException('Seul le SUPER_ADMIN peut créer un propriétaire (§2.8)');
     }
 
@@ -131,7 +131,7 @@ export class UsersService {
     const salle = await this.prisma.salle.findUnique({ where: { id: dto.salleId } });
     if (!salle) throw new NotFoundException('Salle introuvable');
 
-    if (!actor.isGlobalAccess) {
+    if (actor.roleCode !== 'SUPER_ADMIN') {
       if (actor.roleCode !== 'PROPRIETAIRE') {
         throw new ForbiddenException(
           'Seuls le SUPER_ADMIN et le PROPRIETAIRE peuvent créer un gestionnaire (§2.8)',
@@ -180,7 +180,7 @@ export class UsersService {
     const salle = await this.prisma.salle.findUnique({ where: { id: dto.salleId } });
     if (!salle) throw new NotFoundException('Salle introuvable');
 
-    if (!actor.isGlobalAccess) {
+    if (actor.roleCode !== 'SUPER_ADMIN') {
       if (actor.roleCode === 'PROPRIETAIRE') {
         if (salle.proprietaireId !== actor.proprietaireId) {
           throw new ForbiddenException('Cette salle n\'appartient pas à ce propriétaire');
@@ -323,7 +323,7 @@ export class UsersService {
     dto: { firstName: string; lastName: string; phone: string; email?: string; roleId: string; countryId?: string },
     actor: TenantContext,
   ) {
-    if (!actor.isGlobalAccess) {
+    if (actor.roleCode !== 'SUPER_ADMIN') {
       throw new ForbiddenException('Seul le SUPER_ADMIN peut créer un compte de personnel interne (§2.2)');
     }
 

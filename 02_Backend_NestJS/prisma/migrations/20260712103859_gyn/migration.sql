@@ -246,6 +246,8 @@ CREATE TABLE "saas_invoices" (
     "status" "SaasInvoiceStatus" NOT NULL DEFAULT 'EMISE',
     "issuedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "paidAt" TIMESTAMP(3),
+    "paymentMethod" TEXT,
+    "paymentReference" TEXT,
     "pdfUrl" TEXT,
 
     CONSTRAINT "saas_invoices_pkey" PRIMARY KEY ("id")

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { CheckCircle2, Receipt } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Modal } from '@/components/ui/Modal';
+import { Field, Input, Select } from '@/components/ui/Input';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { SaasInvoice } from '@/types';
 
@@ -18,34 +20,29 @@ const STATUS_FILTERS = [
   { value: 'EN_RETARD', label: 'En retard' },
 ];
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  VIREMENT: 'Virement bancaire',
+  ESPECES: 'Espèces',
+  MOBILE_MONEY: 'Mobile Money',
+  CHEQUE: 'Chèque',
+};
+
 /**
  * §9.13 — Facturation SaaS : GymCloud facture ses propriétaires
  * (distinct des paiements adhérent → salle, gérés par ailleurs). Les
- * factures sont générées automatiquement par le moteur SaaS
- * (abonnement mensuel/annuel + salles supplémentaires) ; cette page
- * permet au SUPER_ADMIN de les consulter et de constater leur
- * règlement (viré hors plateforme à ce niveau B2B).
+ * factures sont générées automatiquement par le moteur SaaS ; cette
+ * page permet de les consulter et de les **encaisser** — méthode et
+ * référence de paiement requises, à l'image de l'encaissement
+ * adhérent → salle, pas un simple bouton "marquer payée" sans trace.
  */
 export default function FacturationSaasPage() {
   const [statusFilter, setStatusFilter] = useState('');
-  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
+  const [invoiceToPay, setInvoiceToPay] = useState<SaasInvoice | null>(null);
 
   const { data: invoices, isLoading, error, refetch } = useApi<SaasInvoice[]>(
     `/saas/invoices${statusFilter ? `?status=${statusFilter}` : ''}`,
     [statusFilter],
   );
-
-  const handleMarkPaid = async (invoiceId: string) => {
-    setMarkingPaidId(invoiceId);
-    try {
-      await apiClient.patch(`/saas/invoices/${invoiceId}/mark-paid`);
-      refetch();
-    } catch (err) {
-      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
-    } finally {
-      setMarkingPaidId(null);
-    }
-  };
 
   const totalEnAttente = (invoices ?? [])
     .filter((i) => i.status === 'EMISE')
@@ -122,17 +119,18 @@ export default function FacturationSaasPage() {
                   </td>
                   <td className="px-5 py-3">
                     <StatusBadge status={inv.status} />
+                    {inv.status === 'PAYEE' && inv.paymentMethod && (
+                      <p className="mt-0.5 text-xs text-ink-400">
+                        {PAYMENT_METHOD_LABELS[inv.paymentMethod] ?? inv.paymentMethod}
+                        {inv.paymentReference && ` · ${inv.paymentReference}`}
+                      </p>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-right">
                     {inv.status === 'EMISE' && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        isLoading={markingPaidId === inv.id}
-                        onClick={() => handleMarkPaid(inv.id)}
-                      >
+                      <Button size="sm" variant="secondary" onClick={() => setInvoiceToPay(inv)}>
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        Marquer payée
+                        Encaisser
                       </Button>
                     )}
                   </td>
@@ -142,6 +140,88 @@ export default function FacturationSaasPage() {
           </table>
         )}
       </Card>
+
+      {invoiceToPay && (
+        <EncaisserInvoiceModal
+          invoice={invoiceToPay}
+          onClose={() => setInvoiceToPay(null)}
+          onEncaisse={() => {
+            setInvoiceToPay(null);
+            refetch();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function EncaisserInvoiceModal({
+  invoice,
+  onClose,
+  onEncaisse,
+}: {
+  invoice: SaasInvoice;
+  onClose: () => void;
+  onEncaisse: () => void;
+}) {
+  const [paymentMethod, setPaymentMethod] = useState('VIREMENT');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await apiClient.patch(`/saas/invoices/${invoice.id}/mark-paid`, {
+        paymentMethod,
+        paymentReference: paymentReference || undefined,
+      });
+      onEncaisse();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Encaisser la facture ${invoice.invoiceNumber}`}>
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4 rounded-lg bg-ink-50 px-3 py-3">
+          <p className="text-sm text-ink-600">
+            {invoice.subscription.proprietaire.user.firstName} {invoice.subscription.proprietaire.user.lastName} —{' '}
+            {invoice.subscription.saasPlan.name}
+          </p>
+          <p className="font-display text-xl font-semibold text-ink-900">
+            {formatCurrency(invoice.totalAmount, invoice.currency)}
+          </p>
+        </div>
+
+        <Field label="Moyen de paiement">
+          <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+            <option value="VIREMENT">Virement bancaire</option>
+            <option value="MOBILE_MONEY">Mobile Money</option>
+            <option value="ESPECES">Espèces</option>
+            <option value="CHEQUE">Chèque</option>
+          </Select>
+        </Field>
+
+        <Field label="Référence (optionnel)">
+          <Input
+            value={paymentReference}
+            onChange={(e) => setPaymentReference(e.target.value)}
+            placeholder="Référence bancaire, n° de transaction..."
+          />
+        </Field>
+
+        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <Button type="submit" isLoading={isSubmitting} className="w-full">
+          Confirmer l'encaissement
+        </Button>
+      </form>
+    </Modal>
   );
 }

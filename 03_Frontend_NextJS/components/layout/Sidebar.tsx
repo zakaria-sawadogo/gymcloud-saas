@@ -54,6 +54,35 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   COACH: [
     { label: 'Mon planning', href: '/', icon: CalendarCheck },
   ],
+
+  // ── Personnel interne GymCloud (§2.2) — chaque rôle ne voit que ce
+  // qui lui est réellement autorisé côté API (voir ability.factory.ts).
+  ADMIN_GYMCLOUD: [
+    { label: 'Vue globale', href: '/', icon: LayoutDashboard },
+    { label: 'Salles', href: '/salles', icon: Building2 },
+    { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
+    { label: 'Plans SaaS', href: '/plans-saas', icon: Layers },
+  ],
+  RESPONSABLE_SUPPORT: [
+    { label: 'Salles', href: '/salles', icon: Building2 },
+    { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
+  ],
+  RESPONSABLE_FINANCE: [
+    { label: 'Facturation SaaS', href: '/facturation-saas', icon: CreditCard },
+    { label: 'Plans SaaS', href: '/plans-saas', icon: Layers },
+    { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
+  ],
+  RESPONSABLE_COMMERCIAL: [
+    { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
+    { label: 'Salles', href: '/salles', icon: Building2 },
+  ],
+  RESPONSABLE_MARKETING: [
+    { label: 'Salles', href: '/salles', icon: Building2 },
+  ],
+  SUPERVISEUR_PAYS: [
+    { label: 'Salles', href: '/salles', icon: Building2 },
+    { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
+  ],
 };
 
 export function Sidebar() {

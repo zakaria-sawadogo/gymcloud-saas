@@ -10,6 +10,7 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { AbilityFactory } from './common/casl/ability.factory';
 import { PoliciesGuard } from './common/casl/policies.guard';
 import { QuotaGuard } from './common/guards/quota.guard';
+import { SubscriptionAccessGuard } from './common/guards/subscription-access.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { SaasBillingModule } from './modules/saas-billing/saas-billing.module';
 import { SallesModule } from './modules/salles/salles.module';
@@ -52,6 +53,7 @@ import { RolesModule } from './modules/roles/roles.module';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: PoliciesGuard },
     { provide: APP_GUARD, useClass: QuotaGuard },
+    { provide: APP_GUARD, useClass: SubscriptionAccessGuard },
   ],
 })
 export class AppModule implements NestModule {

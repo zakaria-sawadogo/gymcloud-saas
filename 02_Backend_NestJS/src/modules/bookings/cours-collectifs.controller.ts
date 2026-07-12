@@ -4,9 +4,11 @@ import { BookingsService } from './bookings.service';
 import { CreateCoursCollectifDto, UpdateCoursCollectifDto } from './dto/bookings.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @ApiTags('Réservations — Cours collectifs')
 @ApiBearerAuth()
+@RequireModule('reservations')
 @Controller('salles/:salleId/cours-collectifs')
 export class CoursCollectifsController {
   constructor(private readonly bookingsService: BookingsService) {}

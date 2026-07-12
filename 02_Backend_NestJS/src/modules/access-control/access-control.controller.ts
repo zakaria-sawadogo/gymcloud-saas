@@ -4,9 +4,11 @@ import { AccessControlService } from './access-control.service';
 import { ScanQrDto, ManualAccessDto } from './dto/access-control.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 
 @ApiTags('Contrôle d\'accès')
 @ApiBearerAuth()
+@RequireModule('qr_code')
 @Controller('access-control')
 export class AccessControlController {
   constructor(private readonly accessControlService: AccessControlService) {}

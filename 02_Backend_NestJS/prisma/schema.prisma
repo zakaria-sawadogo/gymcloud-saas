@@ -329,6 +329,8 @@ model SaasInvoice {
   status            SaasInvoiceStatus @default(EMISE)
   issuedAt          DateTime          @default(now())
   paidAt            DateTime?
+  paymentMethod     String?           // "VIREMENT" | "ESPECES" | "MOBILE_MONEY" | "CHEQUE" — saisi au moment de l'encaissement (§9.13)
+  paymentReference  String?           // référence bancaire, numéro de transaction Mobile Money, etc.
   pdfUrl            String?
 
   @@index([subscriptionId])

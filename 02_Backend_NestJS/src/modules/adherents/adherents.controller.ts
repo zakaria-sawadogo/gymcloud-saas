@@ -5,9 +5,12 @@ import { CreateAdherentDto, UpdateAdherentDto, SubscribeAdherentDto } from './dt
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CheckQuota } from '../../common/guards/quota.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
+import { RestrictedInDegradedMode } from '../../common/decorators/restricted-in-degraded-mode.decorator';
 
 @ApiTags('Adhérents')
 @ApiBearerAuth()
+@RequireModule('adherents')
 @Controller('adherents')
 export class AdherentsController {
   constructor(private readonly adherentsService: AdherentsService) {}
@@ -15,6 +18,7 @@ export class AdherentsController {
   @Post()
   @RequirePermission('manage', 'Adherent')
   @CheckQuota('adherents') // quota du plan SaaS (§13.20)
+  @RestrictedInDegradedMode() // "création d'adhérents" bloquée en mode dégradé (§9.10)
   @ApiOperation({ summary: 'Inscrire un adhérent, avec souscription immédiate optionnelle (§4.6, §5.6)' })
   create(@Body() dto: CreateAdherentDto, @CurrentUser() user: TenantContext) {
     return this.adherentsService.create(dto, user.userId);
@@ -82,6 +86,7 @@ export class AdherentsController {
 
   @Post(':id/subscribe')
   @RequirePermission('manage', 'AdherentAbonnement')
+  @RestrictedInDegradedMode() // "création d'abonnements" bloquée en mode dégradé (§9.10)
   @ApiOperation({
     summary: 'Souscrire / réabonner (chaînage automatique sans perte de jours — §5.13)',
   })
