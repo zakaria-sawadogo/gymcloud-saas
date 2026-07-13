@@ -3,6 +3,8 @@ import { randomUUID, randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { PaymentsService } from '../payments/payments.service';
+import { PaymentTypeDto } from '../payments/dto/payments.dto';
 import {
   CreateAdherentDto,
   UpdateAdherentDto,
@@ -28,6 +30,7 @@ export class AdherentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -94,6 +97,50 @@ export class AdherentsService {
     }
 
     return { adherent, user, tempPassword, subscription };
+  }
+
+  /**
+   * §5.1, §5.6, §8.3 — Flux guichet complet : le gestionnaire crée
+   * l'adhérent, choisit sa formule d'abonnement ET encaisse le premier
+   * paiement en une seule opération, plutôt que trois actions
+   * séparées. La facture (reçu) et la carte membre ne sont
+   * pertinentes qu'une fois le paiement réellement effectué — c'est
+   * pourquoi elles ne sont générées (côté frontend, via les endpoints
+   * dédiés) qu'après le retour de cette méthode, jamais avant.
+   *
+   * Le montant facturé est TOUJOURS celui du catalogue au moment de
+   * l'appel (jamais une valeur transmise par le client) — évite qu'un
+   * montant trafiqué soit encaissé pour une formule donnée.
+   */
+  async createWithPayment(
+    dto: CreateAdherentDto & { abonnementCatalogueId: string },
+    payment: { method: 'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'; phoneNumber?: string },
+    actorUserId: string,
+  ) {
+    const catalogue = await this.prisma.abonnementCatalogue.findUniqueOrThrow({
+      where: { id: dto.abonnementCatalogueId },
+    });
+
+    const { adherent, user, tempPassword, subscription } = await this.create(dto, actorUserId);
+
+    const paymentPayload = {
+      salleId: dto.salleId,
+      adherentId: adherent.id,
+      adherentAbonnementId: subscription!.id,
+      type: PaymentTypeDto.ABONNEMENT,
+      amount: Number(catalogue.price),
+      currency: catalogue.currency,
+    };
+
+    const paymentResult =
+      payment.method === 'ESPECES'
+        ? await this.paymentsService.recordCashPayment(paymentPayload, actorUserId)
+        : await this.paymentsService.initiateMobileMoney(
+            { ...paymentPayload, method: payment.method, phoneNumber: payment.phoneNumber ?? '' },
+            actorUserId,
+          );
+
+    return { adherent, user, tempPassword, subscription, payment: paymentResult };
   }
 
   async findById(adherentId: string) {

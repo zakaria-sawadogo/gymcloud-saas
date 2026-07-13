@@ -250,6 +250,10 @@ CREATE TABLE "saas_invoices" (
     "paymentMethod" TEXT,
     "paymentReference" TEXT,
     "pdfUrl" TEXT,
+    "pendingOtpCode" TEXT,
+    "pendingOtpExpiresAt" TIMESTAMP(3),
+    "pendingPaymentMethod" TEXT,
+    "pendingPhoneNumber" TEXT,
 
     CONSTRAINT "saas_invoices_pkey" PRIMARY KEY ("id")
 );

@@ -1,12 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantContext } from '../../common/decorators/current-user.decorator';
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   VIREMENT: 'Virement bancaire',
   ESPECES: 'Espèces',
   MOBILE_MONEY: 'Mobile Money',
   CHEQUE: 'Chèque',
+  ESSAI_GRATUIT: 'Essai gratuit',
 };
 
 /**
@@ -20,7 +22,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 export class InvoicePdfService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async generatePdf(invoiceId: string): Promise<Buffer> {
+  async generatePdf(invoiceId: string, actor?: TenantContext): Promise<Buffer> {
     const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({
       where: { id: invoiceId },
       include: {
@@ -29,6 +31,13 @@ export class InvoicePdfService {
         },
       },
     });
+
+    // §9.13 — Un PROPRIETAIRE ne peut télécharger que SES PROPRES
+    // factures ; seul le SUPER_ADMIN/RESPONSABLE_FINANCE (accès global)
+    // peut télécharger celle de n'importe quel propriétaire.
+    if (actor && !actor.isGlobalAccess && invoice.subscription.proprietaireId !== actor.proprietaireId) {
+      throw new ForbiddenException('Vous ne pouvez télécharger que vos propres factures');
+    }
 
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     const chunks: Buffer[] = [];
@@ -40,8 +49,13 @@ export class InvoicePdfService {
 
     const dateFormat = (d: Date) =>
       new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }).format(d);
-    const money = (n: number | string) =>
-      `${Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} ${invoice.currency}`;
+    // `.toLocaleString('fr-FR')` insère un espace insécable Unicode
+    // (U+202F) comme séparateur de milliers — la police par défaut de
+    // pdfkit (Helvetica/WinAnsiEncoding) ne le supporte pas et
+    // l'affiche de travers (ex: "9/333" au lieu de "9 333"). Formatage
+    // manuel avec un espace ASCII classique, garanti sans risque.
+    const formatThousands = (n: number) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    const money = (n: number | string) => `${formatThousands(Number(n))} ${invoice.currency}`;
 
     // En-tête
     doc.fontSize(20).fillColor('#0F6E56').text('GymCloud', 50, 50);

@@ -9,7 +9,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-enum PaymentTypeDto {
+export enum PaymentTypeDto {
   ABONNEMENT = 'ABONNEMENT',
   SEANCE = 'SEANCE',
   AUTRE = 'AUTRE',

@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
+import { PaymentReceiptPdfService } from './payment-receipt-pdf.service';
 import {
   CreateCashPaymentDto,
   InitiateMobileMoneyDto,
@@ -16,7 +18,10 @@ import { RequireModule } from '../../common/decorators/require-module.decorator'
 @RequireModule('paiements')
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly receiptPdfService: PaymentReceiptPdfService,
+  ) {}
 
   @Post('cash')
   @RequirePermission('manage', 'Payment')
@@ -82,5 +87,18 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Historique des paiements d\'un adhérent' })
   byAdherent(@Param('adherentId') adherentId: string) {
     return this.paymentsService.listByAdherent(adherentId);
+  }
+
+  @Get(':id/receipt')
+  @RequirePermission('read', 'Payment')
+  @ApiOperation({ summary: 'Télécharger le reçu de paiement au format PDF' })
+  async downloadReceipt(@Param('id') id: string, @CurrentUser() user: TenantContext, @Res() res: Response) {
+    const pdfBuffer = await this.receiptPdfService.generateReceipt(id, user);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="recu-${id}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.send(pdfBuffer);
   }
 }

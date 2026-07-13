@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, Res, ForbiddenException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, ForbiddenException } from '@nestjs/common';
 import type { Response } from 'express';
 import { IsString, IsOptional, IsIn } from 'class-validator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -18,12 +18,28 @@ export class MarkInvoicePaidDto {
   paymentReference?: string;
 }
 
+export class InitiateMobileMoneyDto {
+  @ApiProperty({ enum: ['ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'] })
+  @IsIn(['ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'])
+  method!: 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE';
+
+  @ApiProperty()
+  @IsString()
+  phoneNumber!: string;
+}
+
+export class ConfirmOtpDto {
+  @ApiProperty({ description: 'Code à 6 chiffres reçu par SMS' })
+  @IsString()
+  otpCode!: string;
+}
+
 /**
  * §9.13 — Facturation SaaS (GymCloud facture ses propriétaires),
- * distincte du module Paiements (adhérent → salle). Réservée au
- * SUPER_ADMIN et au RESPONSABLE_FINANCE : c'est eux qui constatent le
- * règlement d'une facture et la marquent payée, avec la méthode et la
- * référence pour traçabilité comptable.
+ * distincte du module Paiements (adhérent → salle). L'encaissement
+ * manuel (`mark-paid`) reste réservé au SUPER_ADMIN/RESPONSABLE_FINANCE ;
+ * le paiement self-service Mobile Money (§9.8) est ouvert au
+ * PROPRIETAIRE sur ses propres factures uniquement.
  */
 @ApiTags('SaaS — Facturation')
 @ApiBearerAuth()
@@ -62,10 +78,13 @@ export class SaasInvoicesController {
   }
 
   @Get(':id/pdf')
-  @RequirePermission('read', 'SaasPlan')
-  @ApiOperation({ summary: 'Télécharger la facture au format PDF (§9.13)' })
-  async downloadPdf(@Param('id') id: string, @Res() res: Response) {
-    const pdfBuffer = await this.invoicePdfService.generatePdf(id);
+  @RequirePermission('read', 'SaasSubscription')
+  @ApiOperation({
+    summary:
+      'Télécharger la facture au format PDF (§9.13) — SUPER_ADMIN sur n\'importe laquelle, PROPRIETAIRE uniquement sur les siennes',
+  })
+  async downloadPdf(@Param('id') id: string, @CurrentUser() user: TenantContext, @Res() res: Response) {
+    const pdfBuffer = await this.invoicePdfService.generatePdf(id, user);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="facture-${id}.pdf"`,
@@ -83,5 +102,29 @@ export class SaasInvoicesController {
     @CurrentUser() user: TenantContext,
   ) {
     return this.saasBillingService.markInvoicePaid(id, user.userId, dto);
+  }
+
+  @Post(':id/pay/mobile-money/initiate')
+  @RequirePermission('update', 'SaasSubscription')
+  @ApiOperation({
+    summary: 'Initier le règlement d\'une facture SaaS par Mobile Money (§9.8) — envoie un code de confirmation',
+  })
+  initiateMobileMoney(
+    @Param('id') id: string,
+    @Body() dto: InitiateMobileMoneyDto,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.saasBillingService.initiateMobileMoneyPayment(id, user, dto);
+  }
+
+  @Post(':id/pay/mobile-money/confirm')
+  @RequirePermission('update', 'SaasSubscription')
+  @ApiOperation({ summary: 'Confirmer le règlement Mobile Money avec le code reçu (§9.8)' })
+  confirmMobileMoney(
+    @Param('id') id: string,
+    @Body() dto: ConfirmOtpDto,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.saasBillingService.confirmMobileMoneyOtp(id, user, dto.otpCode);
   }
 }

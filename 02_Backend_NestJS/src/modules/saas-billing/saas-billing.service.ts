@@ -426,7 +426,13 @@ export class SaasBillingService {
    * suffisant pour un calcul de prorata qui reste une estimation par
    * nature.
    */
-  async changePlan(subscriptionId: string, newPlanId: string, actorUserId: string, actor?: TenantContext) {
+  async changePlan(
+    subscriptionId: string,
+    newPlanId: string,
+    actorUserId: string,
+    actor?: TenantContext,
+    newBillingCycle?: 'MENSUEL' | 'ANNUEL',
+  ) {
     const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
       where: { id: subscriptionId },
       include: { _count: { select: { salles: true } }, saasPlan: true },
@@ -442,21 +448,27 @@ export class SaasBillingService {
 
     const newPlan = await this.prisma.saasPlan.findUniqueOrThrow({ where: { id: newPlanId } });
     const oldPlan = subscription.saasPlan;
+    // §9.8 — Le propriétaire peut aussi changer de périodicité
+    // (mensuel ↔ annuel) au moment du réabonnement, pas seulement de
+    // plan. Par défaut, on garde le cycle actuel si rien n'est précisé.
+    const targetBillingCycle = newBillingCycle ?? subscription.billingCycle;
 
     if (actor && !actor.isGlobalAccess && newPlan.status !== 'ACTIF') {
       throw new BadRequestException('Ce plan n\'est plus disponible à la souscription');
     }
 
     const now = new Date();
-    const cycleLengthDays = subscription.billingCycle === 'ANNUEL' ? 365 : 30;
+    const oldCycleLengthDays = subscription.billingCycle === 'ANNUEL' ? 365 : 30;
+    const newCycleLengthDays = targetBillingCycle === 'ANNUEL' ? 365 : 30;
     const remainingDays = Math.max(
       0,
       Math.ceil((subscription.currentPeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
     );
     const oldDailyRate =
-      Number(subscription.billingCycle === 'ANNUEL' ? oldPlan.priceAnnual : oldPlan.priceMonthly) / cycleLengthDays;
+      Number(subscription.billingCycle === 'ANNUEL' ? oldPlan.priceAnnual : oldPlan.priceMonthly) /
+      oldCycleLengthDays;
     const newDailyRate =
-      Number(subscription.billingCycle === 'ANNUEL' ? newPlan.priceAnnual : newPlan.priceMonthly) / cycleLengthDays;
+      Number(targetBillingCycle === 'ANNUEL' ? newPlan.priceAnnual : newPlan.priceMonthly) / newCycleLengthDays;
     const creditForUnusedOldPlan = oldDailyRate * remainingDays;
     const chargeForNewPlanRemainder = newDailyRate * remainingDays;
     const prorataDifference = Math.round((chargeForNewPlanRemainder - creditForUnusedOldPlan) * 100) / 100;
@@ -502,7 +514,7 @@ export class SaasBillingService {
 
     const updated = await this.prisma.saasSubscription.update({
       where: { id: subscriptionId },
-      data: { saasPlanId: newPlanId },
+      data: { saasPlanId: newPlanId, billingCycle: targetBillingCycle },
     });
 
     await this.audit.log({
@@ -513,6 +525,8 @@ export class SaasBillingService {
       metadata: {
         fromPlanId: subscription.saasPlanId,
         toPlanId: newPlanId,
+        fromBillingCycle: subscription.billingCycle,
+        toBillingCycle: targetBillingCycle,
         remainingDays,
         prorataDifference,
         prorataInvoiceId,
@@ -683,28 +697,144 @@ export class SaasBillingService {
     });
 
     // §9.11 — Réactivation automatique si la souscription était en
-    // grâce ou suspendue : la période couverte par cette facture
-    // (calculée à l'émission, voir generateRenewalInvoice) devient la
-    // nouvelle échéance. Toutes les données restent conservées — on ne
-    // fait que changer le statut et la date, jamais de suppression.
-    if (invoice.subscription.status === 'EN_GRACE' || invoice.subscription.status === 'SUSPENDU') {
-      await this.prisma.saasSubscription.update({
-        where: { id: invoice.subscriptionId },
-        data: {
-          status: 'ACTIF',
-          currentPeriodEnd: invoice.periodEnd,
-          graceEndsAt: null,
-        },
-      });
-      await this.audit.log({
-        userId: actorUserId,
-        action: 'saas_subscription.reactivated',
-        entityType: 'SaasSubscription',
-        entityId: invoice.subscriptionId,
-        metadata: { viaInvoiceId: invoiceId, newPeriodEnd: invoice.periodEnd },
-      });
-      // TODO(module notifications): confirmer la réactivation au propriétaire.
+    // grâce ou suspendue.
+    await this.reactivateSubscriptionIfNeeded(invoice, actorUserId);
+
+    return updated;
+  }
+
+  /**
+   * §9.11 — Réactive une souscription EN_GRACE/SUSPENDU dès qu'une de
+   * ses factures est réglée (peu importe le mode de règlement —
+   * encaissement manuel par le SUPER_ADMIN/FINANCE ou paiement
+   * self-service Mobile Money par le propriétaire). La période
+   * couverte par la facture (calculée à l'émission) devient la
+   * nouvelle échéance. Toutes les données restent conservées — on ne
+   * fait que changer le statut et la date, jamais de suppression.
+   */
+  private async reactivateSubscriptionIfNeeded(
+    invoice: { id: string; subscriptionId: string; periodEnd: Date; subscription: { status: string } },
+    actorUserId?: string,
+  ) {
+    if (invoice.subscription.status !== 'EN_GRACE' && invoice.subscription.status !== 'SUSPENDU') return;
+
+    await this.prisma.saasSubscription.update({
+      where: { id: invoice.subscriptionId },
+      data: { status: 'ACTIF', currentPeriodEnd: invoice.periodEnd, graceEndsAt: null },
+    });
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'saas_subscription.reactivated',
+      entityType: 'SaasSubscription',
+      entityId: invoice.subscriptionId,
+      metadata: { viaInvoiceId: invoice.id, newPeriodEnd: invoice.periodEnd },
+    });
+    // TODO(module notifications): confirmer la réactivation au propriétaire.
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Paiement self-service Mobile Money par le propriétaire (§9.8)
+  // ─────────────────────────────────────────────────────────────
+  //
+  // Simule un flux Orange/Moov/Wave à deux temps (initiation → OTP)
+  // faute d'intégration réelle avec les opérateurs à ce stade — même
+  // simplification assumée que pour le module Paiements adhérent
+  // (PaymentsService.initiateMobileMoney). Le code OTP est exposé
+  // directement dans la réponse d'initiation (`devOtpCode`) pour
+  // permettre les tests sans SMS réel ; à retirer dès qu'un vrai
+  // fournisseur SMS est branché (§9.9, module Notifications).
+
+  private readonly OTP_VALIDITY_MINUTES = 5;
+
+  /** Génère et "envoie" un code OTP à 6 chiffres pour régler une facture SaaS par Mobile Money. */
+  async initiateMobileMoneyPayment(
+    invoiceId: string,
+    actor: TenantContext,
+    details: { method: 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'; phoneNumber: string },
+  ) {
+    const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      include: { subscription: true },
+    });
+
+    if (!actor.isGlobalAccess && invoice.subscription.proprietaireId !== actor.proprietaireId) {
+      throw new ForbiddenException('Vous ne pouvez régler que vos propres factures');
     }
+    if (invoice.status === 'PAYEE') {
+      throw new BadRequestException('Cette facture est déjà payée');
+    }
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + this.OTP_VALIDITY_MINUTES * 60 * 1000);
+
+    await this.prisma.saasInvoice.update({
+      where: { id: invoiceId },
+      data: {
+        pendingOtpCode: otpCode,
+        pendingOtpExpiresAt: otpExpiresAt,
+        pendingPaymentMethod: details.method,
+        pendingPhoneNumber: details.phoneNumber,
+      },
+    });
+
+    await this.audit.log({
+      userId: actor.userId,
+      action: 'saas_invoice.mobile_money_initiated',
+      entityType: 'SaasInvoice',
+      entityId: invoiceId,
+      metadata: { method: details.method, phoneNumber: details.phoneNumber },
+    });
+
+    return {
+      message: `Code de confirmation envoyé au ${details.phoneNumber}`,
+      expiresInMinutes: this.OTP_VALIDITY_MINUTES,
+      devOtpCode: otpCode, // TODO(module notifications): retirer une fois le SMS réel branché
+    };
+  }
+
+  /** Valide le code OTP et solde la facture — réactive la souscription si nécessaire (§9.11). */
+  async confirmMobileMoneyOtp(invoiceId: string, actor: TenantContext, otpCode: string) {
+    const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      include: { subscription: true },
+    });
+
+    if (!actor.isGlobalAccess && invoice.subscription.proprietaireId !== actor.proprietaireId) {
+      throw new ForbiddenException('Vous ne pouvez régler que vos propres factures');
+    }
+    if (!invoice.pendingOtpCode || !invoice.pendingOtpExpiresAt) {
+      throw new BadRequestException('Aucun paiement Mobile Money en attente pour cette facture');
+    }
+    if (invoice.pendingOtpExpiresAt < new Date()) {
+      throw new BadRequestException('Code expiré — merci de relancer le paiement');
+    }
+    if (invoice.pendingOtpCode !== otpCode) {
+      throw new BadRequestException('Code incorrect');
+    }
+
+    const updated = await this.prisma.saasInvoice.update({
+      where: { id: invoiceId },
+      data: {
+        status: 'PAYEE',
+        paidAt: new Date(),
+        paymentMethod: invoice.pendingPaymentMethod,
+        paymentReference: invoice.pendingPhoneNumber,
+        pendingOtpCode: null,
+        pendingOtpExpiresAt: null,
+        pendingPaymentMethod: null,
+        pendingPhoneNumber: null,
+      },
+    });
+
+    await this.audit.log({
+      userId: actor.userId,
+      action: 'saas_invoice.mobile_money_confirmed',
+      entityType: 'SaasInvoice',
+      entityId: invoiceId,
+      metadata: { totalAmount: Number(invoice.totalAmount) },
+    });
+
+    await this.reactivateSubscriptionIfNeeded(invoice, actor.userId);
 
     return updated;
   }

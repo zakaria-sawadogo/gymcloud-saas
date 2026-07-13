@@ -69,13 +69,14 @@ export class SaasPlansController {
   @RequirePermission('update', 'SaasSubscription')
   @ApiOperation({
     summary:
-      'Changer/renouveler le plan d\'une souscription (§9.12) — SUPER_ADMIN sur n\'importe laquelle, PROPRIETAIRE uniquement sur la sienne',
+      'Changer/renouveler le plan (et optionnellement le cycle mensuel/annuel) d\'une souscription (§9.8, §9.12) — SUPER_ADMIN sur n\'importe laquelle, PROPRIETAIRE uniquement sur la sienne',
   })
   changePlan(
     @Param('subscriptionId') subscriptionId: string,
     @Param('newPlanId') newPlanId: string,
+    @Body('billingCycle') billingCycle: 'MENSUEL' | 'ANNUEL' | undefined,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.saasBillingService.changePlan(subscriptionId, newPlanId, user.userId, user);
+    return this.saasBillingService.changePlan(subscriptionId, newPlanId, user.userId, user, billingCycle);
   }
 }

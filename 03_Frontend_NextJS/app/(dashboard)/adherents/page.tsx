@@ -2,18 +2,20 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Plus, Users, Search } from 'lucide-react';
+import { Plus, Users, Search, Download, CreditCard } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
-import { apiClient, ApiClientError } from '@/lib/api-client';
+import { apiClient, ApiClientError, tokenStorage } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
-import { formatDate } from '@/lib/utils';
-import type { AdherentProfile } from '@/types';
+import { formatDate, formatCurrency } from '@/lib/utils';
+import type { AdherentProfile, AbonnementCatalogue } from '@/types';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Tous les statuts' },
@@ -22,6 +24,22 @@ const STATUS_FILTERS = [
   { value: 'EXPIRE', label: 'Expirés' },
   { value: 'SUSPENDU', label: 'Suspendus' },
 ];
+
+async function downloadPdf(url: string, filename: string) {
+  const token = tokenStorage.getAccessToken();
+  const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    alert('Téléchargement impossible');
+    return;
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(objectUrl);
+}
 
 export default function AdherentsPage() {
   const { user } = useAuth();
@@ -141,6 +159,13 @@ export default function AdherentsPage() {
   );
 }
 
+/**
+ * §5.1, §5.6, §8.3 — Flux guichet unifié : identité + formule
+ * d'abonnement + encaissement en une seule modale, plutôt que trois
+ * écrans séparés. La facture (reçu) et la carte membre ne sont
+ * proposées au téléchargement qu'APRÈS confirmation du paiement — pas
+ * avant, puisqu'elles n'ont de sens qu'une fois le règlement effectué.
+ */
 function CreateAdherentModal({
   salleId,
   isOpen,
@@ -152,22 +177,38 @@ function CreateAdherentModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { data: catalogue } = useApi<AbonnementCatalogue[]>(isOpen ? `/salles/${salleId}/abonnement-catalogue` : null);
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [abonnementCatalogueId, setAbonnementCatalogueId] = useState('');
+  const [method, setMethod] = useState<'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'>('ESPECES');
+  const [mobileMoneyPhone, setMobileMoneyPhone] = useState('');
+  const [result, setResult] = useState<{ adherentId: string; paymentId: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const selectedFormule = (catalogue ?? []).find((c) => c.id === abonnementCatalogueId);
+  const isMobileMoney = method !== 'ESPECES';
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
     try {
-      await apiClient.post('/adherents', { salleId, firstName, lastName, phone });
-      setFirstName('');
-      setLastName('');
-      setPhone('');
-      onCreated();
+      const res = await apiClient.post<{ adherent: { id: string }; payment: { payment: { id: string } } }>(
+        '/adherents/with-payment',
+        {
+          salleId,
+          firstName,
+          lastName,
+          phone,
+          abonnementCatalogueId,
+          payment: { method, phoneNumber: isMobileMoney ? mobileMoneyPhone : undefined },
+        },
+      );
+      setResult({ adherentId: res.adherent.id, paymentId: res.payment.payment.id });
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
     } finally {
@@ -175,25 +216,116 @@ function CreateAdherentModal({
     }
   };
 
+  const handleClose = () => {
+    setFirstName('');
+    setLastName('');
+    setPhone('');
+    setAbonnementCatalogueId('');
+    setMobileMoneyPhone('');
+    setResult(null);
+    onCreated();
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Inscrire un adhérent">
-      <form onSubmit={handleSubmit}>
-        <Field label="Prénom">
-          <Input required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-        </Field>
-        <Field label="Nom">
-          <Input required value={lastName} onChange={(e) => setLastName(e.target.value)} />
-        </Field>
-        <Field label="Téléphone">
-          <Input required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+226 70 00 00 00" />
-        </Field>
+      {result ? (
+        <div>
+          <p className="mb-4 rounded-lg bg-primary-50 px-3 py-3 text-sm text-primary-700">
+            {isMobileMoney
+              ? 'Adhérent inscrit — paiement Mobile Money en attente de confirmation.'
+              : 'Adhérent inscrit et paiement encaissé avec succès.'}
+          </p>
+          <div className="mb-4 space-y-2">
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() =>
+                downloadPdf(`${API_URL}/adherents/${result.adherentId}/card`, `carte-membre-${result.adherentId}.pdf`)
+              }
+            >
+              <CreditCard className="h-4 w-4" />
+              Télécharger la carte membre
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() =>
+                downloadPdf(`${API_URL}/payments/${result.paymentId}/receipt`, `recu-${result.paymentId}.pdf`)
+              }
+            >
+              <Download className="h-4 w-4" />
+              Télécharger le reçu
+            </Button>
+          </div>
+          <Button onClick={handleClose} className="w-full">
+            Fermer
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <p className="mb-3 text-xs font-medium uppercase tracking-wide text-ink-400">Identité</p>
+          <Field label="Prénom">
+            <Input required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          </Field>
+          <Field label="Nom">
+            <Input required value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </Field>
+          <Field label="Téléphone">
+            <Input required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+226 70 00 00 00" />
+          </Field>
 
-        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+          <p className="mb-3 mt-5 text-xs font-medium uppercase tracking-wide text-ink-400">Formule d'abonnement</p>
+          <Field label="Formule">
+            <Select required value={abonnementCatalogueId} onChange={(e) => setAbonnementCatalogueId(e.target.value)}>
+              <option value="">Sélectionner une formule</option>
+              {(catalogue ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — {formatCurrency(c.price, c.currency)} ({c.durationDays} jours)
+                </option>
+              ))}
+            </Select>
+          </Field>
+          {(catalogue ?? []).length === 0 && (
+            <p className="mb-4 text-xs text-accent-700">
+              Aucune formule créée pour cette salle — rendez-vous dans "Formules d'abonnement" d'abord.
+            </p>
+          )}
 
-        <Button type="submit" isLoading={isSubmitting} className="w-full">
-          Créer le dossier
-        </Button>
-      </form>
+          <p className="mb-3 mt-5 text-xs font-medium uppercase tracking-wide text-ink-400">Encaissement</p>
+          <Field label="Moyen de paiement">
+            <Select value={method} onChange={(e) => setMethod(e.target.value as typeof method)}>
+              <option value="ESPECES">Espèces</option>
+              <option value="ORANGE_MONEY">Orange Money</option>
+              <option value="MOOV_MONEY">Moov Money</option>
+              <option value="WAVE">Wave</option>
+            </Select>
+          </Field>
+          {isMobileMoney && (
+            <Field label="Numéro Mobile Money">
+              <Input
+                required
+                value={mobileMoneyPhone}
+                onChange={(e) => setMobileMoneyPhone(e.target.value)}
+                placeholder="+226 70 00 00 00"
+              />
+            </Field>
+          )}
+          {selectedFormule && (
+            <div className="mb-4 flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
+              <span className="text-sm text-ink-600">Montant à encaisser</span>
+              <span className="font-display text-lg font-semibold text-ink-900">
+                {formatCurrency(selectedFormule.price, selectedFormule.currency)}
+              </span>
+            </div>
+          )}
+
+          {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+          <Button type="submit" isLoading={isSubmitting} disabled={!abonnementCatalogueId} className="w-full">
+            Inscrire et encaisser
+          </Button>
+        </form>
+      )}
     </Modal>
   );
 }

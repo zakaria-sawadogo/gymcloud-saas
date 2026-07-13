@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Layers, RefreshCw } from 'lucide-react';
+import { Download, Layers, RefreshCw, Smartphone } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError, tokenStorage } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
+import { Field, Input, Select } from '@/components/ui/Input';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { SaasSubscription, SaasInvoice, SaasPlan } from '@/types';
 
@@ -41,6 +42,7 @@ async function downloadInvoicePdf(invoiceId: string, invoiceNumber: string) {
  */
 export default function MonAbonnementPage() {
   const [isChangePlanOpen, setIsChangePlanOpen] = useState(false);
+  const [invoiceToPay, setInvoiceToPay] = useState<SaasInvoice | null>(null);
 
   const {
     data: subscription,
@@ -120,10 +122,18 @@ export default function MonAbonnementPage() {
                     <StatusBadge status={inv.status} />
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <Button size="sm" variant="ghost" onClick={() => downloadInvoicePdf(inv.id, inv.invoiceNumber)}>
-                      <Download className="h-3.5 w-3.5" />
-                      PDF
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => downloadInvoicePdf(inv.id, inv.invoiceNumber)}>
+                        <Download className="h-3.5 w-3.5" />
+                        PDF
+                      </Button>
+                      {inv.status === 'EMISE' && (
+                        <Button size="sm" variant="secondary" onClick={() => setInvoiceToPay(inv)}>
+                          <Smartphone className="h-3.5 w-3.5" />
+                          Payer
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -135,6 +145,7 @@ export default function MonAbonnementPage() {
       <ChangePlanModal
         subscriptionId={subscription.id}
         currentPlanId={subscription.saasPlanId}
+        currentBillingCycle={subscription.billingCycle}
         isOpen={isChangePlanOpen}
         onClose={() => setIsChangePlanOpen(false)}
         onChanged={() => {
@@ -143,6 +154,18 @@ export default function MonAbonnementPage() {
           refetchInvoices();
         }}
       />
+
+      {invoiceToPay && (
+        <PayMobileMoneyModal
+          invoice={invoiceToPay}
+          onClose={() => setInvoiceToPay(null)}
+          onPaid={() => {
+            setInvoiceToPay(null);
+            refetchSubscription();
+            refetchInvoices();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -150,18 +173,21 @@ export default function MonAbonnementPage() {
 function ChangePlanModal({
   subscriptionId,
   currentPlanId,
+  currentBillingCycle,
   isOpen,
   onClose,
   onChanged,
 }: {
   subscriptionId: string;
   currentPlanId: string;
+  currentBillingCycle: 'MENSUEL' | 'ANNUEL';
   isOpen: boolean;
   onClose: () => void;
   onChanged: () => void;
 }) {
   const { data: plans } = useApi<SaasPlan[]>(isOpen ? '/saas/plans' : null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [billingCycle, setBillingCycle] = useState<'MENSUEL' | 'ANNUEL'>(currentBillingCycle);
   const [result, setResult] = useState<{ prorata: { difference: number } } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -173,6 +199,7 @@ function ChangePlanModal({
     try {
       const res = await apiClient.patch<{ prorata: { difference: number } }>(
         `/saas/plans/${subscriptionId}/change-plan/${selectedPlanId}`,
+        { billingCycle },
       );
       setResult(res);
     } catch (err) {
@@ -189,10 +216,12 @@ function ChangePlanModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Changer de plan">
+    <Modal isOpen={isOpen} onClose={onClose} title="Changer / renouveler mon plan">
       {result ? (
         <div>
-          <p className="mb-3 rounded-lg bg-primary-50 px-3 py-3 text-sm text-primary-700">Plan changé avec succès.</p>
+          <p className="mb-3 rounded-lg bg-primary-50 px-3 py-3 text-sm text-primary-700">
+            Abonnement mis à jour avec succès.
+          </p>
           {result.prorata.difference !== 0 && (
             <p className="mb-4 text-sm text-ink-600">
               {result.prorata.difference > 0
@@ -206,18 +235,39 @@ function ChangePlanModal({
         </div>
       ) : (
         <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">Périodicité</p>
+          <div className="mb-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setBillingCycle('MENSUEL')}
+              className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                billingCycle === 'MENSUEL' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-ink-100 text-ink-600'
+              }`}
+            >
+              Mensuel
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingCycle('ANNUEL')}
+              className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                billingCycle === 'ANNUEL' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-ink-100 text-ink-600'
+              }`}
+            >
+              Annuel
+            </button>
+          </div>
+
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">Plan</p>
           <div className="mb-4 space-y-2">
             {(plans ?? []).map((p) => (
               <button
                 key={p.id}
+                type="button"
                 onClick={() => setSelectedPlanId(p.id)}
-                disabled={p.id === currentPlanId}
                 className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
                   selectedPlanId === p.id
                     ? 'border-primary-500 bg-primary-50'
-                    : p.id === currentPlanId
-                      ? 'cursor-not-allowed border-ink-100 bg-ink-50 opacity-60'
-                      : 'border-ink-100 hover:border-primary-300'
+                    : 'border-ink-100 hover:border-primary-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -225,7 +275,10 @@ function ChangePlanModal({
                     {p.name}
                     {p.id === currentPlanId && <span className="ml-2 text-xs text-ink-400">(plan actuel)</span>}
                   </span>
-                  <span className="text-sm font-semibold text-ink-900">{formatCurrency(p.priceMonthly)}/mois</span>
+                  <span className="text-sm font-semibold text-ink-900">
+                    {formatCurrency(billingCycle === 'ANNUEL' ? p.priceAnnual : p.priceMonthly)}
+                    {billingCycle === 'ANNUEL' ? '/an' : '/mois'}
+                  </span>
                 </div>
               </button>
             ))}
@@ -241,6 +294,126 @@ function ChangePlanModal({
             Confirmer le changement
           </Button>
         </div>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * §9.8 — Paiement self-service Mobile Money, en deux temps : le
+ * propriétaire choisit son opérateur et son numéro, reçoit un code de
+ * confirmation (OTP), puis le saisit pour solder la facture. Simule
+ * un vrai flux opérateur (Orange/Moov/Wave) — voir le commentaire de
+ * classe sur SaasBillingService pour la simplification assumée
+ * (aucune intégration réelle avec les opérateurs à ce stade).
+ */
+function PayMobileMoneyModal({
+  invoice,
+  onClose,
+  onPaid,
+}: {
+  invoice: SaasInvoice;
+  onClose: () => void;
+  onPaid: () => void;
+}) {
+  const [step, setStep] = useState<'initiate' | 'otp'>('initiate');
+  const [method, setMethod] = useState<'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'>('ORANGE_MONEY');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleInitiate = async () => {
+    if (!phoneNumber) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const res = await apiClient.post<{ devOtpCode: string }>(`/saas/invoices/${invoice.id}/pay/mobile-money/initiate`, {
+        method,
+        phoneNumber,
+      });
+      setDevOtpCode(res.devOtpCode ?? null);
+      setStep('otp');
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!otpCode) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await apiClient.post(`/saas/invoices/${invoice.id}/pay/mobile-money/confirm`, { otpCode });
+      onPaid();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Payer la facture ${invoice.invoiceNumber}`}>
+      <div className="mb-4 rounded-lg bg-ink-50 px-3 py-3">
+        <p className="font-display text-xl font-semibold text-ink-900">
+          {formatCurrency(invoice.totalAmount, invoice.currency)}
+        </p>
+      </div>
+
+      {step === 'initiate' ? (
+        <>
+          <Field label="Opérateur">
+            <Select value={method} onChange={(e) => setMethod(e.target.value as typeof method)}>
+              <option value="ORANGE_MONEY">Orange Money</option>
+              <option value="MOOV_MONEY">Moov Money</option>
+              <option value="WAVE">Wave</option>
+            </Select>
+          </Field>
+          <Field label="Numéro Mobile Money">
+            <Input
+              required
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="+226 70 00 00 00"
+            />
+          </Field>
+
+          {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+          <Button onClick={handleInitiate} disabled={!phoneNumber} isLoading={isSubmitting} className="w-full">
+            Recevoir le code de confirmation
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="mb-4 text-sm text-ink-600">
+            Un code de confirmation à 6 chiffres a été envoyé au <strong>{phoneNumber}</strong>.
+          </p>
+          {devOtpCode && (
+            <p className="mb-4 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-700">
+              Mode développement — code : <strong className="font-mono">{devOtpCode}</strong>
+            </p>
+          )}
+          <Field label="Code de confirmation">
+            <Input
+              required
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value)}
+              placeholder="123456"
+              maxLength={6}
+            />
+          </Field>
+
+          {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+          <Button onClick={handleConfirm} disabled={!otpCode} isLoading={isSubmitting} className="w-full">
+            Confirmer le paiement
+          </Button>
+        </>
       )}
     </Modal>
   );

@@ -334,6 +334,14 @@ model SaasInvoice {
   paymentReference  String?           // référence bancaire, numéro de transaction Mobile Money, etc.
   pdfUrl            String?
 
+  // Paiement self-service Mobile Money par le propriétaire (§9.8) —
+  // champs transitoires entre l'initiation et la confirmation OTP,
+  // nettoyés une fois la facture réglée ou l'OTP expiré.
+  pendingOtpCode        String?
+  pendingOtpExpiresAt   DateTime?
+  pendingPaymentMethod  String?
+  pendingPhoneNumber    String?
+
   @@index([subscriptionId])
   @@map("saas_invoices")
 }
