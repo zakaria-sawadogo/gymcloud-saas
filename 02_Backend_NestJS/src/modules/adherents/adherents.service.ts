@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { randomUUID, randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PaymentTypeDto } from '../payments/dto/payments.dto';
+import { TenantContext } from '../../common/decorators/current-user.decorator';
 import {
   CreateAdherentDto,
   UpdateAdherentDto,
@@ -37,7 +38,22 @@ export class AdherentsService {
   // Dossier adhérent (§4.6, §5.1, §5.2)
   // ─────────────────────────────────────────────────────────────
 
-  async create(dto: CreateAdherentDto, actorUserId: string) {
+  /**
+   * §5.6, §8.3 — `allowSubscriptionUnpaid` n'est JAMAIS exposé côté
+   * API : seul `createWithPayment` (qui encaisse immédiatement juste
+   * après) peut le passer à `true`. L'endpoint public `POST
+   * /adherents` (inscription sans formule) laisse ce paramètre à sa
+   * valeur par défaut `false` — si un abonnement est malgré tout
+   * précisé sans passer par le paiement, la création est refusée
+   * plutôt que de créer silencieusement un abonnement actif non payé.
+   */
+  async create(dto: CreateAdherentDto, actorUserId: string, allowSubscriptionUnpaid = false) {
+    if (dto.abonnementCatalogueId && !allowSubscriptionUnpaid) {
+      throw new BadRequestException(
+        'Une formule d\'abonnement ne peut être attribuée qu\'avec un encaissement — utilisez POST /adherents/with-payment',
+      );
+    }
+
     const existing = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
     if (existing) {
       throw new ConflictException('Un utilisateur existe déjà avec ce numéro de téléphone');
@@ -121,7 +137,7 @@ export class AdherentsService {
       where: { id: dto.abonnementCatalogueId },
     });
 
-    const { adherent, user, tempPassword, subscription } = await this.create(dto, actorUserId);
+    const { adherent, user, tempPassword, subscription } = await this.create(dto, actorUserId, true);
 
     const paymentPayload = {
       salleId: dto.salleId,
@@ -421,6 +437,156 @@ export class AdherentsService {
           );
 
     return { subscription, payment: paymentResult };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Demande de souscription depuis l'app mobile adhérent (§5.6, §8.3)
+  // ─────────────────────────────────────────────────────────────
+  //
+  // Symétrique du flux propriétaire↔SUPER_ADMIN (§9.8, §9.12) : un
+  // adhérent ne peut jamais s'auto-valider. Il déclare vouloir
+  // souscrire/se réabonner et son moyen de paiement depuis son
+  // téléphone ; la souscription n'est créée/activée, et la facture
+  // (reçu) générée, qu'après validation du GESTIONNAIRE — qui
+  // constate la réception réelle des fonds (relevé Mobile Money,
+  // dépôt en espèces au bureau...).
+
+  /** L'adhérent déclare vouloir souscrire/se réabonner — ne crée PAS encore l'abonnement. */
+  async requestSubscriptionFromMobile(
+    userId: string,
+    dto: { abonnementCatalogueId: string; paymentMethod: 'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'; phoneNumber?: string },
+    actorUserId: string,
+  ) {
+    const adherent = await this.prisma.adherentProfile.findUnique({ where: { userId } });
+    if (!adherent) throw new NotFoundException('Profil adhérent introuvable pour ce compte');
+
+    const catalogue = await this.prisma.abonnementCatalogue.findUniqueOrThrow({
+      where: { id: dto.abonnementCatalogueId },
+    });
+    if (catalogue.salleId !== adherent.salleId) {
+      throw new BadRequestException('Cette formule n\'appartient pas à votre salle');
+    }
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        id: randomUUID(),
+        salleId: adherent.salleId,
+        adherentId: adherent.id,
+        type: 'ABONNEMENT',
+        amount: catalogue.price,
+        currency: catalogue.currency,
+        method: dto.paymentMethod,
+        status: 'EN_ATTENTE',
+        reference: dto.phoneNumber,
+        pendingAbonnementCatalogueId: catalogue.id,
+      },
+    });
+
+    await this.audit.log({
+      userId: actorUserId,
+      salleId: adherent.salleId,
+      action: 'adherent_abonnement.requested_from_mobile',
+      entityType: 'Payment',
+      entityId: payment.id,
+      metadata: { abonnementCatalogueId: catalogue.id, amount: Number(catalogue.price) },
+    });
+
+    // TODO(module notifications): alerter le gestionnaire d'une nouvelle demande.
+
+    return payment;
+  }
+
+  /** Demandes en attente pour une salle — file d'attente du gestionnaire. */
+  async listPendingSubscriptionRequests(salleId: string) {
+    return this.prisma.payment.findMany({
+      where: { salleId, status: 'EN_ATTENTE', pendingAbonnementCatalogueId: { not: null } },
+      include: { adherent: { include: { user: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * Le gestionnaire valide : constate le règlement (VALIDE), crée et
+   * active réellement l'abonnement, et lie le paiement au nouvel
+   * abonnement pour la génération du reçu (§8.3).
+   */
+  async approvePendingSubscription(paymentId: string, actor: TenantContext) {
+    const payment = await this.prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    if (payment.status !== 'EN_ATTENTE' || !payment.pendingAbonnementCatalogueId) {
+      throw new BadRequestException('Aucune demande de souscription en attente pour ce paiement');
+    }
+    if (!actor.isGlobalAccess && actor.salleId !== payment.salleId) {
+      throw new ForbiddenException('Cette demande n\'appartient pas à votre salle');
+    }
+
+    const subscription = await this.subscribe(
+      payment.adherentId!,
+      { abonnementCatalogueId: payment.pendingAbonnementCatalogueId },
+      actor.userId,
+    );
+
+    const updated = await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: 'VALIDE',
+        validatedByUserId: actor.userId,
+        validatedAt: new Date(),
+        adherentAbonnementId: subscription.id,
+        pendingAbonnementCatalogueId: null,
+      },
+    });
+
+    const receipt = await this.prisma.receipt.create({
+      data: { id: randomUUID(), paymentId, number: this.generateReceiptNumber() },
+    });
+
+    await this.audit.log({
+      userId: actor.userId,
+      salleId: payment.salleId,
+      action: 'adherent_abonnement.request_approved',
+      entityType: 'AdherentAbonnement',
+      entityId: subscription.id,
+      metadata: { paymentId },
+    });
+
+    // TODO(module notifications): confirmer l'activation à l'adhérent.
+
+    return { payment: updated, subscription, receipt };
+  }
+
+  /** Le gestionnaire rejette (fonds non retrouvés) — l'adhérent peut soumettre une nouvelle demande. */
+  async rejectPendingSubscription(paymentId: string, actor: TenantContext, reason?: string) {
+    const payment = await this.prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    if (payment.status !== 'EN_ATTENTE' || !payment.pendingAbonnementCatalogueId) {
+      throw new BadRequestException('Aucune demande de souscription en attente pour ce paiement');
+    }
+    if (!actor.isGlobalAccess && actor.salleId !== payment.salleId) {
+      throw new ForbiddenException('Cette demande n\'appartient pas à votre salle');
+    }
+
+    const updated = await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: { status: 'REJETE', validatedByUserId: actor.userId, validatedAt: new Date() },
+    });
+
+    await this.audit.log({
+      userId: actor.userId,
+      salleId: payment.salleId,
+      action: 'adherent_abonnement.request_rejected',
+      entityType: 'Payment',
+      entityId: paymentId,
+      metadata: { reason },
+    });
+
+    // TODO(module notifications): informer l'adhérent du rejet et du motif.
+
+    return updated;
+  }
+
+  private generateReceiptNumber(): string {
+    const now = new Date();
+    const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return `GC-REC-${yyyymm}-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
   async history(adherentId: string) {

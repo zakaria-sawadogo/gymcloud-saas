@@ -162,6 +162,26 @@ export class SaasBillingService {
       include: { saasPlan: true, proprietaire: { include: { country: true } } },
     });
 
+    // §9.7 — Pendant la période d'essai gratuit, rien n'est facturé,
+    // y compris une salle supplémentaire : l'essai porte sur
+    // l'ensemble de l'offre, pas seulement la première salle. Sans
+    // cette vérification, getOrCreateCurrentInvoice générait une
+    // facture au tarif plein en ignorant complètement l'essai en
+    // cours (même bug racine que changePlan, corrigé au même endroit).
+    const trialEndDate = new Date(subscription.startDate);
+    trialEndDate.setDate(trialEndDate.getDate() + subscription.saasPlan.trialDays);
+    if (subscription.saasPlan.trialDays > 0 && new Date() < trialEndDate) {
+      await this.audit.log({
+        userId: actorUserId,
+        salleId,
+        action: 'saas_billing.extra_salle_added_during_trial',
+        entityType: 'SaasSubscription',
+        entityId: subscriptionId,
+        metadata: { note: 'Aucune charge — salle ajoutée pendant la période d\'essai gratuit' },
+      });
+      return null;
+    }
+
     const pricing = subscription.proprietaire.countryId
       ? await this.getEffectivePricing(subscription.saasPlanId, subscription.proprietaire.countryId)
       : {
@@ -415,10 +435,20 @@ export class SaasBillingService {
    * §9.12 — Changement de plan avec calcul automatique du prorata :
    * les jours restants sur la période en cours sont valorisés au
    * tarif journalier de l'ancien plan (crédité) et du nouveau plan
-   * (facturé) ; seule la différence est due immédiatement. Un
-   * downgrade peut donc produire un montant négatif (crédit),
-   * enregistré directement comme réglé (`PAYEE`) puisqu'aucun
-   * paiement n'est réellement attendu du client dans ce cas.
+   * (facturé) ; seule la différence est due. Dès qu'un montant est
+   * réellement dû (upgrade), l'encaissement est intégré à cette même
+   * opération — jamais une facture EMISE laissée en suspens à régler
+   * plus tard séparément : en espèces, réglé immédiatement ; en
+   * Mobile Money, un code de confirmation est envoyé (même flux OTP
+   * que le paiement self-service d'une facture, §9.8).
+   *
+   * Un downgrade (différence négative = crédit) n'exige par nature
+   * aucun encaissement — impossible de "faire payer" un montant
+   * négatif au client ; il est enregistré directement comme réglé
+   * (crédit constaté), aucune méthode de paiement requise dans ce cas.
+   *
+   * Accessible au PROPRIETAIRE (sur SA PROPRE souscription) et au
+   * SUPER_ADMIN (sur n'importe laquelle).
    *
    * Approximation assumée : la durée du cycle est fixée à 30 jours
    * (mensuel) ou 365 jours (annuel) plutôt que la durée exacte du
@@ -432,6 +462,7 @@ export class SaasBillingService {
     actorUserId: string,
     actor?: TenantContext,
     newBillingCycle?: 'MENSUEL' | 'ANNUEL',
+    payment?: { method: 'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'; phoneNumber?: string },
   ) {
     const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
       where: { id: subscriptionId },
@@ -458,45 +489,124 @@ export class SaasBillingService {
     }
 
     const now = new Date();
-    const oldCycleLengthDays = subscription.billingCycle === 'ANNUEL' ? 365 : 30;
-    const newCycleLengthDays = targetBillingCycle === 'ANNUEL' ? 365 : 30;
-    const remainingDays = Math.max(
-      0,
-      Math.ceil((subscription.currentPeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
-    );
-    const oldDailyRate =
-      Number(subscription.billingCycle === 'ANNUEL' ? oldPlan.priceAnnual : oldPlan.priceMonthly) /
-      oldCycleLengthDays;
-    const newDailyRate =
-      Number(targetBillingCycle === 'ANNUEL' ? newPlan.priceAnnual : newPlan.priceMonthly) / newCycleLengthDays;
-    const creditForUnusedOldPlan = oldDailyRate * remainingDays;
-    const chargeForNewPlanRemainder = newDailyRate * remainingDays;
-    const prorataDifference = Math.round((chargeForNewPlanRemainder - creditForUnusedOldPlan) * 100) / 100;
+
+    // §9.7 — Si la souscription est encore en période d'essai gratuit,
+    // aucun prorata ne doit être calculé : la période en cours n'a
+    // jamais rien coûté, il n'y a donc rien à créditer ni à facturer.
+    const trialEndDate = new Date(subscription.startDate);
+    trialEndDate.setDate(trialEndDate.getDate() + oldPlan.trialDays);
+    const isInFreeTrial = oldPlan.trialDays > 0 && now < trialEndDate;
 
     let prorataInvoiceId: string | null = null;
-    if (Math.abs(prorataDifference) >= 1) {
-      const prorataInvoice = await this.prisma.saasInvoice.create({
-        data: {
-          id: randomUUID(),
-          subscriptionId,
-          invoiceNumber: this.generateInvoiceNumber(),
-          periodStart: now,
-          periodEnd: subscription.currentPeriodEnd,
-          baseAmount: prorataDifference,
-          extraSallesCount: 0,
-          extraSallesAmount: 0,
-          addonsAmount: 0,
-          taxAmount: 0,
-          totalAmount: prorataDifference,
-          currency: 'XOF',
-          // Un downgrade (différence négative = crédit) n'exige aucun
-          // règlement du client : il est marqué PAYEE d'emblée. Un
-          // upgrade (différence positive) reste EMISE, à encaisser.
-          status: prorataDifference > 0 ? 'EMISE' : 'PAYEE',
-          paidAt: prorataDifference > 0 ? null : now,
-        },
-      });
-      prorataInvoiceId = prorataInvoice.id;
+    let prorataDifference = 0;
+    let remainingDays = 0;
+    let paymentResult: any = null;
+    // §9.8, §9.12 — Un propriétaire agissant pour lui-même ne peut
+    // jamais s'auto-valider : dès qu'un montant est dû, le changement
+    // de plan attend la validation SUPER_ADMIN du paiement déclaré. Le
+    // SUPER_ADMIN, lui, applique immédiatement — il EST le validateur.
+    const isSelfService = !!actor && !actor.isGlobalAccess;
+    let planChangeApplied = false;
+
+    if (!isInFreeTrial) {
+      const oldCycleLengthDays = subscription.billingCycle === 'ANNUEL' ? 365 : 30;
+      const newCycleLengthDays = targetBillingCycle === 'ANNUEL' ? 365 : 30;
+      remainingDays = Math.max(
+        0,
+        Math.ceil((subscription.currentPeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+      );
+      const oldDailyRate =
+        Number(subscription.billingCycle === 'ANNUEL' ? oldPlan.priceAnnual : oldPlan.priceMonthly) /
+        oldCycleLengthDays;
+      const newDailyRate =
+        Number(targetBillingCycle === 'ANNUEL' ? newPlan.priceAnnual : newPlan.priceMonthly) / newCycleLengthDays;
+      const creditForUnusedOldPlan = oldDailyRate * remainingDays;
+      const chargeForNewPlanRemainder = newDailyRate * remainingDays;
+      prorataDifference = Math.round((chargeForNewPlanRemainder - creditForUnusedOldPlan) * 100) / 100;
+
+      if (Math.abs(prorataDifference) >= 1) {
+        const isAmountDue = prorataDifference > 0;
+
+        if (isAmountDue && !payment) {
+          throw new BadRequestException(
+            `Un complément de ${prorataDifference} XOF est dû au prorata — précisez une méthode de paiement pour l'encaisser`,
+          );
+        }
+
+        // Un montant dû réglé en self-service reste EMISE (en attente
+        // de validation) ; sans montant dû (crédit) ou réglé par le
+        // SUPER_ADMIN, la facture est directement soldée.
+        const requiresValidation = isAmountDue && isSelfService;
+
+        const prorataInvoice = await this.prisma.saasInvoice.create({
+          data: {
+            id: randomUUID(),
+            subscriptionId,
+            invoiceNumber: this.generateInvoiceNumber(),
+            periodStart: now,
+            periodEnd: subscription.currentPeriodEnd,
+            baseAmount: prorataDifference,
+            extraSallesCount: 0,
+            extraSallesAmount: 0,
+            addonsAmount: 0,
+            taxAmount: 0,
+            totalAmount: prorataDifference,
+            currency: 'XOF',
+            status: isAmountDue ? 'EMISE' : 'PAYEE',
+            paidAt: isAmountDue ? null : now,
+            // Le changement n'est écrit sur la souscription qu'après
+            // validation quand une validation est requise ; sinon il
+            // est appliqué tout de suite plus bas.
+            pendingPlanId: requiresValidation ? newPlanId : null,
+            pendingBillingCycle: requiresValidation ? targetBillingCycle : null,
+          },
+        });
+        prorataInvoiceId = prorataInvoice.id;
+
+        if (isAmountDue && payment) {
+          if (requiresValidation) {
+            if (payment.method === 'ESPECES') {
+              // Pas d'OTP possible pour une déclaration "espèces" —
+              // la déclaration est la soumission elle-même.
+              await this.prisma.saasInvoice.update({
+                where: { id: prorataInvoice.id },
+                data: {
+                  declaredPaymentMethod: 'ESPECES',
+                  declaredAt: new Date(),
+                  declaredByUserId: actorUserId,
+                },
+              });
+              paymentResult = { pendingValidation: true };
+            } else if (actor) {
+              const otpResult = await this.initiateMobileMoneyPayment(prorataInvoice.id, actor, {
+                method: payment.method,
+                phoneNumber: payment.phoneNumber ?? '',
+              });
+              paymentResult = { pendingValidation: true, ...otpResult };
+            }
+          } else if (payment.method === 'ESPECES') {
+            // SUPER_ADMIN réglant directement — pas d'auto-validation à attendre.
+            await this.prisma.saasInvoice.update({
+              where: { id: prorataInvoice.id },
+              data: { status: 'PAYEE', paidAt: new Date(), paymentMethod: 'ESPECES' },
+            });
+            await this.audit.log({
+              userId: actorUserId,
+              action: 'saas_invoice.marked_paid',
+              entityType: 'SaasInvoice',
+              entityId: prorataInvoice.id,
+              metadata: { totalAmount: prorataDifference, paymentMethod: 'ESPECES', context: 'change_plan' },
+            });
+            paymentResult = { immediate: true, status: 'PAYEE' };
+          } else if (actor) {
+            const otpResult = await this.initiateMobileMoneyPayment(prorataInvoice.id, actor, {
+              method: payment.method,
+              phoneNumber: payment.phoneNumber ?? '',
+            });
+            paymentResult = { immediate: false, ...otpResult };
+          }
+        }
+      }
     }
 
     if (subscription._count.salles > newPlan.quotaSalles) {
@@ -512,14 +622,22 @@ export class SaasBillingService {
       });
     }
 
-    const updated = await this.prisma.saasSubscription.update({
-      where: { id: subscriptionId },
-      data: { saasPlanId: newPlanId, billingCycle: targetBillingCycle },
-    });
+    // §9.8, §9.12 — N'applique le changement de plan MAINTENANT que
+    // s'il n'y avait rien à valider (pas de montant dû, ou réglé
+    // directement par le SUPER_ADMIN). Sinon, la souscription garde
+    // son plan actuel jusqu'à approveDeclaredPayment.
+    const shouldApplyNow = !(prorataInvoiceId && isSelfService && prorataDifference > 0);
+    const updated = shouldApplyNow
+      ? await this.prisma.saasSubscription.update({
+          where: { id: subscriptionId },
+          data: { saasPlanId: newPlanId, billingCycle: targetBillingCycle },
+        })
+      : subscription;
+    if (shouldApplyNow) planChangeApplied = true;
 
     await this.audit.log({
       userId: actorUserId,
-      action: 'saas_subscription.plan_changed',
+      action: shouldApplyNow ? 'saas_subscription.plan_changed' : 'saas_subscription.plan_change_pending_validation',
       entityType: 'SaasSubscription',
       entityId: subscriptionId,
       metadata: {
@@ -535,11 +653,13 @@ export class SaasBillingService {
 
     return {
       subscription: updated,
+      planChangeApplied,
       prorata: {
         remainingDays,
         difference: prorataDifference,
         invoiceId: prorataInvoiceId,
       },
+      payment: paymentResult,
       nouvelleEcheance: subscription.currentPeriodEnd, // inchangée par un changement de plan — seul le tarif change
       nouveauxQuotas: {
         quotaSalles: newPlan.quotaSalles,
@@ -638,6 +758,14 @@ export class SaasBillingService {
 
   /** Souscription du propriétaire connecté — évite d'avoir à connaître son subscriptionId à l'avance côté client. */
   async getMySubscription(proprietaireId: string) {
+    return this.prisma.saasSubscription.findUniqueOrThrow({
+      where: { proprietaireId },
+      include: { saasPlan: true },
+    });
+  }
+
+  /** Souscription d'un propriétaire donné — usage SUPER_ADMIN (gestion depuis la fiche propriétaire). */
+  async getSubscriptionForProprietaire(proprietaireId: string) {
     return this.prisma.saasSubscription.findUniqueOrThrow({
       where: { proprietaireId },
       include: { saasPlan: true },
@@ -793,6 +921,16 @@ export class SaasBillingService {
   }
 
   /** Valide le code OTP et solde la facture — réactive la souscription si nécessaire (§9.11). */
+  /**
+   * §9.8, §9.12 — Valide le code OTP, puis :
+   *  - SUPER_ADMIN/personnel interne (accès global) : règle directement
+   *    la facture (PAYEE) et applique un changement de plan en attente
+   *    le cas échéant — il EST le validateur, pas de double étape.
+   *  - PROPRIETAIRE (self-service) : ne fait que DÉCLARER le paiement,
+   *    sans le régler — la facture reste EMISE jusqu'à ce qu'un
+   *    SUPER_ADMIN/RESPONSABLE_FINANCE vérifie réellement la réception
+   *    des fonds et approuve via approveDeclaredPayment.
+   */
   async confirmMobileMoneyOtp(invoiceId: string, actor: TenantContext, otpCode: string) {
     const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({
       where: { id: invoiceId },
@@ -812,13 +950,56 @@ export class SaasBillingService {
       throw new BadRequestException('Code incorrect');
     }
 
+    if (actor.isGlobalAccess) {
+      // Réglé directement — pas d'auto-validation à attendre.
+      const updated = await this.prisma.saasInvoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: 'PAYEE',
+          paidAt: new Date(),
+          paymentMethod: invoice.pendingPaymentMethod,
+          paymentReference: invoice.pendingPhoneNumber,
+          pendingOtpCode: null,
+          pendingOtpExpiresAt: null,
+          pendingPaymentMethod: null,
+          pendingPhoneNumber: null,
+        },
+      });
+
+      if (invoice.pendingPlanId) {
+        await this.prisma.saasSubscription.update({
+          where: { id: invoice.subscriptionId },
+          data: {
+            saasPlanId: invoice.pendingPlanId,
+            billingCycle: invoice.pendingBillingCycle ?? invoice.subscription.billingCycle,
+          },
+        });
+        await this.prisma.saasInvoice.update({
+          where: { id: invoiceId },
+          data: { pendingPlanId: null, pendingBillingCycle: null },
+        });
+      }
+
+      await this.audit.log({
+        userId: actor.userId,
+        action: 'saas_invoice.mobile_money_confirmed',
+        entityType: 'SaasInvoice',
+        entityId: invoiceId,
+        metadata: { totalAmount: Number(invoice.totalAmount) },
+      });
+
+      await this.reactivateSubscriptionIfNeeded(invoice, actor.userId);
+      return updated;
+    }
+
     const updated = await this.prisma.saasInvoice.update({
       where: { id: invoiceId },
       data: {
-        status: 'PAYEE',
-        paidAt: new Date(),
-        paymentMethod: invoice.pendingPaymentMethod,
-        paymentReference: invoice.pendingPhoneNumber,
+        // Toujours EMISE : la déclaration n'est pas un règlement.
+        declaredPaymentMethod: invoice.pendingPaymentMethod,
+        declaredPaymentReference: invoice.pendingPhoneNumber,
+        declaredAt: new Date(),
+        declaredByUserId: actor.userId,
         pendingOtpCode: null,
         pendingOtpExpiresAt: null,
         pendingPaymentMethod: null,
@@ -828,14 +1009,123 @@ export class SaasBillingService {
 
     await this.audit.log({
       userId: actor.userId,
-      action: 'saas_invoice.mobile_money_confirmed',
+      action: 'saas_invoice.payment_declared',
       entityType: 'SaasInvoice',
       entityId: invoiceId,
-      metadata: { totalAmount: Number(invoice.totalAmount) },
+      metadata: { totalAmount: Number(invoice.totalAmount), method: invoice.pendingPaymentMethod },
     });
 
-    await this.reactivateSubscriptionIfNeeded(invoice, actor.userId);
+    // Pas de règlement ni de réactivation ici — en attente du
+    // SUPER_ADMIN (voir approveDeclaredPayment).
+    return updated;
+  }
+
+  /**
+   * §9.8, §9.12 — Approuve une facture déclarée payée par le
+   * propriétaire : constate réellement le règlement (statut PAYEE),
+   * réactive la souscription si elle était en grâce/suspendue, et
+   * applique un changement de plan en attente le cas échéant
+   * (pendingPlanId/pendingBillingCycle, voir changePlan).
+   */
+  async approveDeclaredPayment(invoiceId: string, actorUserId: string) {
+    const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      include: { subscription: true },
+    });
+
+    if (invoice.status === 'PAYEE') {
+      throw new BadRequestException('Cette facture est déjà validée');
+    }
+    if (!invoice.declaredAt) {
+      throw new BadRequestException('Aucun paiement déclaré par le propriétaire pour cette facture');
+    }
+
+    const updated = await this.prisma.saasInvoice.update({
+      where: { id: invoiceId },
+      data: {
+        status: 'PAYEE',
+        paidAt: new Date(),
+        paymentMethod: invoice.declaredPaymentMethod,
+        paymentReference: invoice.declaredPaymentReference,
+      },
+    });
+
+    if (invoice.pendingPlanId) {
+      await this.prisma.saasSubscription.update({
+        where: { id: invoice.subscriptionId },
+        data: {
+          saasPlanId: invoice.pendingPlanId,
+          billingCycle: invoice.pendingBillingCycle ?? invoice.subscription.billingCycle,
+        },
+      });
+      await this.prisma.saasInvoice.update({
+        where: { id: invoiceId },
+        data: { pendingPlanId: null, pendingBillingCycle: null },
+      });
+    }
+
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'saas_invoice.approved',
+      entityType: 'SaasInvoice',
+      entityId: invoiceId,
+      metadata: { totalAmount: Number(invoice.totalAmount), planApplied: invoice.pendingPlanId ?? null },
+    });
+
+    await this.reactivateSubscriptionIfNeeded(invoice, actorUserId);
+
+    // TODO(module notifications): confirmer la validation au propriétaire.
 
     return updated;
+  }
+
+  /**
+   * §9.8 — Rejette une déclaration de paiement (fonds non retrouvés
+   * après vérification) : la facture reste EMISE, la déclaration est
+   * effacée pour que le propriétaire puisse en soumettre une nouvelle,
+   * et un changement de plan en attente est abandonné.
+   */
+  async rejectDeclaredPayment(invoiceId: string, actorUserId: string, reason?: string) {
+    const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({ where: { id: invoiceId } });
+    if (!invoice.declaredAt) {
+      throw new BadRequestException('Aucun paiement déclaré à rejeter pour cette facture');
+    }
+
+    const updated = await this.prisma.saasInvoice.update({
+      where: { id: invoiceId },
+      data: {
+        declaredPaymentMethod: null,
+        declaredPaymentReference: null,
+        declaredAt: null,
+        declaredByUserId: null,
+        pendingPlanId: null,
+        pendingBillingCycle: null,
+      },
+    });
+
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'saas_invoice.declaration_rejected',
+      entityType: 'SaasInvoice',
+      entityId: invoiceId,
+      metadata: { reason },
+    });
+
+    // TODO(module notifications): informer le propriétaire du rejet et du motif.
+
+    return updated;
+  }
+
+  /** Factures avec une déclaration de paiement en attente de validation SUPER_ADMIN (§9.8, §9.12). */
+  async listPendingValidation() {
+    return this.prisma.saasInvoice.findMany({
+      where: { status: 'EMISE', declaredAt: { not: null } },
+      include: {
+        subscription: {
+          include: { proprietaire: { include: { user: true } }, saasPlan: true },
+        },
+      },
+      orderBy: { declaredAt: 'asc' },
+    });
   }
 }

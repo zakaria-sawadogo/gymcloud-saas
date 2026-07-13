@@ -1,9 +1,38 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { IsIn, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { SaasBillingService } from './saas-billing.service';
 import { CreateSaasPlanDto, UpdateSaasPlanDto } from './dto/saas-plan.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+
+class ChangePlanPaymentDto {
+  @ApiProperty({ enum: ['ESPECES', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'] })
+  @IsIn(['ESPECES', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'])
+  method!: 'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+}
+
+class ChangePlanBodyDto {
+  @ApiPropertyOptional({ enum: ['MENSUEL', 'ANNUEL'] })
+  @IsOptional()
+  @IsIn(['MENSUEL', 'ANNUEL'])
+  billingCycle?: 'MENSUEL' | 'ANNUEL';
+
+  @ApiPropertyOptional({
+    type: ChangePlanPaymentDto,
+    description: 'Requis dès qu\'un montant est dû au prorata — validé et rejeté sinon par le service (§9.12)',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ChangePlanPaymentDto)
+  payment?: ChangePlanPaymentDto;
+}
 
 /**
  * §9.3 — Gestion des plans SaaS, entièrement réservée au SUPER_ADMIN.
@@ -69,14 +98,21 @@ export class SaasPlansController {
   @RequirePermission('update', 'SaasSubscription')
   @ApiOperation({
     summary:
-      'Changer/renouveler le plan (et optionnellement le cycle mensuel/annuel) d\'une souscription (§9.8, §9.12) — SUPER_ADMIN sur n\'importe laquelle, PROPRIETAIRE uniquement sur la sienne',
+      'Changer/renouveler le plan (et optionnellement le cycle mensuel/annuel) d\'une souscription (§9.8, §9.12) — SUPER_ADMIN sur n\'importe laquelle, PROPRIETAIRE uniquement sur la sienne. Encaissement immédiat requis si un montant est dû (espèces réglé sur-le-champ, Mobile Money via code de confirmation).',
   })
   changePlan(
     @Param('subscriptionId') subscriptionId: string,
     @Param('newPlanId') newPlanId: string,
-    @Body('billingCycle') billingCycle: 'MENSUEL' | 'ANNUEL' | undefined,
+    @Body() body: ChangePlanBodyDto,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.saasBillingService.changePlan(subscriptionId, newPlanId, user.userId, user, billingCycle);
+    return this.saasBillingService.changePlan(
+      subscriptionId,
+      newPlanId,
+      user.userId,
+      user,
+      body.billingCycle,
+      body.payment,
+    );
   }
 }

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Plus, UserCog, Ban, RotateCcw, Search } from 'lucide-react';
+import { Plus, UserCog, Ban, RotateCcw, Search, CreditCard } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -11,13 +11,15 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { ChangePlanModal } from '@/components/dashboard/ChangePlanModal';
 import { formatDate } from '@/lib/utils';
-import type { Proprietaire, Country, SaasPlan } from '@/types';
+import type { Proprietaire, Country, SaasPlan, SaasSubscription } from '@/types';
 
 export default function ProprietairesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [managingSubscriptionFor, setManagingSubscriptionFor] = useState<string | null>(null);
   const { data: proprietaires, isLoading, error, refetch } = useApi<Proprietaire[]>('/proprietaires');
 
   const filtered = (proprietaires ?? []).filter((p) => {
@@ -118,24 +120,30 @@ export default function ProprietairesPage() {
                   </td>
                   <td className="px-5 py-3 text-ink-600">{formatDate(p.createdAt)}</td>
                   <td className="px-5 py-3 text-right">
-                    <Button
-                      size="sm"
-                      variant={p.user.status === 'SUSPENDU' ? 'secondary' : 'danger'}
-                      isLoading={actioningId === p.id}
-                      onClick={() => handleToggleStatus(p.id, p.user.status)}
-                    >
-                      {p.user.status === 'SUSPENDU' ? (
-                        <>
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Réactiver
-                        </>
-                      ) : (
-                        <>
-                          <Ban className="h-3.5 w-3.5" />
-                          Suspendre
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setManagingSubscriptionFor(p.id)}>
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Abonnement
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={p.user.status === 'SUSPENDU' ? 'secondary' : 'danger'}
+                        isLoading={actioningId === p.id}
+                        onClick={() => handleToggleStatus(p.id, p.user.status)}
+                      >
+                        {p.user.status === 'SUSPENDU' ? (
+                          <>
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            Réactiver
+                          </>
+                        ) : (
+                          <>
+                            <Ban className="h-3.5 w-3.5" />
+                            Suspendre
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -152,7 +160,51 @@ export default function ProprietairesPage() {
           refetch();
         }}
       />
+
+      {managingSubscriptionFor && (
+        <ManageSubscriptionModal
+          proprietaireId={managingSubscriptionFor}
+          onClose={() => setManagingSubscriptionFor(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Récupère la souscription du propriétaire ciblé avant d'ouvrir
+ * ChangePlanModal — celle-ci a besoin de connaître le subscriptionId,
+ * le plan actuel et le cycle de facturation actuel, propres à CE
+ * propriétaire (§9.12, gestion SUPER_ADMIN).
+ */
+function ManageSubscriptionModal({
+  proprietaireId,
+  onClose,
+}: {
+  proprietaireId: string;
+  onClose: () => void;
+}) {
+  const { data: subscription, isLoading } = useApi<SaasSubscription>(
+    `/saas/invoices/proprietaire/${proprietaireId}/subscription`,
+  );
+
+  if (isLoading || !subscription) {
+    return (
+      <Modal isOpen onClose={onClose} title="Gérer l'abonnement">
+        <p className="text-sm text-ink-400">Chargement...</p>
+      </Modal>
+    );
+  }
+
+  return (
+    <ChangePlanModal
+      subscriptionId={subscription.id}
+      currentPlanId={subscription.saasPlanId}
+      currentBillingCycle={subscription.billingCycle}
+      isOpen
+      onClose={onClose}
+      onChanged={onClose}
+    />
   );
 }
 

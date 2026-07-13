@@ -254,6 +254,12 @@ CREATE TABLE "saas_invoices" (
     "pendingOtpExpiresAt" TIMESTAMP(3),
     "pendingPaymentMethod" TEXT,
     "pendingPhoneNumber" TEXT,
+    "declaredPaymentMethod" TEXT,
+    "declaredPaymentReference" TEXT,
+    "declaredAt" TIMESTAMP(3),
+    "declaredByUserId" TEXT,
+    "pendingPlanId" TEXT,
+    "pendingBillingCycle" "BillingCycle",
 
     CONSTRAINT "saas_invoices_pkey" PRIMARY KEY ("id")
 );
@@ -492,6 +498,7 @@ CREATE TABLE "payments" (
     "reference" TEXT,
     "validatedByUserId" TEXT,
     "validatedAt" TIMESTAMP(3),
+    "pendingAbonnementCatalogueId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "payments_pkey" PRIMARY KEY ("id")

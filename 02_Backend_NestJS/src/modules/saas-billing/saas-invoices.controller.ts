@@ -67,6 +67,13 @@ export class SaasInvoicesController {
     return this.saasBillingService.getMySubscription(user.proprietaireId);
   }
 
+  @Get('proprietaire/:proprietaireId/subscription')
+  @RequirePermission('manage', 'SaasPlan') // SUPER_ADMIN / RESPONSABLE_FINANCE uniquement — pas n'importe quel PROPRIETAIRE (IDOR)
+  @ApiOperation({ summary: 'Souscription d\'un propriétaire donné (SUPER_ADMIN — gestion depuis sa fiche)' })
+  subscriptionForProprietaire(@Param('proprietaireId') proprietaireId: string) {
+    return this.saasBillingService.getSubscriptionForProprietaire(proprietaireId);
+  }
+
   @Get('me/invoices')
   @RequirePermission('read', 'SaasSubscription')
   @ApiOperation({ summary: 'Mes factures SaaS (PROPRIETAIRE)' })
@@ -119,12 +126,41 @@ export class SaasInvoicesController {
 
   @Post(':id/pay/mobile-money/confirm')
   @RequirePermission('update', 'SaasSubscription')
-  @ApiOperation({ summary: 'Confirmer le règlement Mobile Money avec le code reçu (§9.8)' })
+  @ApiOperation({
+    summary:
+      'Confirmer le code OTP — déclare le paiement, ne le règle pas (§9.8). En attente de validation SUPER_ADMIN.',
+  })
   confirmMobileMoney(
     @Param('id') id: string,
     @Body() dto: ConfirmOtpDto,
     @CurrentUser() user: TenantContext,
   ) {
     return this.saasBillingService.confirmMobileMoneyOtp(id, user, dto.otpCode);
+  }
+
+  @Get('pending-validation')
+  @RequirePermission('manage', 'SaasPlan')
+  @ApiOperation({
+    summary: 'Factures avec un paiement déclaré par le propriétaire, en attente de validation (§9.8, §9.12)',
+  })
+  pendingValidation() {
+    return this.saasBillingService.listPendingValidation();
+  }
+
+  @Patch(':id/approve')
+  @RequirePermission('manage', 'SaasPlan')
+  @ApiOperation({
+    summary:
+      'Valider un paiement déclaré par le propriétaire — règle la facture et applique le changement de plan en attente le cas échéant (§9.8, §9.12)',
+  })
+  approve(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.saasBillingService.approveDeclaredPayment(id, user.userId);
+  }
+
+  @Patch(':id/reject')
+  @RequirePermission('manage', 'SaasPlan')
+  @ApiOperation({ summary: 'Rejeter un paiement déclaré (fonds non retrouvés) — le propriétaire peut resoumettre' })
+  reject(@Param('id') id: string, @Body('reason') reason: string | undefined, @CurrentUser() user: TenantContext) {
+    return this.saasBillingService.rejectDeclaredPayment(id, user.userId, reason);
   }
 }

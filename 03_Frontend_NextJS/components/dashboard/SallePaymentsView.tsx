@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Plus, Wallet, Receipt } from 'lucide-react';
+import { Plus, Wallet, Receipt, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -75,6 +75,8 @@ export function SallePaymentsView({ salleId }: { salleId: string }) {
             </Card>
           ))}
       </div>
+
+      <PendingSubscriptionRequests salleId={salleId} />
 
       <Card className="p-0">
         <div className="p-5 pb-0">
@@ -305,6 +307,158 @@ function RecordPaymentModal({
         <Button type="submit" isLoading={isSubmitting} className="w-full">
           <Wallet className="h-4 w-4" />
           {isMobileMoney ? 'Initier le paiement' : 'Encaisser'}
+        </Button>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * §5.6, §8.3 — Demandes de souscription/réabonnement initiées par
+ * l'adhérent depuis l'app mobile. Symétrique de "Validations en
+ * attente" côté SUPER_ADMIN (facturation SaaS) : l'adhérent ne peut
+ * jamais s'auto-valider — le gestionnaire constate la réception réelle
+ * des fonds avant que l'abonnement ne s'active et que le reçu ne soit
+ * généré.
+ */
+function PendingSubscriptionRequests({ salleId }: { salleId: string }) {
+  const { data: pending, isLoading, refetch } = useApi<Payment[]>(
+    `/adherents/salle/${salleId}/pending-subscriptions`,
+  );
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  const [rejectingPayment, setRejectingPayment] = useState<Payment | null>(null);
+
+  const handleApprove = async (paymentId: string) => {
+    setActioningId(paymentId);
+    try {
+      await apiClient.patch(`/adherents/pending-subscriptions/${paymentId}/approve`);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  if (isLoading) return null;
+
+  return (
+    <>
+      <Card className="mb-6 border-accent-200 bg-accent-50/40 p-0">
+        <div className="flex items-center gap-2 border-b border-accent-100 px-5 py-4">
+          <Clock className="h-4 w-4 text-accent-700" />
+          <h2 className="font-display text-base font-semibold text-ink-900">
+            Demandes en attente ({pending?.length ?? 0})
+          </h2>
+        </div>
+        {!pending || pending.length === 0 ? (
+          <EmptyState
+            icon={<Clock className="h-6 w-6" />}
+            title="Aucune demande en attente"
+            description="Apparaît ici dès qu'un adhérent demande un abonnement ou un réabonnement depuis l'application mobile."
+          />
+        ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-accent-100 text-left text-xs font-medium uppercase text-ink-400">
+              <th className="px-5 py-3">Adhérent</th>
+              <th className="px-5 py-3">Montant</th>
+              <th className="px-5 py-3">Méthode déclarée</th>
+              <th className="px-5 py-3">Demandé le</th>
+              <th className="px-5 py-3" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-accent-100">
+            {pending.map((p) => (
+              <tr key={p.id}>
+                <td className="px-5 py-3 font-medium text-ink-900">
+                  {p.adherent ? `${p.adherent.user.firstName} ${p.adherent.user.lastName}` : '—'}
+                </td>
+                <td className="px-5 py-3 font-medium text-ink-900">{formatCurrency(p.amount, p.currency)}</td>
+                <td className="px-5 py-3 text-ink-600">
+                  {METHOD_LABELS[p.method] ?? p.method}
+                  {p.reference && <span className="ml-1 text-xs text-ink-400">({p.reference})</span>}
+                </td>
+                <td className="px-5 py-3 text-ink-600">{formatDateTime(p.createdAt)}</td>
+                <td className="px-5 py-3 text-right">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      isLoading={actioningId === p.id}
+                      onClick={() => handleApprove(p.id)}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Approuver
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setRejectingPayment(p)}>
+                      <XCircle className="h-3.5 w-3.5" />
+                      Rejeter
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        )}
+      </Card>
+
+      {rejectingPayment && (
+        <RejectSubscriptionRequestModal
+          payment={rejectingPayment}
+          onClose={() => setRejectingPayment(null)}
+          onRejected={() => {
+            setRejectingPayment(null);
+            refetch();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function RejectSubscriptionRequestModal({
+  payment,
+  onClose,
+  onRejected,
+}: {
+  payment: Payment;
+  onClose: () => void;
+  onRejected: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await apiClient.patch(`/adherents/pending-subscriptions/${payment.id}/reject`, { reason: reason || undefined });
+      onRejected();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Rejeter la demande">
+      <form onSubmit={handleSubmit}>
+        <p className="mb-4 text-sm text-ink-600">
+          Les fonds n'ont pas été retrouvés ? L'adhérent pourra soumettre une nouvelle demande depuis l'app.
+        </p>
+        <Field label="Motif (optionnel)">
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ex: référence introuvable" />
+        </Field>
+
+        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <Button type="submit" isLoading={isSubmitting} className="w-full">
+          Confirmer le rejet
         </Button>
       </form>
     </Modal>

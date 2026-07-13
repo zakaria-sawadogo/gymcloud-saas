@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
+import { ChangePlanModal } from '@/components/dashboard/ChangePlanModal';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { SaasSubscription, SaasInvoice, SaasPlan } from '@/types';
 
@@ -119,7 +120,13 @@ export default function MonAbonnementPage() {
                   </td>
                   <td className="px-5 py-3 font-medium text-ink-900">{formatCurrency(inv.totalAmount, inv.currency)}</td>
                   <td className="px-5 py-3">
-                    <StatusBadge status={inv.status} />
+                    {inv.status === 'EMISE' && inv.declaredAt ? (
+                      <span className="rounded-full bg-accent-50 px-2 py-0.5 text-xs font-medium text-accent-700">
+                        Déclaré · en attente de validation
+                      </span>
+                    ) : (
+                      <StatusBadge status={inv.status} />
+                    )}
                   </td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-2">
@@ -127,7 +134,7 @@ export default function MonAbonnementPage() {
                         <Download className="h-3.5 w-3.5" />
                         PDF
                       </Button>
-                      {inv.status === 'EMISE' && (
+                      {inv.status === 'EMISE' && !inv.declaredAt && (
                         <Button size="sm" variant="secondary" onClick={() => setInvoiceToPay(inv)}>
                           <Smartphone className="h-3.5 w-3.5" />
                           Payer
@@ -170,134 +177,6 @@ export default function MonAbonnementPage() {
   );
 }
 
-function ChangePlanModal({
-  subscriptionId,
-  currentPlanId,
-  currentBillingCycle,
-  isOpen,
-  onClose,
-  onChanged,
-}: {
-  subscriptionId: string;
-  currentPlanId: string;
-  currentBillingCycle: 'MENSUEL' | 'ANNUEL';
-  isOpen: boolean;
-  onClose: () => void;
-  onChanged: () => void;
-}) {
-  const { data: plans } = useApi<SaasPlan[]>(isOpen ? '/saas/plans' : null);
-  const [selectedPlanId, setSelectedPlanId] = useState('');
-  const [billingCycle, setBillingCycle] = useState<'MENSUEL' | 'ANNUEL'>(currentBillingCycle);
-  const [result, setResult] = useState<{ prorata: { difference: number } } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleConfirm = async () => {
-    if (!selectedPlanId) return;
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      const res = await apiClient.patch<{ prorata: { difference: number } }>(
-        `/saas/plans/${subscriptionId}/change-plan/${selectedPlanId}`,
-        { billingCycle },
-      );
-      setResult(res);
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleClose = () => {
-    setSelectedPlanId('');
-    setResult(null);
-    onChanged();
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Changer / renouveler mon plan">
-      {result ? (
-        <div>
-          <p className="mb-3 rounded-lg bg-primary-50 px-3 py-3 text-sm text-primary-700">
-            Abonnement mis à jour avec succès.
-          </p>
-          {result.prorata.difference !== 0 && (
-            <p className="mb-4 text-sm text-ink-600">
-              {result.prorata.difference > 0
-                ? `Un complément de ${formatCurrency(result.prorata.difference)} a été facturé au prorata des jours restants — retrouvez la facture dans "Mes factures".`
-                : `Un crédit de ${formatCurrency(Math.abs(result.prorata.difference))} a été appliqué au prorata des jours restants.`}
-            </p>
-          )}
-          <Button onClick={handleClose} className="w-full">
-            Fermer
-          </Button>
-        </div>
-      ) : (
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">Périodicité</p>
-          <div className="mb-4 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setBillingCycle('MENSUEL')}
-              className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                billingCycle === 'MENSUEL' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-ink-100 text-ink-600'
-              }`}
-            >
-              Mensuel
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingCycle('ANNUEL')}
-              className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                billingCycle === 'ANNUEL' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-ink-100 text-ink-600'
-              }`}
-            >
-              Annuel
-            </button>
-          </div>
-
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">Plan</p>
-          <div className="mb-4 space-y-2">
-            {(plans ?? []).map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setSelectedPlanId(p.id)}
-                className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
-                  selectedPlanId === p.id
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-ink-100 hover:border-primary-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-ink-900">
-                    {p.name}
-                    {p.id === currentPlanId && <span className="ml-2 text-xs text-ink-400">(plan actuel)</span>}
-                  </span>
-                  <span className="text-sm font-semibold text-ink-900">
-                    {formatCurrency(billingCycle === 'ANNUEL' ? p.priceAnnual : p.priceMonthly)}
-                    {billingCycle === 'ANNUEL' ? '/an' : '/mois'}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <p className="mb-4 text-xs text-ink-400">
-            Un ajustement au prorata des jours restants sur la période en cours sera calculé automatiquement.
-          </p>
-
-          {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-
-          <Button onClick={handleConfirm} disabled={!selectedPlanId} isLoading={isSubmitting} className="w-full">
-            Confirmer le changement
-          </Button>
-        </div>
-      )}
-    </Modal>
-  );
-}
 
 /**
  * §9.8 — Paiement self-service Mobile Money, en deux temps : le
@@ -316,7 +195,7 @@ function PayMobileMoneyModal({
   onClose: () => void;
   onPaid: () => void;
 }) {
-  const [step, setStep] = useState<'initiate' | 'otp'>('initiate');
+  const [step, setStep] = useState<'initiate' | 'otp' | 'declared'>('initiate');
   const [method, setMethod] = useState<'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'>('ORANGE_MONEY');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otpCode, setOtpCode] = useState('');
@@ -348,7 +227,11 @@ function PayMobileMoneyModal({
     setIsSubmitting(true);
     try {
       await apiClient.post(`/saas/invoices/${invoice.id}/pay/mobile-money/confirm`, { otpCode });
-      onPaid();
+      // §9.8 — Un propriétaire ne peut jamais s'auto-valider : le
+      // paiement est seulement déclaré, la facture reste EMISE jusqu'à
+      // vérification SUPER_ADMIN. On informe plutôt que de fermer en
+      // silence comme si c'était réglé.
+      setStep('declared');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
     } finally {
@@ -388,7 +271,7 @@ function PayMobileMoneyModal({
             Recevoir le code de confirmation
           </Button>
         </>
-      ) : (
+      ) : step === 'otp' ? (
         <>
           <p className="mb-4 text-sm text-ink-600">
             Un code de confirmation à 6 chiffres a été envoyé au <strong>{phoneNumber}</strong>.
@@ -412,6 +295,18 @@ function PayMobileMoneyModal({
 
           <Button onClick={handleConfirm} disabled={!otpCode} isLoading={isSubmitting} className="w-full">
             Confirmer le paiement
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="mb-3 rounded-lg bg-accent-50 px-3 py-3 text-sm text-accent-700">
+            Paiement déclaré — en attente de validation par l'équipe GymCloud.
+          </p>
+          <p className="mb-4 text-sm text-ink-600">
+            La facture sera marquée payée dès que le règlement sera vérifié — généralement sous peu.
+          </p>
+          <Button onClick={onPaid} className="w-full">
+            Fermer
           </Button>
         </>
       )}

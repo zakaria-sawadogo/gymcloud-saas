@@ -357,6 +357,10 @@ export interface SaasInvoice {
   paidAt?: string;
   paymentMethod?: string;
   paymentReference?: string;
+  declaredPaymentMethod?: string;
+  declaredPaymentReference?: string;
+  declaredAt?: string;
+  pendingPlanId?: string;
   subscription: {
     proprietaire: {
       user: { firstName: string; lastName: string };

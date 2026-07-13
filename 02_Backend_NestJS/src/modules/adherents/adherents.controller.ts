@@ -1,8 +1,8 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { IsIn, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ApiProperty, ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AdherentsService } from './adherents.service';
 import { MembershipCardPdfService } from './membership-card-pdf.service';
 import { CreateAdherentDto, UpdateAdherentDto, SubscribeAdherentDto } from './dto/adherents.dto';
@@ -31,6 +31,28 @@ class CreateAdherentWithPaymentDto extends CreateAdherentDto {
   @ValidateNested()
   @Type(() => PaymentInfoDto)
   payment!: PaymentInfoDto;
+}
+
+class SubscribeWithPaymentDto extends SubscribeAdherentDto {
+  @ApiProperty({ type: PaymentInfoDto })
+  @ValidateNested()
+  @Type(() => PaymentInfoDto)
+  payment!: PaymentInfoDto;
+}
+
+class RequestSubscriptionDto {
+  @ApiProperty({ description: 'Formule choisie depuis l\'app mobile' })
+  @IsUUID()
+  abonnementCatalogueId!: string;
+
+  @ApiProperty({ enum: ['ESPECES', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'] })
+  @IsIn(['ESPECES', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'])
+  paymentMethod!: 'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
 }
 
 @ApiTags('Adhérents')
@@ -63,6 +85,46 @@ export class AdherentsController {
   createWithPayment(@Body() dto: CreateAdherentWithPaymentDto, @CurrentUser() user: TenantContext) {
     const { payment, ...adherentDto } = dto;
     return this.adherentsService.createWithPayment(adherentDto, payment, user.userId);
+  }
+
+  @Post('me/request-subscription')
+  @RequirePermission('create', 'Payment')
+  @RestrictedInDegradedMode()
+  @ApiOperation({
+    summary:
+      'L\'adhérent déclare vouloir souscrire/se réabonner depuis l\'app mobile (§5.6, §8.3) — ne crée PAS encore l\'abonnement, en attente de validation du gestionnaire.',
+  })
+  requestSubscription(@Body() dto: RequestSubscriptionDto, @CurrentUser() user: TenantContext) {
+    return this.adherentsService.requestSubscriptionFromMobile(user.userId, dto, user.userId);
+  }
+
+  @Get('salle/:salleId/pending-subscriptions')
+  @RequirePermission('read', 'Payment')
+  @ApiOperation({ summary: 'Demandes de souscription en attente de validation (§8.3)' })
+  pendingSubscriptions(@Param('salleId') salleId: string) {
+    return this.adherentsService.listPendingSubscriptionRequests(salleId);
+  }
+
+  @Patch('pending-subscriptions/:paymentId/approve')
+  @RequirePermission('manage', 'AdherentAbonnement')
+  @RestrictedInDegradedMode()
+  @ApiOperation({
+    summary:
+      'Le gestionnaire valide — constate le règlement, active l\'abonnement et génère le reçu (§8.3)',
+  })
+  approveSubscriptionRequest(@Param('paymentId') paymentId: string, @CurrentUser() user: TenantContext) {
+    return this.adherentsService.approvePendingSubscription(paymentId, user);
+  }
+
+  @Patch('pending-subscriptions/:paymentId/reject')
+  @RequirePermission('manage', 'AdherentAbonnement')
+  @ApiOperation({ summary: 'Le gestionnaire rejette (fonds non retrouvés) — l\'adhérent peut resoumettre' })
+  rejectSubscriptionRequest(
+    @Param('paymentId') paymentId: string,
+    @Body('reason') reason: string | undefined,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.adherentsService.rejectPendingSubscription(paymentId, user, reason);
   }
 
   @Get(':id/card')
@@ -138,19 +200,11 @@ export class AdherentsController {
     return this.adherentsService.reactivate(id, user.userId);
   }
 
-  @Post(':id/subscribe')
-  @RequirePermission('manage', 'AdherentAbonnement')
-  @RestrictedInDegradedMode() // "création d'abonnements" bloquée en mode dégradé (§9.10)
-  @ApiOperation({
-    summary: 'Souscrire / réabonner (chaînage automatique sans perte de jours — §5.13)',
-  })
-  subscribe(
-    @Param('id') id: string,
-    @Body() dto: SubscribeAdherentDto,
-    @CurrentUser() user: TenantContext,
-  ) {
-    return this.adherentsService.subscribe(id, dto, user.userId);
-  }
+  // §5.7, §5.13, §8.3 — L'ancien endpoint POST :id/subscribe (sans
+  // encaissement) a été retiré : une souscription payante ne doit
+  // jamais pouvoir être créée sans paiement associé, y compris via un
+  // appel API direct (Swagger, script...). Seul subscribe-with-payment
+  // ci-dessous existe désormais pour un réabonnement.
 
   @Post(':id/subscribe-with-payment')
   @RequirePermission('manage', 'AdherentAbonnement')
@@ -161,7 +215,7 @@ export class AdherentsController {
   })
   subscribeWithPayment(
     @Param('id') id: string,
-    @Body() dto: SubscribeAdherentDto & { payment: PaymentInfoDto },
+    @Body() dto: SubscribeWithPaymentDto,
     @CurrentUser() user: TenantContext,
   ) {
     const { payment, ...subscribeDto } = dto;

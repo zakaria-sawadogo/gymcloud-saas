@@ -342,6 +342,24 @@ model SaasInvoice {
   pendingPaymentMethod  String?
   pendingPhoneNumber    String?
 
+  // Déclaration de paiement par le propriétaire, en attente de
+  // validation SUPER_ADMIN (§9.8, §9.12) — un propriétaire ne peut
+  // jamais s'auto-valider : après OTP (Mobile Money) ou soumission
+  // (espèces), le paiement est seulement DÉCLARÉ (statut toujours
+  // EMISE) jusqu'à ce qu'un SUPER_ADMIN/RESPONSABLE_FINANCE vérifie
+  // et approuve. Le SUPER_ADMIN, lui, encaisse directement (mark-paid)
+  // sans passer par cette déclaration — il EST le validateur.
+  declaredPaymentMethod    String?
+  declaredPaymentReference String?
+  declaredAt               DateTime?
+  declaredByUserId         String?
+
+  // Changement de plan en attente de validation (§9.12) — si non nul,
+  // l'approbation de cette facture applique AUSSI ce changement à la
+  // souscription (plan + cycle), pas seulement le règlement.
+  pendingPlanId         String?
+  pendingBillingCycle   BillingCycle?
+
   @@index([subscriptionId])
   @@map("saas_invoices")
 }
@@ -773,6 +791,12 @@ model Payment {
 
   validatedByUserId String?
   validatedAt       DateTime?
+
+  // Demande de souscription initiée par l'adhérent depuis l'app
+  // mobile (§5.6, §8.3) — non nul tant que le gestionnaire n'a pas
+  // validé : approuver ce paiement crée/active alors l'AdherentAbonnement
+  // pour cette formule. Un adhérent ne peut jamais s'auto-valider.
+  pendingAbonnementCatalogueId String?
 
   createdAt DateTime @default(now())
 
