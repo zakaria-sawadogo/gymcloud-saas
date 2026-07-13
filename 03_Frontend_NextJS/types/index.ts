@@ -67,6 +67,9 @@ export interface CoachProfile {
   salleId: string;
   bio?: string;
   specialties: string[];
+  pricePerSession?: number | null;
+  priceMonthly?: number | null;
+  currency?: string | null;
   user: {
     firstName: string;
     lastName: string;

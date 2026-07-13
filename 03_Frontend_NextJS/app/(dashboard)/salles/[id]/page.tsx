@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, UserCog, Dumbbell } from 'lucide-react';
+import { ArrowLeft, Plus, UserCog, Dumbbell, Coins } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -14,6 +14,7 @@ import { Field, Input } from '@/components/ui/Input';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { GestionnaireDashboardView } from '@/components/dashboard/GestionnaireDashboardView';
 import { SallePaymentsView } from '@/components/dashboard/SallePaymentsView';
+import { formatCurrency } from '@/lib/utils';
 import type { Salle, GestionnaireProfile, CoachProfile } from '@/types';
 
 /**
@@ -37,6 +38,7 @@ export default function SalleDetailPage() {
   const { data: salle } = useApi<Salle>(`/salles/${params.id}`);
   const [isCreateGestionnaireOpen, setIsCreateGestionnaireOpen] = useState(false);
   const [isCreateCoachOpen, setIsCreateCoachOpen] = useState(false);
+  const [pricingCoach, setPricingCoach] = useState<CoachProfile | null>(null);
 
   const { data: gestionnaires, refetch: refetchGestionnaires } = useApi<GestionnaireProfile[]>(
     `/gestionnaires/salle/${params.id}`,
@@ -110,11 +112,26 @@ export default function SalleDetailPage() {
           ) : (
             <div className="space-y-2">
               {coachs.map((c) => (
-                <div key={c.id} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
-                  <span className="text-sm font-medium text-ink-900">
-                    {c.user.firstName} {c.user.lastName}
-                  </span>
-                  <span className="text-xs text-ink-400">{c.user.phone}</span>
+                <div key={c.id} className="rounded-lg bg-ink-50 px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-ink-900">
+                      {c.user.firstName} {c.user.lastName}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-ink-400">{c.user.phone}</span>
+                      <Button size="sm" variant="ghost" onClick={() => setPricingCoach(c)}>
+                        <Coins className="h-3.5 w-3.5" />
+                        Tarifs
+                      </Button>
+                    </div>
+                  </div>
+                  {(c.pricePerSession != null || c.priceMonthly != null) && (
+                    <p className="mt-1 text-xs text-ink-500">
+                      {c.pricePerSession != null && `${formatCurrency(c.pricePerSession, c.currency ?? 'XOF')}/séance`}
+                      {c.pricePerSession != null && c.priceMonthly != null && ' · '}
+                      {c.priceMonthly != null && `${formatCurrency(c.priceMonthly, c.currency ?? 'XOF')}/mois`}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
@@ -148,7 +165,84 @@ export default function SalleDetailPage() {
           refetchCoachs();
         }}
       />
+      {pricingCoach && (
+        <CoachPricingModal
+          coach={pricingCoach}
+          onClose={() => setPricingCoach(null)}
+          onSaved={() => {
+            setPricingCoach(null);
+            refetchCoachs();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * §7.7 — Tarification des séances individuelles d'un coach. Laisser
+ * les deux champs vides = séances incluses dans l'abonnement standard
+ * (comportement historique, rétrocompatible) ; renseigner l'un ou
+ * l'autre (ou les deux) active l'encaissement obligatoire au moment
+ * de la réservation.
+ */
+function CoachPricingModal({
+  coach,
+  onClose,
+  onSaved,
+}: {
+  coach: CoachProfile;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [pricePerSession, setPricePerSession] = useState(coach.pricePerSession != null ? String(coach.pricePerSession) : '');
+  const [priceMonthly, setPriceMonthly] = useState(coach.priceMonthly != null ? String(coach.priceMonthly) : '');
+  const [currency, setCurrency] = useState(coach.currency ?? 'XOF');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await apiClient.patch(`/coachs/${coach.id}/pricing`, {
+        pricePerSession: pricePerSession ? Number(pricePerSession) : undefined,
+        priceMonthly: priceMonthly ? Number(priceMonthly) : undefined,
+        currency,
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Tarifs — ${coach.user.firstName} ${coach.user.lastName}`}>
+      <form onSubmit={handleSubmit}>
+        <p className="mb-4 text-xs text-ink-400">
+          Laisser les deux champs vides = séances individuelles incluses dans l'abonnement standard, aucun
+          encaissement demandé à la réservation.
+        </p>
+        <Field label="Tarif par séance (optionnel)">
+          <Input type="number" min="0" value={pricePerSession} onChange={(e) => setPricePerSession(e.target.value)} />
+        </Field>
+        <Field label="Forfait mensuel illimité (optionnel)">
+          <Input type="number" min="0" value={priceMonthly} onChange={(e) => setPriceMonthly(e.target.value)} />
+        </Field>
+        <Field label="Devise">
+          <Input value={currency} onChange={(e) => setCurrency(e.target.value)} />
+        </Field>
+
+        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <Button type="submit" isLoading={isSubmitting} className="w-full">
+          Enregistrer
+        </Button>
+      </form>
+    </Modal>
   );
 }
 

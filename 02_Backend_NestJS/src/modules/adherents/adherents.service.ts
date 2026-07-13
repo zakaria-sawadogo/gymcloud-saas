@@ -381,6 +381,48 @@ export class AdherentsService {
     return subscription;
   }
 
+  /**
+   * §5.7, §5.13, §8.3 — Réabonnement avec encaissement immédiat, sur
+   * le même principe que createWithPayment (inscription) : la
+   * souscription à une formule et le paiement associé sont deux faces
+   * de la même action pour un gestionnaire au guichet, jamais deux
+   * étapes séparées où l'une pourrait être oubliée. Le montant
+   * facturé est TOUJOURS celui du catalogue, jamais une valeur
+   * transmise par le client.
+   */
+  async subscribeWithPayment(
+    adherentId: string,
+    dto: SubscribeAdherentDto,
+    payment: { method: 'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'; phoneNumber?: string },
+    actorUserId: string,
+  ) {
+    const [adherent, catalogue] = await Promise.all([
+      this.prisma.adherentProfile.findUniqueOrThrow({ where: { id: adherentId } }),
+      this.prisma.abonnementCatalogue.findUniqueOrThrow({ where: { id: dto.abonnementCatalogueId } }),
+    ]);
+
+    const subscription = await this.subscribe(adherentId, dto, actorUserId);
+
+    const paymentPayload = {
+      salleId: adherent.salleId,
+      adherentId,
+      adherentAbonnementId: subscription.id,
+      type: PaymentTypeDto.ABONNEMENT,
+      amount: Number(catalogue.price),
+      currency: catalogue.currency,
+    };
+
+    const paymentResult =
+      payment.method === 'ESPECES'
+        ? await this.paymentsService.recordCashPayment(paymentPayload, actorUserId)
+        : await this.paymentsService.initiateMobileMoney(
+            { ...paymentPayload, method: payment.method, phoneNumber: payment.phoneNumber ?? '' },
+            actorUserId,
+          );
+
+    return { subscription, payment: paymentResult };
+  }
+
   async history(adherentId: string) {
     return this.prisma.adherentAbonnement.findMany({
       where: { adherentId },

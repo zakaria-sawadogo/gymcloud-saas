@@ -152,6 +152,22 @@ export class AdherentsController {
     return this.adherentsService.subscribe(id, dto, user.userId);
   }
 
+  @Post(':id/subscribe-with-payment')
+  @RequirePermission('manage', 'AdherentAbonnement')
+  @RestrictedInDegradedMode()
+  @ApiOperation({
+    summary:
+      'Réabonnement + encaissement en une seule opération (§5.7, §5.13, §8.3) — la facture (reçu) n\'a de sens qu\'après ce paiement.',
+  })
+  subscribeWithPayment(
+    @Param('id') id: string,
+    @Body() dto: SubscribeAdherentDto & { payment: PaymentInfoDto },
+    @CurrentUser() user: TenantContext,
+  ) {
+    const { payment, ...subscribeDto } = dto;
+    return this.adherentsService.subscribeWithPayment(id, subscribeDto, payment, user.userId);
+  }
+
   @Get(':id/history')
   @RequirePermission('read', 'AdherentAbonnement')
   @ApiOperation({ summary: 'Historique complet des abonnements (§5.7)' })

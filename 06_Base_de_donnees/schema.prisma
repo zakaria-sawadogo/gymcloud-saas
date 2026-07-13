@@ -478,11 +478,21 @@ model CoachProfile {
   bio       String?
   specialties String[]
 
+  // Tarification des séances individuelles (§7.7) — null = incluses
+  // dans l'abonnement standard, aucun coût supplémentaire pour ce
+  // coach. Deux modes non exclusifs : à la séance, ou forfait mensuel
+  // illimité (voir CoachMonthlyPass) ; le gestionnaire/adhérent choisit
+  // au moment de la réservation lequel appliquer.
+  pricePerSession Decimal? @db.Decimal(12, 2)
+  priceMonthly    Decimal? @db.Decimal(12, 2)
+  currency        String?
+
   createdAt DateTime @default(now())
 
   availabilities CoachAvailability[]
   bookings       Booking[]
   coursCollectifs CoursCollectif[]
+  monthlyPasses  CoachMonthlyPass[]
 
   @@index([salleId])
   @@map("coach_profiles")
@@ -534,6 +544,7 @@ model AdherentProfile {
 
   subscriptions AdherentAbonnement[]
   payments      Payment[]
+  coachMonthlyPasses CoachMonthlyPass[]
   accessLogs    AccessLog[]
   bookings      Booking[]
 
@@ -682,6 +693,28 @@ model Booking {
   @@index([adherentId])
   @@index([coachId])
   @@map("bookings")
+}
+
+/// §7.7 — Forfait mensuel de séances individuelles illimitées avec un
+/// coach donné. Créé au moment où l'adhérent choisit le mode de
+/// facturation "mensuel" plutôt que "à la séance" lors d'une réservation
+/// (voir BookingsService.bookSeanceIndividuelle) ; tant qu'un forfait
+/// actif couvre la date du jour, aucune nouvelle charge n'est appliquée
+/// pour ce même coach.
+model CoachMonthlyPass {
+  id          String          @id @default(uuid())
+  adherentId  String
+  adherent    AdherentProfile @relation(fields: [adherentId], references: [id])
+  coachId     String
+  coach       CoachProfile    @relation(fields: [coachId], references: [id])
+  startDate   DateTime
+  endDate     DateTime
+  paymentId   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([adherentId, coachId])
+  @@map("coach_monthly_passes")
 }
 
 model WaitingListEntry {

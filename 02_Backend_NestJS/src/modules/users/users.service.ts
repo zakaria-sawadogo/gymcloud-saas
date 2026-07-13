@@ -239,6 +239,17 @@ export class UsersService {
     });
   }
 
+  /** §7.7 — Configure la tarification des séances individuelles d'un coach. */
+  async updateCoachPricing(
+    coachId: string,
+    data: { pricePerSession?: number; priceMonthly?: number; currency?: string },
+  ) {
+    return this.prisma.coachProfile.update({
+      where: { id: coachId },
+      data,
+    });
+  }
+
   // ─────────────────────────────────────────────────────────────
   // Cycle de vie commun (§4.2, applicable à tous les profils)
   // ─────────────────────────────────────────────────────────────

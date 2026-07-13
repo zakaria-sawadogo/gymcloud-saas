@@ -1,10 +1,30 @@
 import { Body, Controller, Get, Param, Post, Patch } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { IsOptional, IsNumber, IsString, Min } from 'class-validator';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiPropertyOptional } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateCoachDto } from './dto/users.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CheckQuota } from '../../common/guards/quota.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+
+class UpdateCoachPricingDto {
+  @ApiPropertyOptional({ description: 'Tarif par séance individuelle — null pour retirer' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  pricePerSession?: number;
+
+  @ApiPropertyOptional({ description: 'Tarif du forfait mensuel illimité — null pour retirer' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  priceMonthly?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  currency?: string;
+}
 
 @ApiTags('Utilisateurs — Coachs')
 @ApiBearerAuth()
@@ -27,6 +47,16 @@ export class CoachsController {
   @ApiOperation({ summary: 'Liste des coachs d\'une salle' })
   findBySalle(@Param('salleId') salleId: string) {
     return this.usersService.findCoachsBySalle(salleId);
+  }
+
+  @Patch(':id/pricing')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({
+    summary:
+      'Configurer la tarification des séances individuelles (§7.7) — laisser vide = séances incluses dans l\'abonnement standard',
+  })
+  updatePricing(@Param('id') id: string, @Body() dto: UpdateCoachPricingDto) {
+    return this.usersService.updateCoachPricing(id, dto);
   }
 
   @Patch(':userId/suspend')

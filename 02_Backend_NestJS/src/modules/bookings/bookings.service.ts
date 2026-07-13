@@ -7,6 +7,8 @@ import {
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { PaymentsService } from '../payments/payments.service';
+import { PaymentTypeDto } from '../payments/dto/payments.dto';
 import {
   CreateCoursCollectifDto,
   UpdateCoursCollectifDto,
@@ -30,6 +32,7 @@ export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -160,6 +163,18 @@ export class BookingsService {
   // Séances individuelles (§7.6, §7.7)
   // ─────────────────────────────────────────────────────────────
 
+  /**
+   * §7.6, §7.7 — Réserve une séance individuelle. Si le coach a une
+   * tarification configurée (pricePerSession/priceMonthly), la
+   * réservation encaisse le coût correspondant dans la même opération
+   * — jamais une étape séparée que le gestionnaire pourrait oublier :
+   *  - PAR_SEANCE : facture le tarif à la séance à chaque réservation.
+   *  - MENSUEL : facture le forfait mensuel UNE SEULE FOIS par mois
+   *    (réutilise le forfait actif s'il en existe déjà un couvrant la
+   *    date de la séance — aucune double facturation).
+   * Si le coach n'a AUCUNE tarification configurée, la séance reste
+   * incluse dans l'abonnement standard, comme avant (rétrocompatible).
+   */
   async bookSeanceIndividuelle(salleId: string, dto: BookSeanceIndividuelleDto, actorUserId: string) {
     const startAt = new Date(dto.startAt);
     const endAt = new Date(dto.endAt);
@@ -167,6 +182,18 @@ export class BookingsService {
     await this.assertAdherentActive(dto.adherentId);
     await this.assertCoachAvailable(dto.coachId, startAt, endAt);
     await this.assertNoOverlap(dto.coachId, startAt, endAt);
+
+    const coach = await this.prisma.coachProfile.findUniqueOrThrow({ where: { id: dto.coachId } });
+    const hasPricing = coach.pricePerSession !== null || coach.priceMonthly !== null;
+
+    if (hasPricing && !dto.billingMode) {
+      throw new BadRequestException(
+        'Ce coach a une tarification pour les séances individuelles — précisez billingMode (PAR_SEANCE ou MENSUEL)',
+      );
+    }
+    if (hasPricing && !dto.paymentMethod) {
+      throw new BadRequestException('Moyen de paiement requis pour cette séance payante');
+    }
 
     const booking = await this.prisma.booking.create({
       data: {
@@ -189,7 +216,89 @@ export class BookingsService {
       entityId: booking.id,
     });
 
-    return booking;
+    let payment = null;
+    if (hasPricing && dto.paymentMethod) {
+      payment = await this.chargeSeanceIndividuelle(salleId, dto, coach, startAt, actorUserId);
+    }
+
+    return { booking, payment };
+  }
+
+  /** Facture une séance individuelle selon le mode choisi — voir bookSeanceIndividuelle. */
+  private async chargeSeanceIndividuelle(
+    salleId: string,
+    dto: BookSeanceIndividuelleDto,
+    coach: { id: string; pricePerSession: any; priceMonthly: any; currency: string | null },
+    seanceDate: Date,
+    actorUserId: string,
+  ) {
+    const currency = coach.currency ?? 'XOF';
+
+    if (dto.billingMode === 'MENSUEL') {
+      const activePass = await this.prisma.coachMonthlyPass.findFirst({
+        where: {
+          adherentId: dto.adherentId,
+          coachId: coach.id,
+          startDate: { lte: seanceDate },
+          endDate: { gte: seanceDate },
+        },
+      });
+      if (activePass) return null; // forfait déjà actif — aucune nouvelle charge
+
+      if (coach.priceMonthly === null) {
+        throw new BadRequestException('Ce coach ne propose pas de forfait mensuel');
+      }
+
+      const passStart = new Date();
+      const passEnd = new Date(passStart);
+      passEnd.setDate(passEnd.getDate() + 30);
+
+      const paymentPayload = {
+        salleId,
+        adherentId: dto.adherentId,
+        type: PaymentTypeDto.SEANCE,
+        amount: Number(coach.priceMonthly),
+        currency,
+      };
+      const paymentResult =
+        dto.paymentMethod === 'ESPECES'
+          ? await this.paymentsService.recordCashPayment(paymentPayload, actorUserId)
+          : await this.paymentsService.initiateMobileMoney(
+              { ...paymentPayload, method: dto.paymentMethod!, phoneNumber: dto.paymentPhoneNumber ?? '' },
+              actorUserId,
+            );
+
+      await this.prisma.coachMonthlyPass.create({
+        data: {
+          id: randomUUID(),
+          adherentId: dto.adherentId,
+          coachId: coach.id,
+          startDate: passStart,
+          endDate: passEnd,
+          paymentId: paymentResult.payment.id,
+        },
+      });
+
+      return paymentResult;
+    }
+
+    // PAR_SEANCE
+    if (coach.pricePerSession === null) {
+      throw new BadRequestException('Ce coach ne propose pas de tarif à la séance');
+    }
+    const paymentPayload = {
+      salleId,
+      adherentId: dto.adherentId,
+      type: PaymentTypeDto.SEANCE,
+      amount: Number(coach.pricePerSession),
+      currency,
+    };
+    return dto.paymentMethod === 'ESPECES'
+      ? await this.paymentsService.recordCashPayment(paymentPayload, actorUserId)
+      : await this.paymentsService.initiateMobileMoney(
+          { ...paymentPayload, method: dto.paymentMethod!, phoneNumber: dto.paymentPhoneNumber ?? '' },
+          actorUserId,
+        );
   }
 
   // ─────────────────────────────────────────────────────────────

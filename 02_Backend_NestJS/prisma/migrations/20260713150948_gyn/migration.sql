@@ -336,6 +336,9 @@ CREATE TABLE "coach_profiles" (
     "salleId" TEXT NOT NULL,
     "bio" TEXT,
     "specialties" TEXT[],
+    "pricePerSession" DECIMAL(12,2),
+    "priceMonthly" DECIMAL(12,2),
+    "currency" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "coach_profiles_pkey" PRIMARY KEY ("id")
@@ -449,6 +452,19 @@ CREATE TABLE "bookings" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "bookings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "coach_monthly_passes" (
+    "id" TEXT NOT NULL,
+    "adherentId" TEXT NOT NULL,
+    "coachId" TEXT NOT NULL,
+    "startDate" TIMESTAMP(3) NOT NULL,
+    "endDate" TIMESTAMP(3) NOT NULL,
+    "paymentId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "coach_monthly_passes_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -688,6 +704,9 @@ CREATE INDEX "bookings_adherentId_idx" ON "bookings"("adherentId");
 CREATE INDEX "bookings_coachId_idx" ON "bookings"("coachId");
 
 -- CreateIndex
+CREATE INDEX "coach_monthly_passes_adherentId_coachId_idx" ON "coach_monthly_passes"("adherentId", "coachId");
+
+-- CreateIndex
 CREATE INDEX "waiting_list_entries_coursCollectifId_idx" ON "waiting_list_entries"("coursCollectifId");
 
 -- CreateIndex
@@ -842,6 +861,12 @@ ALTER TABLE "bookings" ADD CONSTRAINT "bookings_coachId_fkey" FOREIGN KEY ("coac
 
 -- AddForeignKey
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_coursCollectifId_fkey" FOREIGN KEY ("coursCollectifId") REFERENCES "cours_collectifs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "coach_monthly_passes" ADD CONSTRAINT "coach_monthly_passes_adherentId_fkey" FOREIGN KEY ("adherentId") REFERENCES "adherent_profiles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "coach_monthly_passes" ADD CONSTRAINT "coach_monthly_passes_coachId_fkey" FOREIGN KEY ("coachId") REFERENCES "coach_profiles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "waiting_list_entries" ADD CONSTRAINT "waiting_list_entries_coursCollectifId_fkey" FOREIGN KEY ("coursCollectifId") REFERENCES "cours_collectifs"("id") ON DELETE CASCADE ON UPDATE CASCADE;

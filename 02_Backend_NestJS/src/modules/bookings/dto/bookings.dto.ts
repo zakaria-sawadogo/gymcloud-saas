@@ -6,6 +6,7 @@ import {
   IsDateString,
   IsOptional,
   IsBoolean,
+  IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -95,6 +96,25 @@ export class BookSeanceIndividuelleDto {
   @ApiProperty()
   @IsDateString()
   endAt!: string;
+
+  @ApiPropertyOptional({
+    enum: ['PAR_SEANCE', 'MENSUEL'],
+    description:
+      'Requis uniquement si le coach a une tarification configurée (§7.7) — ignoré sinon (séance incluse dans l\'abonnement standard)',
+  })
+  @IsOptional()
+  @IsIn(['PAR_SEANCE', 'MENSUEL'])
+  billingMode?: 'PAR_SEANCE' | 'MENSUEL';
+
+  @ApiPropertyOptional({ enum: ['ESPECES', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'] })
+  @IsOptional()
+  @IsIn(['ESPECES', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'])
+  paymentMethod?: 'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  paymentPhoneNumber?: string;
 }
 
 export class CancelBookingDto {
