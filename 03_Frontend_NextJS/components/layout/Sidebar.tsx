@@ -41,6 +41,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   PROPRIETAIRE: [
     { label: 'Vue consolidée', href: '/', icon: LayoutDashboard },
     { label: 'Mes salles', href: '/salles', icon: Building2 },
+    { label: 'Mon abonnement', href: '/mon-abonnement', icon: Layers },
   ],
   GESTIONNAIRE: [
     { label: 'Tableau de bord', href: '/', icon: LayoutDashboard },

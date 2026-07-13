@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { Plus, Layers, Ban, Archive, RotateCcw } from 'lucide-react';
+import { useState, type FormEvent, useEffect } from 'react';
+import { Plus, Layers, Ban, Archive, RotateCcw, Pencil } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -29,7 +29,8 @@ const MODULE_OPTIONS = [
 ];
 
 export default function PlansSaasPage() {
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<SaasPlan | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const { data: plans, isLoading, error, refetch } = useApi<SaasPlan[]>('/saas/plans?includeAll=true');
 
@@ -49,7 +50,7 @@ export default function PlansSaasPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-ink-900">Plans SaaS</h1>
-        <Button onClick={() => setIsCreateOpen(true)}>
+        <Button onClick={() => setIsFormOpen(true)}>
           <Plus className="h-4 w-4" />
           Nouveau plan
         </Button>
@@ -117,8 +118,12 @@ export default function PlansSaasPage() {
                 ))}
               </div>
 
-              {/* §9.3 — Activer/suspendre/archiver, sans jamais toucher les souscriptions déjà en cours sur ce plan */}
-              <div className="flex gap-2 border-t border-ink-100 pt-3">
+              {/* §9.3 — Modifier, activer/suspendre/archiver, sans jamais toucher les souscriptions déjà en cours sur ce plan */}
+              <div className="flex flex-wrap gap-2 border-t border-ink-100 pt-3">
+                <Button size="sm" variant="secondary" onClick={() => setEditingPlan(p)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                  Modifier
+                </Button>
                 {p.status !== 'ACTIF' && (
                   <Button
                     size="sm"
@@ -158,11 +163,16 @@ export default function PlansSaasPage() {
         </div>
       )}
 
-      <CreatePlanModal
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onCreated={() => {
-          setIsCreateOpen(false);
+      <PlanFormModal
+        isOpen={isFormOpen || !!editingPlan}
+        existing={editingPlan}
+        onClose={() => {
+          setIsFormOpen(false);
+          setEditingPlan(null);
+        }}
+        onSaved={() => {
+          setIsFormOpen(false);
+          setEditingPlan(null);
           refetch();
         }}
       />
@@ -170,26 +180,76 @@ export default function PlansSaasPage() {
   );
 }
 
-function CreatePlanModal({
+/**
+ * §9.3 — Formulaire unique création + édition. En édition, `code`
+ * n'est jamais modifiable (identifiant stable référencé ailleurs) ;
+ * tous les autres champs — y compris quotas, remise annuelle, période
+ * d'essai et taxe, absents jusqu'ici du formulaire d'édition — sont
+ * désormais éditables (cohérent avec UpdateSaasPlanDto côté backend).
+ */
+function PlanFormModal({
   isOpen,
+  existing,
   onClose,
-  onCreated,
+  onSaved,
 }: {
   isOpen: boolean;
+  existing: SaasPlan | null;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
+  const isEditing = !!existing;
+
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [priceMonthly, setPriceMonthly] = useState('');
   const [priceAnnual, setPriceAnnual] = useState('');
   const [extraSalleFee, setExtraSalleFee] = useState('');
+  const [annualDiscountPct, setAnnualDiscountPct] = useState('0');
+  const [trialDays, setTrialDays] = useState('0');
+  const [taxRatePct, setTaxRatePct] = useState('0');
   const [quotaSalles, setQuotaSalles] = useState('1');
   const [quotaGestionnaires, setQuotaGestionnaires] = useState('');
+  const [quotaCoachs, setQuotaCoachs] = useState('');
   const [quotaAdherents, setQuotaAdherents] = useState('');
   const [selectedModules, setSelectedModules] = useState<string[]>(['adherents', 'abonnements', 'paiements']);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (existing) {
+      setCode(existing.code);
+      setName(existing.name);
+      setDescription(existing.description ?? '');
+      setPriceMonthly(String(existing.priceMonthly));
+      setPriceAnnual(String(existing.priceAnnual));
+      setExtraSalleFee(String(existing.extraSalleFee));
+      setAnnualDiscountPct(String(existing.annualDiscountPct ?? 0));
+      setTrialDays(String(existing.trialDays ?? 0));
+      setTaxRatePct(String(existing.taxRatePct ?? 0));
+      setQuotaSalles(String(existing.quotaSalles));
+      setQuotaGestionnaires(existing.quotaGestionnaires !== null ? String(existing.quotaGestionnaires) : '');
+      setQuotaCoachs(existing.quotaCoachs !== null ? String(existing.quotaCoachs) : '');
+      setQuotaAdherents(existing.quotaAdherents !== null ? String(existing.quotaAdherents) : '');
+      setSelectedModules(existing.modules);
+    } else {
+      setCode('');
+      setName('');
+      setDescription('');
+      setPriceMonthly('');
+      setPriceAnnual('');
+      setExtraSalleFee('');
+      setAnnualDiscountPct('0');
+      setTrialDays('0');
+      setTaxRatePct('0');
+      setQuotaSalles('1');
+      setQuotaGestionnaires('');
+      setQuotaCoachs('');
+      setQuotaAdherents('');
+      setSelectedModules(['adherents', 'abonnements', 'paiements']);
+    }
+  }, [existing, isOpen]);
 
   const toggleModule = (m: string) => {
     setSelectedModules((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
@@ -200,18 +260,28 @@ function CreatePlanModal({
     setError(null);
     setIsSubmitting(true);
     try {
-      await apiClient.post('/saas/plans', {
-        code: code.toUpperCase(),
+      const payload = {
         name,
+        description: description || undefined,
         priceMonthly: Number(priceMonthly),
         priceAnnual: Number(priceAnnual),
         extraSalleFee: Number(extraSalleFee),
+        annualDiscountPct: Number(annualDiscountPct) || undefined,
+        trialDays: Number(trialDays) || undefined,
+        taxRatePct: Number(taxRatePct) || undefined,
         quotaSalles: Number(quotaSalles),
         quotaGestionnaires: quotaGestionnaires ? Number(quotaGestionnaires) : undefined,
+        quotaCoachs: quotaCoachs ? Number(quotaCoachs) : undefined,
         quotaAdherents: quotaAdherents ? Number(quotaAdherents) : undefined,
         modules: selectedModules,
-      });
-      onCreated();
+      };
+
+      if (isEditing) {
+        await apiClient.patch(`/saas/plans/${existing!.id}`, payload);
+      } else {
+        await apiClient.post('/saas/plans', { ...payload, code: code.toUpperCase() });
+      }
+      onSaved();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
     } finally {
@@ -220,13 +290,22 @@ function CreatePlanModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Nouveau plan SaaS">
+    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? `Modifier ${existing?.name}` : 'Nouveau plan SaaS'}>
       <form onSubmit={handleSubmit}>
         <Field label="Code (ex: STARTER)">
-          <Input required value={code} onChange={(e) => setCode(e.target.value)} className="uppercase" />
+          <Input
+            required
+            disabled={isEditing}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="uppercase disabled:bg-ink-50 disabled:text-ink-400"
+          />
         </Field>
         <Field label="Nom">
           <Input required value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Description (optionnel)">
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
         <Field label="Prix mensuel (XOF)">
           <Input type="number" min="0" required value={priceMonthly} onChange={(e) => setPriceMonthly(e.target.value)} />
@@ -237,11 +316,23 @@ function CreatePlanModal({
         <Field label="Coût salle supplémentaire (XOF)">
           <Input type="number" min="0" required value={extraSalleFee} onChange={(e) => setExtraSalleFee(e.target.value)} />
         </Field>
+        <Field label="Remise annuelle (%) — appliquée en plus du prix annuel affiché">
+          <Input type="number" min="0" max="100" value={annualDiscountPct} onChange={(e) => setAnnualDiscountPct(e.target.value)} />
+        </Field>
+        <Field label="Période d'essai (jours, 0 = aucune)">
+          <Input type="number" min="0" value={trialDays} onChange={(e) => setTrialDays(e.target.value)} />
+        </Field>
+        <Field label="Taux de taxe (%)">
+          <Input type="number" min="0" max="100" value={taxRatePct} onChange={(e) => setTaxRatePct(e.target.value)} />
+        </Field>
         <Field label="Quota de salles incluses">
           <Input type="number" min="1" required value={quotaSalles} onChange={(e) => setQuotaSalles(e.target.value)} />
         </Field>
         <Field label="Quota gestionnaires (vide = illimité)">
           <Input type="number" min="1" value={quotaGestionnaires} onChange={(e) => setQuotaGestionnaires(e.target.value)} />
+        </Field>
+        <Field label="Quota coachs (vide = illimité)">
+          <Input type="number" min="1" value={quotaCoachs} onChange={(e) => setQuotaCoachs(e.target.value)} />
         </Field>
         <Field label="Quota adhérents (vide = illimité)">
           <Input type="number" min="1" value={quotaAdherents} onChange={(e) => setQuotaAdherents(e.target.value)} />
@@ -269,7 +360,7 @@ function CreatePlanModal({
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         <Button type="submit" isLoading={isSubmitting} className="w-full">
-          Créer le plan
+          {isEditing ? 'Enregistrer les modifications' : 'Créer le plan'}
         </Button>
       </form>
     </Modal>

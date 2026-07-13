@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { TenantContext } from '../../common/decorators/current-user.decorator';
 import { randomUUID } from 'crypto';
 
 /**
@@ -52,9 +53,17 @@ export class SaasBillingService {
 
   async updatePlan(planId: string, data: Partial<{
     name: string;
+    description: string;
     priceMonthly: number;
     priceAnnual: number;
     extraSalleFee: number;
+    annualDiscountPct: number;
+    trialDays: number;
+    taxRatePct: number;
+    quotaSalles: number;
+    quotaGestionnaires: number | null;
+    quotaCoachs: number | null;
+    quotaAdherents: number | null;
     modules: string[];
   }>, actorUserId: string) {
     const plan = await this.prisma.saasPlan.update({ where: { id: planId }, data });
@@ -228,12 +237,41 @@ export class SaasBillingService {
    * trace de ce qui est dû pour la toute première période, rien à
    * encaisser (bug réel identifié en test : un propriétaire nouvellement
    * créé avec sa première salle n'apparaissait jamais en facturation).
+   *
+   * Période d'essai (§9.7) : une facture est TOUJOURS créée — même
+   * gratuite, l'historique de facturation doit rester continu, sans
+   * trou entre l'inscription et le premier renouvellement payant. Son
+   * montant est forcé à 0 et elle est immédiatement soldée (statut
+   * PAYEE) : rien n'est réellement dû ni à encaisser pendant l'essai.
    */
   async generateBootstrapInvoice(subscriptionId: string) {
     const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
       where: { id: subscriptionId },
       include: { saasPlan: true },
     });
+
+    if (subscription.saasPlan.trialDays > 0) {
+      return this.prisma.saasInvoice.create({
+        data: {
+          id: randomUUID(),
+          subscriptionId: subscription.id,
+          invoiceNumber: this.generateInvoiceNumber(),
+          periodStart: subscription.startDate,
+          periodEnd: subscription.currentPeriodEnd,
+          baseAmount: 0,
+          extraSallesCount: 0,
+          extraSallesAmount: 0,
+          addonsAmount: 0,
+          taxAmount: 0,
+          totalAmount: 0,
+          currency: 'XOF',
+          status: 'PAYEE',
+          paidAt: new Date(),
+          paymentMethod: 'ESSAI_GRATUIT',
+        },
+      });
+    }
+
     return this.getOrCreateCurrentInvoice(subscription);
   }
 
@@ -388,13 +426,26 @@ export class SaasBillingService {
    * suffisant pour un calcul de prorata qui reste une estimation par
    * nature.
    */
-  async changePlan(subscriptionId: string, newPlanId: string, actorUserId: string) {
+  async changePlan(subscriptionId: string, newPlanId: string, actorUserId: string, actor?: TenantContext) {
     const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
       where: { id: subscriptionId },
       include: { _count: { select: { salles: true } }, saasPlan: true },
     });
+
+    // §2.8 — Un PROPRIETAIRE ne peut changer/renouveler que SA PROPRE
+    // souscription ; seul le SUPER_ADMIN (accès global) peut agir sur
+    // n'importe laquelle. `actor` optionnel pour rester compatible avec
+    // d'éventuels appels internes/système sans contexte utilisateur.
+    if (actor && !actor.isGlobalAccess && subscription.proprietaireId !== actor.proprietaireId) {
+      throw new ForbiddenException('Vous ne pouvez modifier que votre propre abonnement SaaS');
+    }
+
     const newPlan = await this.prisma.saasPlan.findUniqueOrThrow({ where: { id: newPlanId } });
     const oldPlan = subscription.saasPlan;
+
+    if (actor && !actor.isGlobalAccess && newPlan.status !== 'ACTIF') {
+      throw new BadRequestException('Ce plan n\'est plus disponible à la souscription');
+    }
 
     const now = new Date();
     const cycleLengthDays = subscription.billingCycle === 'ANNUEL' ? 365 : 30;
@@ -568,6 +619,14 @@ export class SaasBillingService {
         },
       },
       orderBy: { issuedAt: 'desc' },
+    });
+  }
+
+  /** Souscription du propriétaire connecté — évite d'avoir à connaître son subscriptionId à l'avance côté client. */
+  async getMySubscription(proprietaireId: string) {
+    return this.prisma.saasSubscription.findUniqueOrThrow({
+      where: { proprietaireId },
+      include: { saasPlan: true },
     });
   }
 

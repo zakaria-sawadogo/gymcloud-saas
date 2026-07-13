@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -11,9 +10,11 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 };
 
 /**
- * §9.13 — Génération de factures SaaS au format PDF.
- * Générée à la demande (streaming direct dans la réponse HTTP)
- * plutôt que pré-générée et stockée.
+ * §9.13 — Génération de factures SaaS au format PDF. Générée à la
+ * demande (streaming direct dans la réponse HTTP) plutôt que
+ * pré-générée et stockée : aucun stockage d'objets (S3/MinIO) n'est
+ * encore câblé pour héberger des fichiers durables, et une génération
+ * à la volée reste rapide pour un document aussi simple.
  */
 @Injectable()
 export class InvoicePdfService {
@@ -24,25 +25,13 @@ export class InvoicePdfService {
       where: { id: invoiceId },
       include: {
         subscription: {
-          include: {
-            proprietaire: {
-              include: {
-                user: true,
-              },
-            },
-            saasPlan: true,
-          },
+          include: { proprietaire: { include: { user: true } }, saasPlan: true },
         },
       },
     });
 
-    const doc = new PDFDocument({
-      size: 'A4',
-      margin: 50,
-    });
-
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
     const chunks: Buffer[] = [];
-
     doc.on('data', (chunk) => chunks.push(chunk));
 
     const done = new Promise<Buffer>((resolve) => {
@@ -50,254 +39,89 @@ export class InvoicePdfService {
     });
 
     const dateFormat = (d: Date) =>
-      new Intl.DateTimeFormat('fr-FR', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      }).format(d);
+      new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }).format(d);
+    const money = (n: number | string) =>
+      `${Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} ${invoice.currency}`;
 
-    /**
-     * Formate un montant provenant de Prisma Decimal,
-     * d'un nombre ou d'une chaîne.
-     */
-    const money = (
-      value: number | string | Prisma.Decimal,
-    ): string => {
-      const amount =
-        value instanceof Prisma.Decimal
-          ? value.toNumber()
-          : Number(value);
-
-      return `${amount.toLocaleString('fr-FR', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      })} ${invoice.currency}`;
-    };
-
-    /* ==========================
-       EN-TÊTE
-    ========================== */
-
+    // En-tête
     doc.fontSize(20).fillColor('#0F6E56').text('GymCloud', 50, 50);
-
-    doc
-      .fontSize(10)
-      .fillColor('#71767A')
-      .text('Facture SaaS', 50, 75);
+    doc.fontSize(10).fillColor('#71767A').text('Facture SaaS', 50, 75);
 
     doc.fontSize(10).fillColor('#14181B');
-
-    doc.text(`Facture N° ${invoice.invoiceNumber}`, 350, 50, {
-      align: 'right',
-    });
-
+    doc.text(`Facture N° ${invoice.invoiceNumber}`, 350, 50, { align: 'right' });
+    doc.text(`Émise le ${dateFormat(invoice.issuedAt)}`, 350, 65, { align: 'right' });
     doc.text(
-      `Émise le ${dateFormat(invoice.issuedAt)}`,
-      350,
-      65,
-      {
-        align: 'right',
-      },
-    );
-
-    doc.text(
-      `Période : ${dateFormat(
-        invoice.periodStart,
-      )} — ${dateFormat(invoice.periodEnd)}`,
+      `Période : ${dateFormat(invoice.periodStart)} — ${dateFormat(invoice.periodEnd)}`,
       350,
       80,
-      {
-        align: 'right',
-      },
+      { align: 'right' },
     );
 
     doc.moveDown(3);
+    doc.moveTo(50, 120).lineTo(545, 120).strokeColor('#E5E7E8').stroke();
 
-    doc
-      .moveTo(50, 120)
-      .lineTo(545, 120)
-      .strokeColor('#E5E7E8')
-      .stroke();
-
-    /* ==========================
-       DESTINATAIRE
-    ========================== */
-
+    // Destinataire
     const proprietaire = invoice.subscription.proprietaire;
-
-    doc
-      .fontSize(11)
-      .fillColor('#14181B')
-      .text('Facturé à', 50, 140);
-
+    doc.fontSize(11).fillColor('#14181B').text('Facturé à', 50, 140);
     doc.fontSize(10).fillColor('#494F54');
-
-    doc.text(
-      `${proprietaire.user.firstName} ${proprietaire.user.lastName}`,
-      50,
-      158,
-    );
-
-    if (proprietaire.companyName) {
-      doc.text(proprietaire.companyName, 50, 173);
-    }
-
-    if (proprietaire.address) {
-      doc.text(proprietaire.address, 50, 188);
-    }
-
+    doc.text(`${proprietaire.user.firstName} ${proprietaire.user.lastName}`, 50, 158);
+    if (proprietaire.companyName) doc.text(proprietaire.companyName, 50, 173);
+    if (proprietaire.address) doc.text(proprietaire.address, 50, 188);
     doc.text(proprietaire.user.phone, 50, 203);
 
-    doc
-      .fontSize(11)
-      .fillColor('#14181B')
-      .text('Plan souscrit', 350, 140);
+    doc.fontSize(11).fillColor('#14181B').text('Plan souscrit', 350, 140);
+    doc.fontSize(10).fillColor('#494F54').text(invoice.subscription.saasPlan.name, 350, 158);
 
-    doc
-      .fontSize(10)
-      .fillColor('#494F54')
-      .text(invoice.subscription.saasPlan.name, 350, 158);
-
-    /* ==========================
-       TABLEAU
-    ========================== */
-
+    // Tableau des lignes
     let y = 250;
-
     doc.fontSize(10).fillColor('#71767A');
-
     doc.text('Description', 50, y);
-
-    doc.text('Montant', 450, y, {
-      width: 95,
-      align: 'right',
-    });
-
+    doc.text('Montant', 450, y, { width: 95, align: 'right' });
     y += 18;
-
-    doc
-      .moveTo(50, y)
-      .lineTo(545, y)
-      .strokeColor('#E5E7E8')
-      .stroke();
-
+    doc.moveTo(50, y).lineTo(545, y).strokeColor('#E5E7E8').stroke();
     y += 12;
 
     doc.fillColor('#14181B');
-
-    doc.text(
-      `Abonnement ${invoice.subscription.saasPlan.name}`,
-      50,
-      y,
-    );
-
-    doc.text(
-      money(invoice.baseAmount),
-      450,
-      y,
-      {
-        width: 95,
-        align: 'right',
-      },
-    );
-
+    doc.text(`Abonnement ${invoice.subscription.saasPlan.name}`, 50, y);
+    doc.text(money(Number(invoice.baseAmount)), 450, y, { width: 95, align: 'right' });
     y += 20;
 
     if (invoice.extraSallesCount > 0) {
-      doc.text(
-        `Salles supplémentaires (×${invoice.extraSallesCount})`,
-        50,
-        y,
-      );
-
-      doc.text(
-        money(invoice.extraSallesAmount),
-        450,
-        y,
-        {
-          width: 95,
-          align: 'right',
-        },
-      );
-
+      doc.text(`Salles supplémentaires (×${invoice.extraSallesCount})`, 50, y);
+      doc.text(money(Number(invoice.extraSallesAmount)), 450, y, { width: 95, align: 'right' });
       y += 20;
     }
 
-    if (invoice.taxAmount.gt(0)) {
+    if (Number(invoice.taxAmount) > 0) {
       doc.text('Taxes', 50, y);
-
-      doc.text(
-        money(invoice.taxAmount),
-        450,
-        y,
-        {
-          width: 95,
-          align: 'right',
-        },
-      );
-
+      doc.text(money(Number(invoice.taxAmount)), 450, y, { width: 95, align: 'right' });
       y += 20;
     }
 
     y += 10;
-
-    doc
-      .moveTo(50, y)
-      .lineTo(545, y)
-      .strokeColor('#E5E7E8')
-      .stroke();
-
+    doc.moveTo(50, y).lineTo(545, y).strokeColor('#E5E7E8').stroke();
     y += 15;
 
-    doc
-      .fontSize(12)
-      .fillColor('#0F6E56')
-      .text('Total', 50, y);
+    doc.fontSize(12).fillColor('#0F6E56');
+    doc.text('Total', 50, y);
+    doc.text(money(Number(invoice.totalAmount)), 450, y, { width: 95, align: 'right' });
 
-    doc.text(
-      money(invoice.totalAmount),
-      450,
-      y,
-      {
-        width: 95,
-        align: 'right',
-      },
-    );
-
-    /* ==========================
-       STATUT
-    ========================== */
-
+    // Statut de paiement
     y += 40;
-
     doc.fontSize(10).fillColor('#71767A');
-
     if (invoice.status === 'PAYEE') {
-      doc
-        .fillColor('#0F6E56')
-        .text(
-          `✓ Payée le ${
-            invoice.paidAt ? dateFormat(invoice.paidAt) : ''
-          } — ${
-            PAYMENT_METHOD_LABELS[invoice.paymentMethod ?? ''] ??
-            invoice.paymentMethod ??
-            ''
-          }${
-            invoice.paymentReference
-              ? ` (réf. ${invoice.paymentReference})`
-              : ''
-          }`,
-          50,
-          y,
-        );
+      doc.fillColor('#0F6E56').text(
+        `✓ Payée le ${invoice.paidAt ? dateFormat(invoice.paidAt) : ''} — ${
+          PAYMENT_METHOD_LABELS[invoice.paymentMethod ?? ''] ?? invoice.paymentMethod ?? ''
+        }${invoice.paymentReference ? ` (réf. ${invoice.paymentReference})` : ''}`,
+        50,
+        y,
+      );
     } else {
-      doc
-        .fillColor('#D85A30')
-        .text('En attente de règlement', 50, y);
+      doc.fillColor('#D85A30').text('En attente de règlement', 50, y);
     }
 
     doc.end();
-
     return done;
   }
 }

@@ -79,6 +79,11 @@ export class UpdateSaasPlanDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsNumber()
   priceMonthly?: number;
 
@@ -91,6 +96,42 @@ export class UpdateSaasPlanDto {
   @IsOptional()
   @IsNumber()
   extraSalleFee?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  annualDiscountPct?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  trialDays?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  taxRatePct?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quotaSalles?: number;
+
+  @ApiPropertyOptional({ description: 'null = illimité' })
+  @IsOptional()
+  @IsInt()
+  quotaGestionnaires?: number;
+
+  @ApiPropertyOptional({ description: 'null = illimité' })
+  @IsOptional()
+  @IsInt()
+  quotaCoachs?: number;
+
+  @ApiPropertyOptional({ description: 'null = illimité' })
+  @IsOptional()
+  @IsInt()
+  quotaAdherents?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

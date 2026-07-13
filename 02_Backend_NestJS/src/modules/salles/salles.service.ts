@@ -71,16 +71,12 @@ export class SallesService {
       });
 
       // §9.7, §9.13 — Facture de la première période, générée
-      // immédiatement : sans cet appel, une salle créée dans le quota
-      // inclus n'aurait jamais de facture avant son premier
-      // renouvellement 30 jours plus tard (bug réel corrigé). Exception
-      // volontaire : si le plan a une période d'essai, rien n'est
-      // facturé maintenant — la première vraie facture sera générée
-      // automatiquement par le scheduler (processSubscriptionLifecycle)
-      // à la fin de l'essai, exactement comme un renouvellement normal.
-      if (plan.trialDays === 0) {
-        await this.saasBilling.generateBootstrapInvoice(subscription.id);
-      }
+      // immédiatement, y compris en période d'essai (facture à 0,
+      // immédiatement soldée — voir generateBootstrapInvoice) : sans
+      // cet appel, une salle créée dans le quota inclus n'aurait
+      // jamais de facture avant son premier renouvellement 30 jours
+      // plus tard (bug réel corrigé).
+      await this.saasBilling.generateBootstrapInvoice(subscription.id);
     }
 
     // Contrôle préalable §3.2 : quota de salles inclus vs salle supplémentaire

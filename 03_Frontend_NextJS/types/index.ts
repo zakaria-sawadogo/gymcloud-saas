@@ -110,6 +110,9 @@ export interface SaasPlan {
   priceMonthly: number;
   priceAnnual: number;
   extraSalleFee: number;
+  annualDiscountPct: number;
+  trialDays: number;
+  taxRatePct: number;
   quotaSalles: number;
   quotaGestionnaires: number | null;
   quotaCoachs: number | null;
@@ -322,6 +325,18 @@ export interface SaasKpis {
     trimestrielle: number | null;
     annuelle: number | null;
   };
+}
+
+export interface SaasSubscription {
+  id: string;
+  proprietaireId: string;
+  saasPlanId: string;
+  billingCycle: 'MENSUEL' | 'ANNUEL';
+  status: 'ACTIF' | 'EN_GRACE' | 'SUSPENDU' | 'EXPIRE';
+  startDate: string;
+  currentPeriodEnd: string;
+  graceEndsAt?: string;
+  saasPlan: SaasPlan;
 }
 
 export interface SaasInvoice {

@@ -66,13 +66,16 @@ export class SaasPlansController {
   }
 
   @Patch(':subscriptionId/change-plan/:newPlanId')
-  @RequirePermission('manage', 'SaasSubscription')
-  @ApiOperation({ summary: 'Changer le plan d\'un propriétaire (§9.12)' })
+  @RequirePermission('update', 'SaasSubscription')
+  @ApiOperation({
+    summary:
+      'Changer/renouveler le plan d\'une souscription (§9.12) — SUPER_ADMIN sur n\'importe laquelle, PROPRIETAIRE uniquement sur la sienne',
+  })
   changePlan(
     @Param('subscriptionId') subscriptionId: string,
     @Param('newPlanId') newPlanId: string,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.saasBillingService.changePlan(subscriptionId, newPlanId, user.userId);
+    return this.saasBillingService.changePlan(subscriptionId, newPlanId, user.userId, user);
   }
 }

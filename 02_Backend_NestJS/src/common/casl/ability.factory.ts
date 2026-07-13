@@ -50,6 +50,7 @@ export class AbilityFactory {
         can('read', 'Adherent');
         can('read', 'Payment');
         can('read', 'SaasSubscription');
+        can('update', 'SaasSubscription'); // changement/renouvellement de SON PROPRE plan (§9.12) — vérifié en service
         can('read', 'AccessLog'); // nécessaire au tableau de bord consolidé (§11)
         can('read', 'Booking');
         can('read', 'MarketingCampaign');

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, Res, ForbiddenException } from '@nestjs/common';
 import type { Response } from 'express';
 import { IsString, IsOptional, IsIn } from 'class-validator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -39,6 +39,26 @@ export class SaasInvoicesController {
   @ApiOperation({ summary: 'Liste des factures SaaS, filtrable par statut' })
   list(@Query('status') status?: 'EMISE' | 'PAYEE' | 'EN_RETARD' | 'ANNULEE') {
     return this.saasBillingService.listInvoices(status);
+  }
+
+  @Get('me/subscription')
+  @RequirePermission('read', 'SaasSubscription')
+  @ApiOperation({ summary: 'Ma souscription SaaS (PROPRIETAIRE) — plan actuel, statut, échéance' })
+  mySubscription(@CurrentUser() user: TenantContext) {
+    if (!user.proprietaireId) {
+      throw new ForbiddenException('Cet endpoint est réservé aux comptes Propriétaire');
+    }
+    return this.saasBillingService.getMySubscription(user.proprietaireId);
+  }
+
+  @Get('me/invoices')
+  @RequirePermission('read', 'SaasSubscription')
+  @ApiOperation({ summary: 'Mes factures SaaS (PROPRIETAIRE)' })
+  myInvoices(@CurrentUser() user: TenantContext) {
+    if (!user.proprietaireId) {
+      throw new ForbiddenException('Cet endpoint est réservé aux comptes Propriétaire');
+    }
+    return this.saasBillingService.listInvoicesForProprietaire(user.proprietaireId);
   }
 
   @Get(':id/pdf')
