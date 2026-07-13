@@ -70,6 +70,7 @@ export class UsersService {
         id: randomUUID(),
         userId: user.id,
         companyName: dto.companyName,
+        address: dto.address,
         countryId: dto.countryId,
       },
     });
@@ -118,6 +119,12 @@ export class UsersService {
 
   async findProprietaireByUserId(userId: string) {
     const proprietaire = await this.prisma.proprietaire.findUnique({ where: { userId } });
+    if (!proprietaire) throw new NotFoundException('Propriétaire introuvable');
+    return proprietaire;
+  }
+
+  async findProprietaireById(id: string) {
+    const proprietaire = await this.prisma.proprietaire.findUnique({ where: { id } });
     if (!proprietaire) throw new NotFoundException('Propriétaire introuvable');
     return proprietaire;
   }

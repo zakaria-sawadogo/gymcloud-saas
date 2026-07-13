@@ -195,32 +195,55 @@ export class ReportingService {
 
   async getSuperAdminDashboard() {
     const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
 
     const [
       totalSalles,
       totalProprietaires,
+      totalGestionnaires,
+      totalCoachs,
       totalAdherents,
       newSallesThisMonth,
+      newProprietairesThisMonth,
       subscriptionsByPlan,
-      saasRevenuePaid,
+      sallesByStatus,
+      saasRevenueToday,
+      saasRevenueThisMonth,
+      saasRevenueThisYear,
       saasRevenuePending,
+      extraSallesRevenueThisMonth,
     ] = await Promise.all([
       this.prisma.salle.count(),
       this.prisma.proprietaire.count(),
+      this.prisma.gestionnaireProfile.count(),
+      this.prisma.coachProfile.count(),
       this.prisma.adherentProfile.count(),
       this.prisma.salle.count({ where: { createdAt: { gte: monthStart } } }),
-      this.prisma.saasSubscription.groupBy({
-        by: ['saasPlanId'],
-        _count: { _all: true },
+      this.prisma.proprietaire.count({ where: { createdAt: { gte: monthStart } } }),
+      this.prisma.saasSubscription.groupBy({ by: ['saasPlanId'], _count: { _all: true } }),
+      this.prisma.saasSubscription.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.saasInvoice.aggregate({
+        where: { status: 'PAYEE', paidAt: { gte: todayStart } },
+        _sum: { totalAmount: true },
       }),
       this.prisma.saasInvoice.aggregate({
-        where: { status: 'PAYEE', issuedAt: { gte: monthStart } },
+        where: { status: 'PAYEE', paidAt: { gte: monthStart } },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.saasInvoice.aggregate({
+        where: { status: 'PAYEE', paidAt: { gte: yearStart } },
         _sum: { totalAmount: true },
       }),
       this.prisma.saasInvoice.aggregate({
         where: { status: 'EMISE' },
         _sum: { totalAmount: true },
+      }),
+      this.prisma.saasInvoice.aggregate({
+        where: { status: 'PAYEE', paidAt: { gte: monthStart } },
+        _sum: { extraSallesAmount: true },
       }),
     ]);
 
@@ -232,19 +255,201 @@ export class ReportingService {
       count: s._count._all,
     }));
 
+    const statusBreakdown: Record<string, number> = { ACTIF: 0, EN_GRACE: 0, SUSPENDU: 0, EXPIRE: 0 };
+    for (const s of sallesByStatus as Array<{ status: string; _count: { _all: number } }>) {
+      statusBreakdown[s.status] = s._count._all;
+    }
+
+    // Renouvellements / upgrades / downgrades ce mois (§9.14). Un
+    // renouvellement se distingue d'une première facturation par
+    // l'existence d'une facture PAYEE antérieure pour la même
+    // souscription. Upgrade/downgrade déduits en comparant le prix
+    // mensuel effectif des deux plans au moment du changement.
+    const [renewalsThisMonth, planChangeLogs] = await Promise.all([
+      this.countRenewalsThisMonth(monthStart),
+      this.prisma.auditLog.findMany({
+        where: { action: 'saas_subscription.plan_changed', createdAt: { gte: monthStart } },
+      }),
+    ]);
+    let upgrades = 0;
+    let downgrades = 0;
+    for (const log of planChangeLogs) {
+      const meta = log.metadata as { fromPlanId?: string; toPlanId?: string } | null;
+      if (!meta?.fromPlanId || !meta?.toPlanId) continue;
+      const [fromPlan, toPlan] = await Promise.all([
+        this.prisma.saasPlan.findUnique({ where: { id: meta.fromPlanId } }),
+        this.prisma.saasPlan.findUnique({ where: { id: meta.toPlanId } }),
+      ]);
+      if (!fromPlan || !toPlan) continue;
+      if (Number(toPlan.priceMonthly) > Number(fromPlan.priceMonthly)) upgrades++;
+      else if (Number(toPlan.priceMonthly) < Number(fromPlan.priceMonthly)) downgrades++;
+    }
+
     return {
       plateforme: {
         totalSalles,
         totalProprietaires,
+        totalGestionnaires,
+        totalCoachs,
         totalAdherents,
         nouvellesSallesCeMois: newSallesThisMonth,
+        nouveauxProprietairesCeMois: newProprietairesThisMonth,
       },
-      saas: {
-        revenuEncaisseCeMois: Number(saasRevenuePaid._sum.totalAmount ?? 0),
-        revenuEnAttente: Number(saasRevenuePending._sum.totalAmount ?? 0),
+      activiteSaas: {
+        sallesActives: statusBreakdown.ACTIF,
+        sallesEnGrace: statusBreakdown.EN_GRACE,
+        sallesSuspendues: statusBreakdown.SUSPENDU,
+        sallesExpirees: statusBreakdown.EXPIRE,
+        renouvellementsCeMois: renewalsThisMonth,
+        upgradesCeMois: upgrades,
+        downgradesCeMois: downgrades,
+      },
+      revenus: {
+        aujourdHui: Number(saasRevenueToday._sum.totalAmount ?? 0),
+        ceMois: Number(saasRevenueThisMonth._sum.totalAmount ?? 0),
+        cetteAnnee: Number(saasRevenueThisYear._sum.totalAmount ?? 0),
+        enAttente: Number(saasRevenuePending._sum.totalAmount ?? 0),
+        sallesSupplementairesCeMois: Number(extraSallesRevenueThisMonth._sum.extraSallesAmount ?? 0),
         repartitionParPlan: planBreakdown,
       },
     };
+  }
+
+  /**
+   * Compte les factures payées ce mois qui constituent un
+   * renouvellement (il existe une facture PAYEE antérieure pour la
+   * même souscription), par opposition à une première facturation.
+   */
+  private async countRenewalsThisMonth(monthStart: Date): Promise<number> {
+    const paidThisMonth = await this.prisma.saasInvoice.findMany({
+      where: { status: 'PAYEE', paidAt: { gte: monthStart } },
+      select: { id: true, subscriptionId: true, issuedAt: true },
+    });
+    let count = 0;
+    for (const invoice of paidThisMonth) {
+      const earlierPaid = await this.prisma.saasInvoice.count({
+        where: {
+          subscriptionId: invoice.subscriptionId,
+          status: 'PAYEE',
+          issuedAt: { lt: invoice.issuedAt },
+        },
+      });
+      if (earlierPaid > 0) count++;
+    }
+    return count;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // KPI SaaS (§9.15) — calculs automatiques, exclusif SUPER_ADMIN
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * §9.15 — Indicateurs stratégiques SaaS. Formules standard du
+   * secteur, avec des simplifications documentées là où le volume de
+   * données historiques ne permet pas encore un calcul de cohorte
+   * complet (plateforme récente) :
+   *  - MRR/ARR : normalisent chaque souscription active à sa valeur
+   *    mensuelle (les souscriptions annuelles sont divisées par 12).
+   *  - Rétention/churn : mesurés sur l'ensemble des propriétaires
+   *    actuels plutôt qu'une cohorte glissante précise — une vraie
+   *    analyse de cohortes (rétention à 30/60/90 jours par mois
+   *    d'inscription) est une évolution possible une fois plus
+   *    d'historique disponible.
+   *  - LTV : formule standard ARPU / taux de churn mensuel.
+   */
+  async getSaasKpis() {
+    const activeSubscriptions = await this.prisma.saasSubscription.findMany({
+      where: { status: 'ACTIF' },
+      include: { saasPlan: true },
+    });
+
+    const mrr = activeSubscriptions.reduce((sum: number, sub: any) => {
+      const monthlyValue =
+        sub.billingCycle === 'ANNUEL' ? Number(sub.saasPlan.priceAnnual) / 12 : Number(sub.saasPlan.priceMonthly);
+      return sum + monthlyValue;
+    }, 0);
+    const arr = mrr * 12;
+
+    const totalSallesActives = await this.prisma.salle.count({
+      where: { subscription: { status: 'ACTIF' } },
+    });
+    const totalProprietairesActifs = activeSubscriptions.length; // 1 souscription = 1 propriétaire (contrainte unique)
+
+    const revenuMoyenParSalle = totalSallesActives > 0 ? mrr / totalSallesActives : 0;
+    const revenuMoyenParProprietaire = totalProprietairesActifs > 0 ? mrr / totalProprietairesActifs : 0;
+
+    // Fidélisation
+    const totalProprietaires = await this.prisma.proprietaire.count();
+    const proprietairesSuspendusOuExpires = await this.prisma.saasSubscription.count({
+      where: { status: { in: ['SUSPENDU', 'EXPIRE'] } },
+    });
+    const churnRate = totalProprietaires > 0 ? proprietairesSuspendusOuExpires / totalProprietaires : 0;
+    const tauxRetention = 1 - churnRate;
+
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const invoicesLast90Days = await this.prisma.saasInvoice.findMany({
+      where: { issuedAt: { gte: ninetyDaysAgo } },
+      select: { status: true },
+    });
+    const tauxRenouvellement =
+      invoicesLast90Days.length > 0
+        ? invoicesLast90Days.filter((i: { status: string }) => i.status === 'PAYEE').length /
+          invoicesLast90Days.length
+        : null;
+
+    // Rentabilité — LTV = ARPU / taux de churn mensuel (formule standard SaaS)
+    const ltv = churnRate > 0 ? revenuMoyenParProprietaire / churnRate : null;
+
+    // Croissance — variation du nombre de propriétaires vs période précédente équivalente
+    const croissanceMensuelle = await this.computeGrowthRate(1, 'month');
+    const croissanceTrimestrielle = await this.computeGrowthRate(3, 'month');
+    const croissanceAnnuelle = await this.computeGrowthRate(1, 'year');
+
+    return {
+      revenus: {
+        mrr,
+        arr,
+        revenuMoyenParSalle,
+        revenuMoyenParProprietaire,
+      },
+      fidelisation: {
+        tauxRenouvellement,
+        tauxRetention,
+        churnRate,
+      },
+      rentabilite: {
+        ltv,
+        revenuMoyenParClient: revenuMoyenParProprietaire,
+      },
+      croissance: {
+        mensuelle: croissanceMensuelle,
+        trimestrielle: croissanceTrimestrielle,
+        annuelle: croissanceAnnuelle,
+      },
+    };
+  }
+
+  /** Variation en % du nombre de nouveaux propriétaires vs la période équivalente précédente. */
+  private async computeGrowthRate(amount: number, unit: 'month' | 'year'): Promise<number | null> {
+    const now = new Date();
+    const periodStart = new Date(now);
+    const previousPeriodStart = new Date(now);
+    if (unit === 'month') {
+      periodStart.setMonth(periodStart.getMonth() - amount);
+      previousPeriodStart.setMonth(previousPeriodStart.getMonth() - amount * 2);
+    } else {
+      periodStart.setFullYear(periodStart.getFullYear() - amount);
+      previousPeriodStart.setFullYear(previousPeriodStart.getFullYear() - amount * 2);
+    }
+
+    const [current, previous] = await Promise.all([
+      this.prisma.proprietaire.count({ where: { createdAt: { gte: periodStart } } }),
+      this.prisma.proprietaire.count({ where: { createdAt: { gte: previousPeriodStart, lt: periodStart } } }),
+    ]);
+
+    if (previous === 0) return null; // pas de base de comparaison valable
+    return ((current - previous) / previous) * 100;
   }
 
   // ─────────────────────────────────────────────────────────────

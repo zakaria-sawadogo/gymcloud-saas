@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SaasBillingService } from './saas-billing.service';
 import { CreateSaasPlanDto, UpdateSaasPlanDto } from './dto/saas-plan.dto';
@@ -17,9 +17,11 @@ export class SaasPlansController {
   constructor(private readonly saasBillingService: SaasBillingService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Liste des plans SaaS disponibles (§9.3)' })
-  list() {
-    return this.saasBillingService.listPlans();
+  @ApiOperation({
+    summary: 'Liste des plans SaaS — ACTIF uniquement par défaut, ?includeAll=true pour la gestion SUPER_ADMIN',
+  })
+  list(@Query('includeAll') includeAll?: string) {
+    return this.saasBillingService.listPlans(includeAll === 'true');
   }
 
   @Post()
@@ -38,6 +40,29 @@ export class SaasPlansController {
     @CurrentUser() user: TenantContext,
   ) {
     return this.saasBillingService.updatePlan(id, dto, user.userId);
+  }
+
+  @Patch(':id/activate')
+  @RequirePermission('manage', 'SaasPlan')
+  @ApiOperation({ summary: 'Activer un plan (§9.3) — de nouveau proposable à la souscription' })
+  activate(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.saasBillingService.setPlanStatus(id, 'ACTIF', user.userId);
+  }
+
+  @Patch(':id/suspend')
+  @RequirePermission('manage', 'SaasPlan')
+  @ApiOperation({
+    summary: 'Suspendre un plan (§9.3) — plus proposable aux nouveaux clients, souscriptions existantes non affectées',
+  })
+  suspend(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.saasBillingService.setPlanStatus(id, 'SUSPENDU', user.userId);
+  }
+
+  @Patch(':id/archive')
+  @RequirePermission('manage', 'SaasPlan')
+  @ApiOperation({ summary: 'Archiver un plan (§9.3) — retrait définitif du catalogue' })
+  archive(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.saasBillingService.setPlanStatus(id, 'ARCHIVE', user.userId);
   }
 
   @Patch(':subscriptionId/change-plan/:newPlanId')

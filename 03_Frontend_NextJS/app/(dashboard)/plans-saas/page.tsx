@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Plus, Layers } from 'lucide-react';
+import { Plus, Layers, Ban, Archive, RotateCcw } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input } from '@/components/ui/Input';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatCurrency } from '@/lib/utils';
 import type { SaasPlan } from '@/types';
 
@@ -29,7 +30,20 @@ const MODULE_OPTIONS = [
 
 export default function PlansSaasPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const { data: plans, isLoading, error, refetch } = useApi<SaasPlan[]>('/saas/plans');
+  const [actioningId, setActioningId] = useState<string | null>(null);
+  const { data: plans, isLoading, error, refetch } = useApi<SaasPlan[]>('/saas/plans?includeAll=true');
+
+  const handleStatusChange = async (planId: string, action: 'activate' | 'suspend' | 'archive') => {
+    setActioningId(planId);
+    try {
+      await apiClient.patch(`/saas/plans/${planId}/${action}`);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setActioningId(null);
+    }
+  };
 
   return (
     <div>
@@ -56,12 +70,15 @@ export default function PlansSaasPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {plans.map((p) => (
-            <Card key={p.id}>
+            <Card key={p.id} className={p.status !== 'ACTIF' ? 'opacity-70' : undefined}>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="font-display text-lg font-semibold text-ink-900">{p.name}</h3>
-                <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
-                  {p.code}
-                </span>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={p.status} />
+                  <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
+                    {p.code}
+                  </span>
+                </div>
               </div>
               {p.description && <p className="mb-3 text-sm text-ink-600">{p.description}</p>}
               <div className="mb-3 space-y-1 text-sm">
@@ -92,12 +109,49 @@ export default function PlansSaasPage() {
                   <p className="text-ink-400">Adhérents</p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className="mb-3 flex flex-wrap gap-1">
                 {p.modules.map((m) => (
                   <span key={m} className="rounded-full bg-ink-50 px-2 py-0.5 text-xs text-ink-600">
                     {m}
                   </span>
                 ))}
+              </div>
+
+              {/* §9.3 — Activer/suspendre/archiver, sans jamais toucher les souscriptions déjà en cours sur ce plan */}
+              <div className="flex gap-2 border-t border-ink-100 pt-3">
+                {p.status !== 'ACTIF' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isLoading={actioningId === p.id}
+                    onClick={() => handleStatusChange(p.id, 'activate')}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Activer
+                  </Button>
+                )}
+                {p.status === 'ACTIF' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isLoading={actioningId === p.id}
+                    onClick={() => handleStatusChange(p.id, 'suspend')}
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    Suspendre
+                  </Button>
+                )}
+                {p.status !== 'ARCHIVE' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    isLoading={actioningId === p.id}
+                    onClick={() => handleStatusChange(p.id, 'archive')}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Archiver
+                  </Button>
+                )}
               </div>
             </Card>
           ))}

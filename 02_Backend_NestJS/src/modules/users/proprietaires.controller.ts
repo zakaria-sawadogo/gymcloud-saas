@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateProprietaireDto } from './dto/users.dto';
@@ -23,5 +23,21 @@ export class ProprietairesController {
   @ApiOperation({ summary: 'Liste des propriétaires (§9.4)' })
   list() {
     return this.usersService.listProprietaires();
+  }
+
+  @Patch(':id/suspend')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Suspendre un propriétaire (§9.4) — révoque aussi ses sessions actives' })
+  async suspend(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    const proprietaire = await this.usersService.findProprietaireById(id);
+    return this.usersService.suspendUser(proprietaire.userId, user.userId);
+  }
+
+  @Patch(':id/reactivate')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Réactiver un propriétaire suspendu (§9.4)' })
+  async reactivate(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    const proprietaire = await this.usersService.findProprietaireById(id);
+    return this.usersService.reactivateUser(proprietaire.userId, user.userId);
   }
 }

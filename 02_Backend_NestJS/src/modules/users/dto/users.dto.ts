@@ -33,6 +33,11 @@ export class CreateProprietaireDto {
   @IsString()
   companyName?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  address?: string;
+
   @ApiPropertyOptional({ description: 'Pays du propriétaire (peut différer du pays de la salle)' })
   @IsOptional()
   @IsUUID()

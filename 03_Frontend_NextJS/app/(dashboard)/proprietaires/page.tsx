@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Plus, UserCog } from 'lucide-react';
+import { Plus, UserCog, Ban, RotateCcw } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -10,12 +10,27 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
+import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatDate } from '@/lib/utils';
 import type { Proprietaire, Country, SaasPlan } from '@/types';
 
 export default function ProprietairesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [actioningId, setActioningId] = useState<string | null>(null);
   const { data: proprietaires, isLoading, error, refetch } = useApi<Proprietaire[]>('/proprietaires');
+
+  const handleToggleStatus = async (id: string, currentStatus: string) => {
+    setActioningId(id);
+    try {
+      const action = currentStatus === 'SUSPENDU' ? 'reactivate' : 'suspend';
+      await apiClient.patch(`/proprietaires/${id}/${action}`);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setActioningId(null);
+    }
+  };
 
   return (
     <div>
@@ -50,7 +65,9 @@ export default function ProprietairesPage() {
                 <th className="px-5 py-3">Téléphone</th>
                 <th className="px-5 py-3">Société</th>
                 <th className="px-5 py-3">Salles</th>
+                <th className="px-5 py-3">Statut</th>
                 <th className="px-5 py-3">Créé le</th>
+                <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
@@ -70,7 +87,30 @@ export default function ProprietairesPage() {
                           </Link>
                         ))}
                   </td>
+                  <td className="px-5 py-3">
+                    <StatusBadge status={p.user.status} />
+                  </td>
                   <td className="px-5 py-3 text-ink-600">{formatDate(p.createdAt)}</td>
+                  <td className="px-5 py-3 text-right">
+                    <Button
+                      size="sm"
+                      variant={p.user.status === 'SUSPENDU' ? 'secondary' : 'danger'}
+                      isLoading={actioningId === p.id}
+                      onClick={() => handleToggleStatus(p.id, p.user.status)}
+                    >
+                      {p.user.status === 'SUSPENDU' ? (
+                        <>
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Réactiver
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="h-3.5 w-3.5" />
+                          Suspendre
+                        </>
+                      )}
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -114,6 +154,7 @@ function CreateProprietaireModal({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [address, setAddress] = useState('');
 
   // Première salle (obligatoire)
   const [salleName, setSalleName] = useState('');
@@ -139,6 +180,7 @@ function CreateProprietaireModal({
         phone,
         email: email || undefined,
         companyName: companyName || undefined,
+        address: address || undefined,
         salleName,
         sallePhone,
         salleEmail: salleEmail || undefined,
@@ -161,6 +203,7 @@ function CreateProprietaireModal({
     setPhone('');
     setEmail('');
     setCompanyName('');
+    setAddress('');
     setSalleName('');
     setSallePhone('');
     setSalleEmail('');
@@ -204,6 +247,9 @@ function CreateProprietaireModal({
           </Field>
           <Field label="Société (optionnel)">
             <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+          </Field>
+          <Field label="Adresse (optionnel)">
+            <Input value={address} onChange={(e) => setAddress(e.target.value)} />
           </Field>
 
           <p className="mb-3 mt-5 text-xs font-medium uppercase tracking-wide text-ink-400">

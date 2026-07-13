@@ -38,6 +38,7 @@ export interface Proprietaire {
   id: string;
   userId: string;
   companyName?: string;
+  address?: string;
   countryId?: string;
   createdAt: string;
   user: {
@@ -45,6 +46,7 @@ export interface Proprietaire {
     lastName: string;
     phone: string;
     email?: string;
+    status: 'ACTIF' | 'SUSPENDU' | 'EN_ATTENTE_VALIDATION' | 'DESACTIVE';
   };
   salles: Array<{ id: string; name: string }>;
 }
@@ -104,6 +106,7 @@ export interface SaasPlan {
   code: string;
   name: string;
   description?: string;
+  status: 'ACTIF' | 'SUSPENDU' | 'ARCHIVE';
   priceMonthly: number;
   priceAnnual: number;
   extraSalleFee: number;
@@ -273,13 +276,51 @@ export interface SuperAdminDashboard {
   plateforme: {
     totalSalles: number;
     totalProprietaires: number;
+    totalGestionnaires: number;
+    totalCoachs: number;
     totalAdherents: number;
     nouvellesSallesCeMois: number;
+    nouveauxProprietairesCeMois: number;
   };
-  saas: {
-    revenuEncaisseCeMois: number;
-    revenuEnAttente: number;
+  activiteSaas: {
+    sallesActives: number;
+    sallesEnGrace: number;
+    sallesSuspendues: number;
+    sallesExpirees: number;
+    renouvellementsCeMois: number;
+    upgradesCeMois: number;
+    downgradesCeMois: number;
+  };
+  revenus: {
+    aujourdHui: number;
+    ceMois: number;
+    cetteAnnee: number;
+    enAttente: number;
+    sallesSupplementairesCeMois: number;
     repartitionParPlan: Array<{ planCode: string; count: number }>;
+  };
+}
+
+export interface SaasKpis {
+  revenus: {
+    mrr: number;
+    arr: number;
+    revenuMoyenParSalle: number;
+    revenuMoyenParProprietaire: number;
+  };
+  fidelisation: {
+    tauxRenouvellement: number | null;
+    tauxRetention: number;
+    churnRate: number;
+  };
+  rentabilite: {
+    ltv: number | null;
+    revenuMoyenParClient: number;
+  };
+  croissance: {
+    mensuelle: number | null;
+    trimestrielle: number | null;
+    annuelle: number | null;
   };
 }
 

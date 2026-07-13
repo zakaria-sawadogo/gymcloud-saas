@@ -92,4 +92,11 @@ export class ReportingController {
   adminDashboard() {
     return this.reportingService.getSuperAdminDashboard();
   }
+
+  @Get('admin/kpis')
+  @RequirePermission('read', 'SaasPlan')
+  @ApiOperation({ summary: 'Indicateurs stratégiques SaaS — MRR, ARR, churn, rétention, LTV, croissance (§9.15)' })
+  saasKpis() {
+    return this.reportingService.getSaasKpis();
+  }
 }

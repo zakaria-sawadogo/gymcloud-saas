@@ -69,8 +69,36 @@ export class SaasBillingService {
     return plan;
   }
 
-  listPlans() {
-    return this.prisma.saasPlan.findMany({ orderBy: { displayOrder: 'asc' } });
+  /**
+   * Par défaut, ne retourne que les plans ACTIF (pertinent pour le
+   * choix d'un plan à la création d'une salle — un plan suspendu ou
+   * archivé ne doit plus être proposable à un nouveau client). Le
+   * SUPER_ADMIN gérant le catalogue passe `includeAll: true` pour voir
+   * aussi les plans SUSPENDU/ARCHIVE et pouvoir les réactiver.
+   */
+  listPlans(includeAll = false) {
+    return this.prisma.saasPlan.findMany({
+      where: includeAll ? undefined : { status: 'ACTIF' },
+      orderBy: { displayOrder: 'asc' },
+    });
+  }
+
+  /**
+   * §9.3 — Change le statut d'un plan. Un plan SUSPENDU ou ARCHIVE
+   * n'apparaît plus dans le catalogue proposé (listPlans), mais les
+   * souscriptions déjà actives sur ce plan ne sont jamais affectées :
+   * seule la disponibilité à la SOUSCRIPTION change, pas les clients
+   * existants.
+   */
+  async setPlanStatus(planId: string, status: 'ACTIF' | 'SUSPENDU' | 'ARCHIVE', actorUserId: string) {
+    const plan = await this.prisma.saasPlan.update({ where: { id: planId }, data: { status } });
+    await this.audit.log({
+      userId: actorUserId,
+      action: `saas_plan.${status.toLowerCase()}`,
+      entityType: 'SaasPlan',
+      entityId: planId,
+    });
+    return plan;
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -163,6 +191,53 @@ export class SaasBillingService {
   }
 
   /**
+   * §9.3 — Applique les remises configurables sur le montant de base :
+   *  - `annualDiscountPct` (plan) : remise plan-wide sur la
+   *    facturation annuelle, incitant au paiement annuel plutôt que
+   *    mensuel — ne s'applique jamais au cycle mensuel.
+   *  - `promotionalDiscountPct` (souscription) : remise négociée
+   *    propre à CE client (ex: partenariat, geste commercial),
+   *    cumulable avec la remise annuelle.
+   * Aucun montant codé en dur : les deux taux sont entièrement
+   * configurables par le SUPER_ADMIN (§9.3).
+   */
+  private applyDiscounts(
+    rawAmount: number,
+    billingCycle: 'MENSUEL' | 'ANNUEL',
+    annualDiscountPct: any,
+    promotionalDiscountPct: any,
+  ): { discountedAmount: number; totalDiscountApplied: number } {
+    let amount = rawAmount;
+
+    if (billingCycle === 'ANNUEL' && Number(annualDiscountPct ?? 0) > 0) {
+      amount = amount * (1 - Number(annualDiscountPct) / 100);
+    }
+    if (Number(promotionalDiscountPct ?? 0) > 0) {
+      amount = amount * (1 - Number(promotionalDiscountPct) / 100);
+    }
+
+    return { discountedAmount: amount, totalDiscountApplied: rawAmount - amount };
+  }
+
+  /**
+   * §9.7, §9.13 — Génère la toute première facture d'une souscription,
+   * immédiatement après sa création (bootstrap, voir SallesService.create).
+   * Sans cet appel, une salle créée DANS le quota inclus (jamais
+   * "supplémentaire") n'aurait aucune facture générée avant son tout
+   * premier renouvellement automatique 30 jours plus tard — aucune
+   * trace de ce qui est dû pour la toute première période, rien à
+   * encaisser (bug réel identifié en test : un propriétaire nouvellement
+   * créé avec sa première salle n'apparaissait jamais en facturation).
+   */
+  async generateBootstrapInvoice(subscriptionId: string) {
+    const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
+      where: { id: subscriptionId },
+      include: { saasPlan: true },
+    });
+    return this.getOrCreateCurrentInvoice(subscription);
+  }
+
+  /**
    * Retourne la facture SaaS de la période courante ; la crée si elle
    * n'existe pas encore (première charge de la période).
    */
@@ -170,7 +245,8 @@ export class SaasBillingService {
     id: string;
     billingCycle: 'MENSUEL' | 'ANNUEL';
     currentPeriodEnd: Date;
-    saasPlan: { priceMonthly: any; priceAnnual: any; taxRatePct: any };
+    promotionalDiscountPct?: any;
+    saasPlan: { priceMonthly: any; priceAnnual: any; taxRatePct: any; annualDiscountPct: any };
   }) {
     const now = new Date();
     const existing = await this.prisma.saasInvoice.findFirst({
@@ -185,11 +261,17 @@ export class SaasBillingService {
 
     const periodStart = now;
     const periodEnd = subscription.currentPeriodEnd;
-    const baseAmount =
+    const rawAmount =
       subscription.billingCycle === 'ANNUEL'
         ? subscription.saasPlan.priceAnnual
         : subscription.saasPlan.priceMonthly;
-    const taxAmount = (Number(baseAmount) * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
+    const { discountedAmount: baseAmount } = this.applyDiscounts(
+      Number(rawAmount),
+      subscription.billingCycle,
+      subscription.saasPlan.annualDiscountPct,
+      subscription.promotionalDiscountPct,
+    );
+    const taxAmount = (baseAmount * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
 
     return this.prisma.saasInvoice.create({
       data: {
@@ -239,12 +321,14 @@ export class SaasBillingService {
     billingCycle: 'MENSUEL' | 'ANNUEL';
     currentPeriodEnd: Date;
     saasPlanId: string;
+    promotionalDiscountPct?: any;
     saasPlan: {
       priceMonthly: any;
       priceAnnual: any;
       taxRatePct: any;
       quotaSalles: number;
       extraSalleFee: any;
+      annualDiscountPct: any;
     };
   }) {
     const periodStart = subscription.currentPeriodEnd;
@@ -254,12 +338,17 @@ export class SaasBillingService {
     const extraSallesCount = Math.max(0, salleCount - subscription.saasPlan.quotaSalles);
     const extraSallesAmount = extraSallesCount * Number(subscription.saasPlan.extraSalleFee);
 
-    const baseAmount =
+    const rawAmount =
       subscription.billingCycle === 'ANNUEL'
         ? subscription.saasPlan.priceAnnual
         : subscription.saasPlan.priceMonthly;
-    const taxAmount =
-      ((Number(baseAmount) + extraSallesAmount) * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
+    const { discountedAmount: baseAmount } = this.applyDiscounts(
+      Number(rawAmount),
+      subscription.billingCycle,
+      subscription.saasPlan.annualDiscountPct,
+      subscription.promotionalDiscountPct,
+    );
+    const taxAmount = ((baseAmount + extraSallesAmount) * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
 
     return this.prisma.saasInvoice.create({
       data: {
@@ -273,7 +362,7 @@ export class SaasBillingService {
         extraSallesAmount,
         addonsAmount: 0,
         taxAmount,
-        totalAmount: Number(baseAmount) + extraSallesAmount + taxAmount,
+        totalAmount: baseAmount + extraSallesAmount + taxAmount,
         currency: 'XOF', // TODO: dériver de Country.currency selon proprietaire.countryId
         status: 'EMISE',
       },
@@ -284,12 +373,68 @@ export class SaasBillingService {
   // Cycle de vie de l'abonnement (§9.7 à §9.12)
   // ─────────────────────────────────────────────────────────────
 
+  /**
+   * §9.12 — Changement de plan avec calcul automatique du prorata :
+   * les jours restants sur la période en cours sont valorisés au
+   * tarif journalier de l'ancien plan (crédité) et du nouveau plan
+   * (facturé) ; seule la différence est due immédiatement. Un
+   * downgrade peut donc produire un montant négatif (crédit),
+   * enregistré directement comme réglé (`PAYEE`) puisqu'aucun
+   * paiement n'est réellement attendu du client dans ce cas.
+   *
+   * Approximation assumée : la durée du cycle est fixée à 30 jours
+   * (mensuel) ou 365 jours (annuel) plutôt que la durée exacte du
+   * mois en cours — cohérent avec le reste du moteur de facturation,
+   * suffisant pour un calcul de prorata qui reste une estimation par
+   * nature.
+   */
   async changePlan(subscriptionId: string, newPlanId: string, actorUserId: string) {
     const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
       where: { id: subscriptionId },
-      include: { _count: { select: { salles: true } } },
+      include: { _count: { select: { salles: true } }, saasPlan: true },
     });
     const newPlan = await this.prisma.saasPlan.findUniqueOrThrow({ where: { id: newPlanId } });
+    const oldPlan = subscription.saasPlan;
+
+    const now = new Date();
+    const cycleLengthDays = subscription.billingCycle === 'ANNUEL' ? 365 : 30;
+    const remainingDays = Math.max(
+      0,
+      Math.ceil((subscription.currentPeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+    );
+    const oldDailyRate =
+      Number(subscription.billingCycle === 'ANNUEL' ? oldPlan.priceAnnual : oldPlan.priceMonthly) / cycleLengthDays;
+    const newDailyRate =
+      Number(subscription.billingCycle === 'ANNUEL' ? newPlan.priceAnnual : newPlan.priceMonthly) / cycleLengthDays;
+    const creditForUnusedOldPlan = oldDailyRate * remainingDays;
+    const chargeForNewPlanRemainder = newDailyRate * remainingDays;
+    const prorataDifference = Math.round((chargeForNewPlanRemainder - creditForUnusedOldPlan) * 100) / 100;
+
+    let prorataInvoiceId: string | null = null;
+    if (Math.abs(prorataDifference) >= 1) {
+      const prorataInvoice = await this.prisma.saasInvoice.create({
+        data: {
+          id: randomUUID(),
+          subscriptionId,
+          invoiceNumber: this.generateInvoiceNumber(),
+          periodStart: now,
+          periodEnd: subscription.currentPeriodEnd,
+          baseAmount: prorataDifference,
+          extraSallesCount: 0,
+          extraSallesAmount: 0,
+          addonsAmount: 0,
+          taxAmount: 0,
+          totalAmount: prorataDifference,
+          currency: 'XOF',
+          // Un downgrade (différence négative = crédit) n'exige aucun
+          // règlement du client : il est marqué PAYEE d'emblée. Un
+          // upgrade (différence positive) reste EMISE, à encaisser.
+          status: prorataDifference > 0 ? 'EMISE' : 'PAYEE',
+          paidAt: prorataDifference > 0 ? null : now,
+        },
+      });
+      prorataInvoiceId = prorataInvoice.id;
+    }
 
     if (subscription._count.salles > newPlan.quotaSalles) {
       // Changement autorisé mais les salles au-delà du nouveau quota
@@ -314,10 +459,30 @@ export class SaasBillingService {
       action: 'saas_subscription.plan_changed',
       entityType: 'SaasSubscription',
       entityId: subscriptionId,
-      metadata: { fromPlanId: subscription.saasPlanId, toPlanId: newPlanId },
+      metadata: {
+        fromPlanId: subscription.saasPlanId,
+        toPlanId: newPlanId,
+        remainingDays,
+        prorataDifference,
+        prorataInvoiceId,
+      },
     });
 
-    return updated;
+    return {
+      subscription: updated,
+      prorata: {
+        remainingDays,
+        difference: prorataDifference,
+        invoiceId: prorataInvoiceId,
+      },
+      nouvelleEcheance: subscription.currentPeriodEnd, // inchangée par un changement de plan — seul le tarif change
+      nouveauxQuotas: {
+        quotaSalles: newPlan.quotaSalles,
+        quotaGestionnaires: newPlan.quotaGestionnaires,
+        quotaCoachs: newPlan.quotaCoachs,
+        quotaAdherents: newPlan.quotaAdherents,
+      },
+    };
   }
 
   /**

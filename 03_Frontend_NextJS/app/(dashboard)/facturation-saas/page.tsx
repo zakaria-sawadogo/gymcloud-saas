@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { CheckCircle2, Receipt } from 'lucide-react';
+import { CheckCircle2, Receipt, Download } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
-import { apiClient, ApiClientError } from '@/lib/api-client';
+import { apiClient, ApiClientError, tokenStorage } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -12,6 +12,32 @@ import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { SaasInvoice } from '@/types';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
+
+/**
+ * Le PDF est binaire et protégé par Bearer token — un simple lien
+ * `<a href>` ne peut pas envoyer l'en-tête d'autorisation. On récupère
+ * donc le fichier via fetch() authentifié, puis on déclenche le
+ * téléchargement à partir du blob obtenu.
+ */
+async function downloadInvoicePdf(invoiceId: string, invoiceNumber: string) {
+  const token = tokenStorage.getAccessToken();
+  const res = await fetch(`${API_URL}/saas/invoices/${invoiceId}/pdf`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    alert('Impossible de télécharger la facture');
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `facture-${invoiceNumber}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const STATUS_FILTERS = [
   { value: '', label: 'Toutes' },
@@ -127,12 +153,18 @@ export default function FacturationSaasPage() {
                     )}
                   </td>
                   <td className="px-5 py-3 text-right">
-                    {inv.status === 'EMISE' && (
-                      <Button size="sm" variant="secondary" onClick={() => setInvoiceToPay(inv)}>
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Encaisser
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => downloadInvoicePdf(inv.id, inv.invoiceNumber)}>
+                        <Download className="h-3.5 w-3.5" />
+                        PDF
                       </Button>
-                    )}
+                      {inv.status === 'EMISE' && (
+                        <Button size="sm" variant="secondary" onClick={() => setInvoiceToPay(inv)}>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Encaisser
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

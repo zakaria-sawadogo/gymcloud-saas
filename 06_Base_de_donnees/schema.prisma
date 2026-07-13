@@ -279,6 +279,7 @@ model SaasSubscription {
   startDate       DateTime
   currentPeriodEnd DateTime
   graceEndsAt     DateTime?
+  promotionalDiscountPct Decimal? @db.Decimal(5, 2) // remise négociée propre à ce client (§9.3), distincte de annualDiscountPct (plan-wide)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -346,6 +347,7 @@ model Proprietaire {
   userId       String   @unique
   user         User     @relation(fields: [userId], references: [id])
   companyName  String?
+  address      String?
   countryId    String?
   country      Country? @relation(fields: [countryId], references: [id])
   createdAt    DateTime @default(now())

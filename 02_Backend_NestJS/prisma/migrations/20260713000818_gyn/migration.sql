@@ -214,6 +214,7 @@ CREATE TABLE "saas_subscriptions" (
     "startDate" TIMESTAMP(3) NOT NULL,
     "currentPeriodEnd" TIMESTAMP(3) NOT NULL,
     "graceEndsAt" TIMESTAMP(3),
+    "promotionalDiscountPct" DECIMAL(5,2),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -258,6 +259,7 @@ CREATE TABLE "proprietaires" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "companyName" TEXT,
+    "address" TEXT,
     "countryId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
