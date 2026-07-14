@@ -76,7 +76,7 @@ export class SallesService {
       // cet appel, une salle créée dans le quota inclus n'aurait
       // jamais de facture avant son premier renouvellement 30 jours
       // plus tard (bug réel corrigé).
-      await this.saasBilling.generateBootstrapInvoice(subscription.id);
+      await this.saasBilling.generateBootstrapInvoice(subscription.id, actorUserId);
     }
 
     // Contrôle préalable §3.2 : quota de salles inclus vs salle supplémentaire

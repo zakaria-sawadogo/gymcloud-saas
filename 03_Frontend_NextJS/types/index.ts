@@ -360,6 +360,26 @@ export interface SaasSubscription {
   saasPlan: SaasPlan;
 }
 
+export type SaasSubscriptionHistoryType =
+  | 'SOUSCRIPTION_INITIALE'
+  | 'CHANGEMENT_PLAN'
+  | 'REABONNEMENT'
+  | 'RENOUVELLEMENT_AUTOMATIQUE'
+  | 'ESSAI_TERMINE';
+
+export interface SaasSubscriptionHistoryEntry {
+  id: string;
+  type: SaasSubscriptionHistoryType;
+  fromPlan?: { name: string };
+  toPlan: { name: string };
+  fromBillingCycle?: 'MENSUEL' | 'ANNUEL';
+  toBillingCycle: 'MENSUEL' | 'ANNUEL';
+  periodStart: string;
+  periodEnd: string;
+  invoice?: { id: string; invoiceNumber: string; totalAmount: number; currency: string; status: string };
+  createdAt: string;
+}
+
 export interface SaasInvoice {
   id: string;
   invoiceNumber: string;

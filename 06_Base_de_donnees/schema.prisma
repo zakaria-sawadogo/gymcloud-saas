@@ -209,6 +209,8 @@ model SaasPlan {
   subscriptions SaasSubscription[]
   countryPricing SaasCountryPricing[]
   addons        SaasPlanAddon[]
+  historyAsFromPlan SaasSubscriptionHistory[] @relation("HistoryFromPlan")
+  historyAsToPlan   SaasSubscriptionHistory[] @relation("HistoryToPlan")
 
   @@map("saas_plans")
 }
@@ -287,6 +289,7 @@ model SaasSubscription {
   addons   SaasSubscriptionAddon[]
   invoices SaasInvoice[]
   salles   Salle[]
+  historyEntries SaasSubscriptionHistory[]
 
   @@map("saas_subscriptions")
 }
@@ -360,8 +363,57 @@ model SaasInvoice {
   pendingPlanId         String?
   pendingBillingCycle   BillingCycle?
 
+  historyEntry SaasSubscriptionHistory?
+
   @@index([subscriptionId])
   @@map("saas_invoices")
+}
+
+enum SaasSubscriptionHistoryType {
+  SOUSCRIPTION_INITIALE     // création du compte propriétaire (§9.5)
+  CHANGEMENT_PLAN           // changement vers un plan différent
+  REABONNEMENT              // même plan, nouvelle période (renouvellement manuel)
+  RENOUVELLEMENT_AUTOMATIQUE // généré par le scheduler à l'échéance (§9.6)
+  ESSAI_TERMINE             // fin d'essai déclenchée par un changement de plan (§9.7)
+}
+
+/// §9.6, §9.12 — Historique complet des abonnements et réabonnements
+/// de plan d'une souscription SaaS. Distinct des AuditLog (génériques,
+/// pensés pour la traçabilité technique) : cette table est la source
+/// de vérité lisible pour repondre à "quel plan avait ce propriétaire
+/// à telle date, et qu'est-ce qui a changé, quand, et sur quelle
+/// facture". Une entrée est créée à CHAQUE événement qui démarre une
+/// nouvelle période de facturation — jamais de mise à jour en place,
+/// jamais de suppression.
+model SaasSubscriptionHistory {
+  id             String           @id @default(uuid())
+  subscriptionId String
+  subscription   SaasSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  type             SaasSubscriptionHistoryType
+  fromPlanId       String?
+  fromPlan         SaasPlan?     @relation("HistoryFromPlan", fields: [fromPlanId], references: [id])
+  toPlanId         String
+  toPlan           SaasPlan      @relation("HistoryToPlan", fields: [toPlanId], references: [id])
+  fromBillingCycle BillingCycle?
+  toBillingCycle   BillingCycle
+
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // Facture associée à cet événement — toujours renseignée dès qu'un
+  // changement de plan ou réabonnement se produit (§9.12, même à 0
+  // XOF pendant un essai), pour que le propriétaire ait toujours une
+  // pièce justificative rattachée à chaque ligne de son historique.
+  invoiceId String?      @unique
+  invoice   SaasInvoice? @relation(fields: [invoiceId], references: [id])
+
+  initiatedByUserId String? // qui a déclenché l'événement (propriétaire en self-service, ou SUPER_ADMIN) — null pour un renouvellement automatique déclenché par le scheduler
+
+  createdAt DateTime @default(now())
+
+  @@index([subscriptionId, createdAt])
+  @@map("saas_subscription_history")
 }
 
 // ───────────────────────────────────────────────────────────────────────

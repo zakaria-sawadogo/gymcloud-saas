@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
 import { ChangePlanModal } from '@/components/dashboard/ChangePlanModal';
+import { SubscriptionHistoryTable } from '@/components/dashboard/SubscriptionHistoryTable';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { SaasSubscription, SaasInvoice, SaasPlan } from '@/types';
 
@@ -148,6 +149,10 @@ export default function MonAbonnementPage() {
           </table>
         )}
       </Card>
+
+      <div className="mt-6">
+        <SubscriptionHistoryTable apiPath="/saas/invoices/me/history" />
+      </div>
 
       <ChangePlanModal
         subscriptionId={subscription.id}

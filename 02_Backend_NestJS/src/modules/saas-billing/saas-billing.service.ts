@@ -264,14 +264,14 @@ export class SaasBillingService {
    * montant est forcé à 0 et elle est immédiatement soldée (statut
    * PAYEE) : rien n'est réellement dû ni à encaisser pendant l'essai.
    */
-  async generateBootstrapInvoice(subscriptionId: string) {
+  async generateBootstrapInvoice(subscriptionId: string, actorUserId: string) {
     const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
       where: { id: subscriptionId },
       include: { saasPlan: true },
     });
 
     if (subscription.saasPlan.trialDays > 0) {
-      return this.prisma.saasInvoice.create({
+      const invoice = await this.prisma.saasInvoice.create({
         data: {
           id: randomUUID(),
           subscriptionId: subscription.id,
@@ -290,9 +290,35 @@ export class SaasBillingService {
           paymentMethod: 'ESSAI_GRATUIT',
         },
       });
+      await this.recordSubscriptionHistory({
+        subscriptionId: subscription.id,
+        type: 'SOUSCRIPTION_INITIALE',
+        fromPlanId: null,
+        toPlanId: subscription.saasPlanId,
+        fromBillingCycle: null,
+        toBillingCycle: subscription.billingCycle,
+        periodStart: subscription.startDate,
+        periodEnd: subscription.currentPeriodEnd,
+        invoiceId: invoice.id,
+        initiatedByUserId: actorUserId,
+      });
+      return invoice;
     }
 
-    return this.getOrCreateCurrentInvoice(subscription);
+    const invoice = await this.getOrCreateCurrentInvoice(subscription);
+    await this.recordSubscriptionHistory({
+      subscriptionId: subscription.id,
+      type: 'SOUSCRIPTION_INITIALE',
+      fromPlanId: null,
+      toPlanId: subscription.saasPlanId,
+      fromBillingCycle: null,
+      toBillingCycle: subscription.billingCycle,
+      periodStart: subscription.startDate,
+      periodEnd: subscription.currentPeriodEnd,
+      invoiceId: invoice.id,
+      initiatedByUserId: actorUserId,
+    });
+    return invoice;
   }
 
   /**
@@ -507,6 +533,7 @@ export class SaasBillingService {
     // SUPER_ADMIN, lui, applique immédiatement — il EST le validateur.
     const isSelfService = !!actor && !actor.isGlobalAccess;
     let planChangeApplied = false;
+    let requiresApprovalGate = false;
 
     if (!isInFreeTrial) {
       const oldCycleLengthDays = subscription.billingCycle === 'ANNUEL' ? 365 : 30;
@@ -524,7 +551,12 @@ export class SaasBillingService {
       const chargeForNewPlanRemainder = newDailyRate * remainingDays;
       prorataDifference = Math.round((chargeForNewPlanRemainder - creditForUnusedOldPlan) * 100) / 100;
 
-      if (Math.abs(prorataDifference) >= 1) {
+      // §9.12 — Chaque changement de plan ou réabonnement doit
+      // toujours produire une facture que le propriétaire peut
+      // consulter, même quand le prorata est négligeable ou nul (ex:
+      // renouvellement au même plan) — plus de seuil qui faisait
+      // disparaître silencieusement l'historique de ces changements.
+      {
         const isAmountDue = prorataDifference > 0;
 
         if (isAmountDue && !payment) {
@@ -537,6 +569,7 @@ export class SaasBillingService {
         // de validation) ; sans montant dû (crédit) ou réglé par le
         // SUPER_ADMIN, la facture est directement soldée.
         const requiresValidation = isAmountDue && isSelfService;
+        requiresApprovalGate = requiresValidation;
 
         const prorataInvoice = await this.prisma.saasInvoice.create({
           data: {
@@ -607,6 +640,41 @@ export class SaasBillingService {
           }
         }
       }
+    } else if (isSelfService) {
+      // §9.7, §9.8, §9.12 — Pendant l'essai gratuit, aucun prorata
+      // n'est calculé (rien n'est dû) — mais un propriétaire agissant
+      // pour lui-même ne doit PAS pouvoir pour autant changer de plan
+      // sans aucun contrôle : il pourrait sinon s'attribuer librement
+      // un plan à quotas plus élevés pendant l'essai, sans que le
+      // SUPER_ADMIN n'en soit jamais informé. On crée donc une
+      // facture à 0 XOF, auto-déclarée (rien à encaisser), qui
+      // attend malgré tout une approbation avant d'appliquer le
+      // changement — même mécanisme que pour un montant réellement dû.
+      const prorataInvoice = await this.prisma.saasInvoice.create({
+        data: {
+          id: randomUUID(),
+          subscriptionId,
+          invoiceNumber: this.generateInvoiceNumber(),
+          periodStart: now,
+          periodEnd: subscription.currentPeriodEnd,
+          baseAmount: 0,
+          extraSallesCount: 0,
+          extraSallesAmount: 0,
+          addonsAmount: 0,
+          taxAmount: 0,
+          totalAmount: 0,
+          currency: 'XOF',
+          status: 'EMISE',
+          declaredPaymentMethod: 'ESSAI_GRATUIT',
+          declaredAt: now,
+          declaredByUserId: actorUserId,
+          pendingPlanId: newPlanId,
+          pendingBillingCycle: targetBillingCycle,
+        },
+      });
+      prorataInvoiceId = prorataInvoice.id;
+      paymentResult = { pendingValidation: true };
+      requiresApprovalGate = true;
     }
 
     if (subscription._count.salles > newPlan.quotaSalles) {
@@ -626,14 +694,67 @@ export class SaasBillingService {
     // s'il n'y avait rien à valider (pas de montant dû, ou réglé
     // directement par le SUPER_ADMIN). Sinon, la souscription garde
     // son plan actuel jusqu'à approveDeclaredPayment.
-    const shouldApplyNow = !(prorataInvoiceId && isSelfService && prorataDifference > 0);
-    const updated = shouldApplyNow
-      ? await this.prisma.saasSubscription.update({
+    const shouldApplyNow = !requiresApprovalGate;
+    let updated = subscription;
+    if (shouldApplyNow) {
+      if (isInFreeTrial) {
+        // §9.7 — Changer de plan pendant l'essai (ici : le SUPER_ADMIN
+        // lui-même, sans passer par une approbation) met fin à l'essai
+        // immédiatement — le propriétaire a choisi son plan, la vraie
+        // facturation démarre maintenant sur une période complète.
+        updated = await this.prisma.saasSubscription.update({
+          where: { id: subscriptionId },
+          data: { saasPlanId: newPlanId, billingCycle: targetBillingCycle, currentPeriodEnd: now },
+          include: { _count: { select: { salles: true } }, saasPlan: true },
+        });
+        const renewalInvoice = await this.generateRenewalInvoice({
+          id: updated.id,
+          billingCycle: targetBillingCycle,
+          currentPeriodEnd: now,
+          saasPlanId: newPlan.id,
+          promotionalDiscountPct: updated.promotionalDiscountPct,
+          saasPlan: newPlan,
+        });
+        await this.recordSubscriptionHistory({
+          subscriptionId,
+          type: 'ESSAI_TERMINE',
+          fromPlanId: oldPlan.id,
+          toPlanId: newPlanId,
+          fromBillingCycle: subscription.billingCycle,
+          toBillingCycle: targetBillingCycle,
+          periodStart: now,
+          periodEnd: renewalInvoice.periodEnd,
+          invoiceId: renewalInvoice.id,
+          initiatedByUserId: actorUserId,
+        });
+        await this.audit.log({
+          userId: actorUserId,
+          action: 'saas_subscription.trial_ended_by_plan_change',
+          entityType: 'SaasSubscription',
+          entityId: subscriptionId,
+          metadata: { newPlanId },
+        });
+      } else {
+        updated = await this.prisma.saasSubscription.update({
           where: { id: subscriptionId },
           data: { saasPlanId: newPlanId, billingCycle: targetBillingCycle },
-        })
-      : subscription;
-    if (shouldApplyNow) planChangeApplied = true;
+          include: { _count: { select: { salles: true } }, saasPlan: true },
+        });
+        await this.recordSubscriptionHistory({
+          subscriptionId,
+          type: oldPlan.id === newPlanId ? 'REABONNEMENT' : 'CHANGEMENT_PLAN',
+          fromPlanId: oldPlan.id,
+          toPlanId: newPlanId,
+          fromBillingCycle: subscription.billingCycle,
+          toBillingCycle: targetBillingCycle,
+          periodStart: now,
+          periodEnd: subscription.currentPeriodEnd,
+          invoiceId: prorataInvoiceId,
+          initiatedByUserId: actorUserId,
+        });
+      }
+      planChangeApplied = true;
+    }
 
     await this.audit.log({
       userId: actorUserId,
@@ -660,7 +781,7 @@ export class SaasBillingService {
         invoiceId: prorataInvoiceId,
       },
       payment: paymentResult,
-      nouvelleEcheance: subscription.currentPeriodEnd, // inchangée par un changement de plan — seul le tarif change
+      nouvelleEcheance: updated.currentPeriodEnd, // modifiée si l'essai vient d'être clos par ce changement de plan
       nouveauxQuotas: {
         quotaSalles: newPlan.quotaSalles,
         quotaGestionnaires: newPlan.quotaGestionnaires,
@@ -698,7 +819,19 @@ export class SaasBillingService {
         where: { id: sub.id },
         data: { status: 'EN_GRACE', graceEndsAt },
       });
-      await this.generateRenewalInvoice(sub);
+      const renewalInvoice = await this.generateRenewalInvoice(sub);
+      await this.recordSubscriptionHistory({
+        subscriptionId: sub.id,
+        type: 'RENOUVELLEMENT_AUTOMATIQUE',
+        fromPlanId: sub.saasPlanId,
+        toPlanId: sub.saasPlanId, // même plan — c'est une échéance qui se termine, pas un changement
+        fromBillingCycle: sub.billingCycle,
+        toBillingCycle: sub.billingCycle,
+        periodStart: sub.currentPeriodEnd,
+        periodEnd: renewalInvoice.periodEnd,
+        invoiceId: renewalInvoice.id,
+        // initiatedByUserId omis — déclenché par le scheduler, pas par un utilisateur (§9.6)
+      });
       await this.audit.log({
         action: 'saas_subscription.entered_grace',
         entityType: 'SaasSubscription',
@@ -762,6 +895,12 @@ export class SaasBillingService {
       where: { proprietaireId },
       include: { saasPlan: true },
     });
+  }
+
+  /** Historique de la souscription du propriétaire connecté (§9.6, §9.12). */
+  async getMySubscriptionHistory(proprietaireId: string) {
+    const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({ where: { proprietaireId } });
+    return this.getSubscriptionHistory(subscription.id);
   }
 
   /** Souscription d'un propriétaire donné — usage SUPER_ADMIN (gestion depuis la fiche propriétaire). */
@@ -858,6 +997,61 @@ export class SaasBillingService {
       metadata: { viaInvoiceId: invoice.id, newPeriodEnd: invoice.periodEnd },
     });
     // TODO(module notifications): confirmer la réactivation au propriétaire.
+  }
+
+  /**
+   * §9.6, §9.12 — Enregistre une ligne d'historique dès qu'un
+   * changement de plan ou réabonnement devient RÉELLEMENT effectif
+   * (jamais au moment de la simple demande/déclaration, encore en
+   * attente de validation). Appelé au même instant que la mise à jour
+   * de `saasPlanId`/`billingCycle` sur la souscription — jamais avant,
+   * jamais après.
+   */
+  private async recordSubscriptionHistory(params: {
+    subscriptionId: string;
+    type: 'SOUSCRIPTION_INITIALE' | 'CHANGEMENT_PLAN' | 'REABONNEMENT' | 'RENOUVELLEMENT_AUTOMATIQUE' | 'ESSAI_TERMINE';
+    fromPlanId?: string | null;
+    toPlanId: string;
+    fromBillingCycle?: 'MENSUEL' | 'ANNUEL' | null;
+    toBillingCycle: 'MENSUEL' | 'ANNUEL';
+    periodStart: Date;
+    periodEnd: Date;
+    invoiceId?: string | null;
+    initiatedByUserId?: string;
+  }) {
+    await this.prisma.saasSubscriptionHistory.create({
+      data: {
+        id: randomUUID(),
+        subscriptionId: params.subscriptionId,
+        type: params.type,
+        fromPlanId: params.fromPlanId ?? null,
+        toPlanId: params.toPlanId,
+        fromBillingCycle: params.fromBillingCycle ?? null,
+        toBillingCycle: params.toBillingCycle,
+        periodStart: params.periodStart,
+        periodEnd: params.periodEnd,
+        invoiceId: params.invoiceId ?? null,
+        initiatedByUserId: params.initiatedByUserId ?? null,
+      },
+    });
+  }
+
+  /** Historique complet des abonnements/changements de plan d'une souscription (§9.6, §9.12). */
+  async getSubscriptionHistory(subscriptionId: string, actor?: TenantContext) {
+    if (actor && !actor.isGlobalAccess) {
+      const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
+        where: { id: subscriptionId },
+        select: { proprietaireId: true },
+      });
+      if (subscription.proprietaireId !== actor.proprietaireId) {
+        throw new ForbiddenException('Cet historique n\'appartient pas à votre abonnement');
+      }
+    }
+    return this.prisma.saasSubscriptionHistory.findMany({
+      where: { subscriptionId },
+      include: { fromPlan: true, toPlan: true, invoice: true },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1051,13 +1245,77 @@ export class SaasBillingService {
     });
 
     if (invoice.pendingPlanId) {
-      await this.prisma.saasSubscription.update({
-        where: { id: invoice.subscriptionId },
-        data: {
-          saasPlanId: invoice.pendingPlanId,
-          billingCycle: invoice.pendingBillingCycle ?? invoice.subscription.billingCycle,
-        },
-      });
+      // §9.7 — Si ce changement de plan a été déclaré pendant la
+      // période d'essai (marqueur ESSAI_GRATUIT posé par changePlan),
+      // l'approbation met fin à l'essai immédiatement plutôt que de
+      // laisser l'ancienne échéance courir : le propriétaire a choisi
+      // son plan, la vraie facturation démarre maintenant, sur une
+      // période complète du nouveau plan — pas d'attente du prochain
+      // passage du scheduler.
+      const endsTrial = invoice.declaredPaymentMethod === 'ESSAI_GRATUIT';
+      const newBillingCycle = invoice.pendingBillingCycle ?? invoice.subscription.billingCycle;
+
+      if (endsTrial) {
+        const newPlan = await this.prisma.saasPlan.findUniqueOrThrow({ where: { id: invoice.pendingPlanId } });
+        const now = new Date();
+
+        const activatedSubscription = await this.prisma.saasSubscription.update({
+          where: { id: invoice.subscriptionId },
+          data: {
+            saasPlanId: invoice.pendingPlanId,
+            billingCycle: newBillingCycle,
+            currentPeriodEnd: now, // clôt l'essai — le prochain generateRenewalInvoice part d'ici
+          },
+        });
+
+        const renewalInvoice = await this.generateRenewalInvoice({
+          id: activatedSubscription.id,
+          billingCycle: newBillingCycle,
+          currentPeriodEnd: now,
+          saasPlanId: newPlan.id,
+          promotionalDiscountPct: activatedSubscription.promotionalDiscountPct,
+          saasPlan: newPlan,
+        });
+
+        await this.recordSubscriptionHistory({
+          subscriptionId: invoice.subscriptionId,
+          type: 'ESSAI_TERMINE',
+          fromPlanId: invoice.subscription.saasPlanId,
+          toPlanId: invoice.pendingPlanId,
+          fromBillingCycle: invoice.subscription.billingCycle,
+          toBillingCycle: newBillingCycle,
+          periodStart: now,
+          periodEnd: renewalInvoice.periodEnd,
+          invoiceId: renewalInvoice.id,
+          initiatedByUserId: actorUserId,
+        });
+
+        await this.audit.log({
+          userId: actorUserId,
+          action: 'saas_subscription.trial_ended_by_plan_change',
+          entityType: 'SaasSubscription',
+          entityId: invoice.subscriptionId,
+          metadata: { newPlanId: invoice.pendingPlanId },
+        });
+      } else {
+        await this.prisma.saasSubscription.update({
+          where: { id: invoice.subscriptionId },
+          data: { saasPlanId: invoice.pendingPlanId, billingCycle: newBillingCycle },
+        });
+        await this.recordSubscriptionHistory({
+          subscriptionId: invoice.subscriptionId,
+          type: invoice.subscription.saasPlanId === invoice.pendingPlanId ? 'REABONNEMENT' : 'CHANGEMENT_PLAN',
+          fromPlanId: invoice.subscription.saasPlanId,
+          toPlanId: invoice.pendingPlanId,
+          fromBillingCycle: invoice.subscription.billingCycle,
+          toBillingCycle: newBillingCycle,
+          periodStart: invoice.periodStart,
+          periodEnd: invoice.periodEnd,
+          invoiceId: invoice.id,
+          initiatedByUserId: actorUserId,
+        });
+      }
+
       await this.prisma.saasInvoice.update({
         where: { id: invoiceId },
         data: { pendingPlanId: null, pendingBillingCycle: null },

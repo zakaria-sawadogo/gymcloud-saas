@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { ChangePlanModal } from '@/components/dashboard/ChangePlanModal';
+import { SubscriptionHistoryTable } from '@/components/dashboard/SubscriptionHistoryTable';
 import { formatDate } from '@/lib/utils';
 import type { Proprietaire, Country, SaasPlan, SaasSubscription } from '@/types';
 
@@ -177,6 +178,13 @@ export default function ProprietairesPage() {
  * le plan actuel et le cycle de facturation actuel, propres à CE
  * propriétaire (§9.12, gestion SUPER_ADMIN).
  */
+/**
+ * Récupère la souscription du propriétaire ciblé, affiche son
+ * historique complet (§9.6, §9.12), et propose d'ouvrir
+ * ChangePlanModal pour agir — celle-ci a besoin de connaître le
+ * subscriptionId, le plan actuel et le cycle de facturation actuel,
+ * propres à CE propriétaire (gestion SUPER_ADMIN).
+ */
 function ManageSubscriptionModal({
   proprietaireId,
   onClose,
@@ -184,7 +192,8 @@ function ManageSubscriptionModal({
   proprietaireId: string;
   onClose: () => void;
 }) {
-  const { data: subscription, isLoading } = useApi<SaasSubscription>(
+  const [isChangePlanOpen, setIsChangePlanOpen] = useState(false);
+  const { data: subscription, isLoading, refetch } = useApi<SaasSubscription>(
     `/saas/invoices/proprietaire/${proprietaireId}/subscription`,
   );
 
@@ -197,14 +206,35 @@ function ManageSubscriptionModal({
   }
 
   return (
-    <ChangePlanModal
-      subscriptionId={subscription.id}
-      currentPlanId={subscription.saasPlanId}
-      currentBillingCycle={subscription.billingCycle}
-      isOpen
-      onClose={onClose}
-      onChanged={onClose}
-    />
+    <>
+      <Modal isOpen={!isChangePlanOpen} onClose={onClose} title="Gérer l'abonnement">
+        <div className="mb-5 flex items-center justify-between rounded-lg bg-ink-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-ink-900">{subscription.saasPlan.name}</p>
+            <p className="text-xs text-ink-400">
+              {subscription.billingCycle === 'ANNUEL' ? 'Annuel' : 'Mensuel'} · Statut : {subscription.status}
+            </p>
+          </div>
+          <Button size="sm" onClick={() => setIsChangePlanOpen(true)}>
+            Changer / réabonner
+          </Button>
+        </div>
+
+        <SubscriptionHistoryTable apiPath={`/saas/plans/${subscription.id}/history`} />
+      </Modal>
+
+      <ChangePlanModal
+        subscriptionId={subscription.id}
+        currentPlanId={subscription.saasPlanId}
+        currentBillingCycle={subscription.billingCycle}
+        isOpen={isChangePlanOpen}
+        onClose={() => setIsChangePlanOpen(false)}
+        onChanged={() => {
+          setIsChangePlanOpen(false);
+          refetch();
+        }}
+      />
+    </>
   );
 }
 

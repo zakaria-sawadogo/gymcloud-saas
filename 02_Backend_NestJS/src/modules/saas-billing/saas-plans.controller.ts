@@ -115,4 +115,14 @@ export class SaasPlansController {
       body.payment,
     );
   }
+
+  @Get(':subscriptionId/history')
+  @RequirePermission('read', 'SaasSubscription')
+  @ApiOperation({
+    summary:
+      'Historique des abonnements/changements de plan (§9.6, §9.12) — SUPER_ADMIN sur n\'importe laquelle, PROPRIETAIRE uniquement sur la sienne',
+  })
+  getHistory(@Param('subscriptionId') subscriptionId: string, @CurrentUser() user: TenantContext) {
+    return this.saasBillingService.getSubscriptionHistory(subscriptionId, user);
+  }
 }

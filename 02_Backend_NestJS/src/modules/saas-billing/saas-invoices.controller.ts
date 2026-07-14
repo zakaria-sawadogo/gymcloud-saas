@@ -67,6 +67,16 @@ export class SaasInvoicesController {
     return this.saasBillingService.getMySubscription(user.proprietaireId);
   }
 
+  @Get('me/history')
+  @RequirePermission('read', 'SaasSubscription')
+  @ApiOperation({ summary: 'Historique de mes abonnements/changements de plan (PROPRIETAIRE, §9.6, §9.12)' })
+  myHistory(@CurrentUser() user: TenantContext) {
+    if (!user.proprietaireId) {
+      throw new ForbiddenException('Cet endpoint est réservé aux comptes Propriétaire');
+    }
+    return this.saasBillingService.getMySubscriptionHistory(user.proprietaireId);
+  }
+
   @Get('proprietaire/:proprietaireId/subscription')
   @RequirePermission('manage', 'SaasPlan') // SUPER_ADMIN / RESPONSABLE_FINANCE uniquement — pas n'importe quel PROPRIETAIRE (IDOR)
   @ApiOperation({ summary: 'Souscription d\'un propriétaire donné (SUPER_ADMIN — gestion depuis sa fiche)' })

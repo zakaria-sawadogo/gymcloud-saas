@@ -146,11 +146,14 @@ export function ChangePlanModal({
       ) : step === 'pendingValidation' && result ? (
         <div>
           <p className="mb-3 rounded-lg bg-accent-50 px-3 py-3 text-sm text-accent-700">
-            Paiement déclaré — en attente de validation par l'équipe GymCloud.
+            {result.prorata.difference > 0
+              ? 'Paiement déclaré — en attente de validation par l\'équipe GymCloud.'
+              : 'Demande envoyée — en attente de validation par l\'équipe GymCloud.'}
           </p>
           <p className="mb-4 text-sm text-ink-600">
-            Le complément de {formatCurrency(result.prorata.difference)} a été enregistré. Votre nouveau plan
-            prendra effet dès que le règlement sera vérifié — généralement sous peu.
+            {result.prorata.difference > 0
+              ? `Le complément de ${formatCurrency(result.prorata.difference)} a été enregistré. Votre nouveau plan prendra effet dès que le règlement sera vérifié — généralement sous peu.`
+              : 'Aucun montant à régler pendant votre période d\'essai. Votre nouveau plan prendra effet dès que la demande sera validée — généralement sous peu.'}
           </p>
           <Button onClick={handleClose} className="w-full">
             Fermer
