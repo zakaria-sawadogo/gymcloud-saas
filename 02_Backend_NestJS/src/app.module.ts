@@ -23,6 +23,8 @@ import { MarketingModule } from './modules/marketing/marketing.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
 import { CountriesModule } from './modules/countries/countries.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { PublicModule } from './modules/public/public.module';
+import { ProspectsModule } from './modules/prospects/prospects.module';
 
 // Module restant à ajouter au fur et à mesure du développement :
 // NotificationsModule (transverse — SMS/Email/WhatsApp/Push)
@@ -47,6 +49,8 @@ import { RolesModule } from './modules/roles/roles.module';
     ReportingModule,
     CountriesModule,
     RolesModule,
+    PublicModule,
+    ProspectsModule,
   ],
   providers: [
     AbilityFactory,

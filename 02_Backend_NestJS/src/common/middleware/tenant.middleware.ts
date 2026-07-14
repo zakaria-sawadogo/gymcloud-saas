@@ -62,8 +62,15 @@ export class TenantMiddleware implements NestMiddleware {
     '/payments/mobile-money/webhook',
   ];
 
+  // Namespace entier public — site public par salle (§3.2) : recherche
+  // d'une salle par sous-domaine, consultation des activités,
+  // captation de prospects (inscription / essai gratuit). Jamais de
+  // fonction d'administration sous ce préfixe.
+  private readonly PUBLIC_PATH_PREFIXES = ['/public/'];
+
   private isPublicPath(req: Request): boolean {
-    return this.PUBLIC_PATHS.some((p) => req.path === p || req.path.endsWith(p));
+    if (this.PUBLIC_PATHS.some((p) => req.path === p || req.path.endsWith(p))) return true;
+    return this.PUBLIC_PATH_PREFIXES.some((prefix) => req.path.includes(prefix));
   }
 
   async use(req: AuthenticatedRequest, res: Response, next: NextFunction) {

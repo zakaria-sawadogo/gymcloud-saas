@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Users,
+  UserPlus,
   CreditCard,
   CalendarCheck,
   QrCode,
@@ -46,6 +47,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   GESTIONNAIRE: [
     { label: 'Tableau de bord', href: '/', icon: LayoutDashboard },
     { label: 'Adhérents', href: '/adherents', icon: Users },
+    { label: 'Prospects', href: '/prospects', icon: UserPlus },
     { label: 'Formules d\'abonnement', href: '/abonnements', icon: Layers },
     { label: 'Contrôle d\'accès', href: '/access-control', icon: QrCode },
     { label: 'Réservations', href: '/bookings', icon: CalendarCheck },

@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, UserCog, Dumbbell, Coins } from 'lucide-react';
+import { ArrowLeft, Plus, UserCog, Dumbbell, Coins, Globe, ExternalLink } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -33,12 +33,15 @@ import type { Salle, GestionnaireProfile, CoachProfile } from '@/types';
  * /payments (réservée au Gestionnaire), qu'il peut consulter et
  * encaisser des paiements pour n'importe quelle salle.
  */
+const PUBLIC_SITE_BASE_URL = process.env.NEXT_PUBLIC_PUBLIC_SITE_URL ?? 'http://localhost:3002';
+
 export default function SalleDetailPage() {
   const params = useParams<{ id: string }>();
-  const { data: salle } = useApi<Salle>(`/salles/${params.id}`);
+  const { data: salle, refetch: refetchSalle } = useApi<Salle>(`/salles/${params.id}`);
   const [isCreateGestionnaireOpen, setIsCreateGestionnaireOpen] = useState(false);
   const [isCreateCoachOpen, setIsCreateCoachOpen] = useState(false);
   const [pricingCoach, setPricingCoach] = useState<CoachProfile | null>(null);
+  const [isSubdomainModalOpen, setIsSubdomainModalOpen] = useState(false);
 
   const { data: gestionnaires, refetch: refetchGestionnaires } = useApi<GestionnaireProfile[]>(
     `/gestionnaires/salle/${params.id}`,
@@ -62,6 +65,53 @@ export default function SalleDetailPage() {
           </div>
           <StatusBadge status={salle.status} />
         </div>
+      )}
+
+      {salle && (
+        <Card className="mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+                <Globe className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-ink-900">Site public</p>
+                {salle.publicSubdomain ? (
+                  <a
+                    href={`${PUBLIC_SITE_BASE_URL}/s/${salle.publicSubdomain}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"
+                  >
+                    {salle.publicSubdomain}.gymcloud.africa
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <p className="text-xs text-ink-400">
+                    Aucun sous-domaine configuré — la présentation, l'inscription en ligne et les essais gratuits ne
+                    sont pas encore accessibles au public.
+                  </p>
+                )}
+              </div>
+            </div>
+            <Button size="sm" variant="secondary" onClick={() => setIsSubdomainModalOpen(true)}>
+              {salle.publicSubdomain ? 'Modifier' : 'Configurer'}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {salle && (
+        <SubdomainModal
+          salleId={salle.id}
+          currentSubdomain={salle.publicSubdomain}
+          isOpen={isSubdomainModalOpen}
+          onClose={() => setIsSubdomainModalOpen(false)}
+          onSaved={() => {
+            setIsSubdomainModalOpen(false);
+            refetchSalle();
+          }}
+        />
       )}
 
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -341,6 +391,74 @@ function CreateTeamMemberModal({
           </Button>
         </form>
       )}
+    </Modal>
+  );
+}
+
+/**
+ * §3.2 — Configure le sous-domaine du site public de la salle
+ * (présentation, inscription en ligne, essais gratuits). Aucune
+ * fonction d'administration n'est jamais exposée sous ce sous-domaine
+ * — uniquement ce que retourne l'API publique dédiée.
+ */
+function SubdomainModal({
+  salleId,
+  currentSubdomain,
+  isOpen,
+  onClose,
+  onSaved,
+}: {
+  salleId: string;
+  currentSubdomain?: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [subdomain, setSubdomain] = useState(currentSubdomain ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await apiClient.patch(`/salles/${salleId}/branding`, { publicSubdomain: subdomain.toLowerCase() });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Site public de la salle">
+      <form onSubmit={handleSubmit}>
+        <Field label="Sous-domaine">
+          <div className="flex items-center gap-2">
+            <Input
+              required
+              value={subdomain}
+              onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+              placeholder="fitnessclub"
+              minLength={3}
+              maxLength={40}
+            />
+            <span className="whitespace-nowrap text-sm text-ink-400">.gymcloud.africa</span>
+          </div>
+        </Field>
+        <p className="mb-4 text-xs text-ink-400">
+          Lettres minuscules, chiffres et tirets uniquement. Ce site présente la salle, ses activités, et permet
+          l'inscription en ligne et la demande d'essai gratuit — jamais d'administration.
+        </p>
+
+        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <Button type="submit" isLoading={isSubmitting} disabled={subdomain.length < 3} className="w-full">
+          Enregistrer
+        </Button>
+      </form>
     </Modal>
   );
 }

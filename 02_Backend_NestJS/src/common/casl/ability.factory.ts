@@ -16,6 +16,7 @@ export type Subjects =
   | 'SaasSubscription'
   | 'AuditLog'
   | 'Role'
+  | 'Prospect'
   | 'all';
 
 export type AppAbility = MongoAbility<[Actions, Subjects]>;
@@ -54,6 +55,7 @@ export class AbilityFactory {
         can('read', 'AccessLog'); // nécessaire au tableau de bord consolidé (§11)
         can('read', 'Booking');
         can('read', 'MarketingCampaign');
+        can('read', 'Prospect');
         // Peut créer des GESTIONNAIRE et COACH (matrice §2.8). La
         // restriction fine (quel rôle précis, quelle salle) est
         // appliquée dans UsersService, pas ici — CASL reste
@@ -71,6 +73,7 @@ export class AbilityFactory {
         can('manage', 'Booking');
         can('manage', 'AccessLog');
         can('manage', 'MarketingCampaign');
+        can('manage', 'Prospect'); // prospects captés depuis le site public de sa salle (§3.2)
         can('create', 'User'); // création de COACH uniquement (§2.8) — restriction fine en service
         can('read', 'User');
         cannot('manage', 'SaasPlan');

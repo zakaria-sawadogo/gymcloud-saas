@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
@@ -142,6 +142,14 @@ export class SallesService {
   }
 
   async updateBranding(salleId: string, dto: UpdateSalleBrandingDto, actorUserId: string) {
+    if (dto.publicSubdomain) {
+      const existing = await this.prisma.salle.findUnique({ where: { publicSubdomain: dto.publicSubdomain } });
+      if (existing && existing.id !== salleId) {
+        throw new ConflictException(
+          `Le sous-domaine "${dto.publicSubdomain}" est déjà utilisé par une autre salle — choisissez-en un autre`,
+        );
+      }
+    }
     const salle = await this.prisma.salle.update({
       where: { id: salleId },
       data: dto as any,

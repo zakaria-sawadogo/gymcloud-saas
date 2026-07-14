@@ -400,7 +400,8 @@ model Salle {
 
   // Identification (§3.2)
   name        String
-  slug        String   @unique
+  slug        String   @unique // identifiant interne (suffixe aléatoire) — jamais utilisé côté public
+  publicSubdomain String? @unique // ex: "fitnessclub" -> fitnessclub.gymcloud.africa (§3.2, site public)
   logoUrl     String?
   slogan      String?
   description String?
@@ -451,6 +452,7 @@ model Salle {
   coupons         Coupon[]
   auditLogs       AuditLog[]
   documents       SalleDocument[]
+  prospects       Prospect[]
 
   @@index([proprietaireId])
   @@index([subscriptionId])
@@ -585,6 +587,7 @@ model AbonnementCatalogue {
   createdAt DateTime @default(now())
 
   attributions AdherentAbonnement[]
+  prospects    Prospect[]
 
   @@index([salleId])
   @@map("abonnement_catalogues")
@@ -680,6 +683,7 @@ model CoursCollectif {
 
   bookings Booking[]
   waitingList WaitingListEntry[]
+  trialProspects Prospect[]
 
   @@index([salleId, startAt])
   @@map("cours_collectifs")
@@ -948,3 +952,54 @@ model ApiCredential {
   @@index([provider, scope])
   @@map("api_credentials")
 }
+
+enum ProspectSource {
+  INSCRIPTION    // formulaire d'inscription du site public
+  ESSAI_GRATUIT  // demande de séance d'essai gratuite
+}
+
+enum ProspectStatus {
+  NOUVEAU
+  CONTACTE
+  CONVERTI
+  PERDU
+}
+
+/// §3.2, site public par salle — un « prospect » est une simple piste
+/// commerciale captée depuis le site public (inscription en ligne ou
+/// demande d'essai gratuit), JAMAIS un compte adhérent : c'est le
+/// gestionnaire qui rappelle et convertit lui-même via le parcours
+/// guichet habituel (création adhérent + encaissement). Aucune
+/// fonction d'administration n'est jamais accessible depuis le site
+/// public — seule la capture de ce lead léger l'est.
+model Prospect {
+  id         String   @id @default(uuid())
+  salleId    String
+  salle      Salle    @relation(fields: [salleId], references: [id], onDelete: Cascade)
+
+  firstName  String
+  lastName   String
+  phone      String
+  email      String?
+  message    String?
+  source     ProspectSource
+
+  // Formule souhaitée — renseignée uniquement pour une INSCRIPTION
+  desiredCatalogueId String?
+  desiredCatalogue   AbonnementCatalogue? @relation(fields: [desiredCatalogueId], references: [id])
+
+  // Cours visé — renseigné uniquement pour un ESSAI_GRATUIT
+  trialCoursCollectifId String?
+  trialCoursCollectif   CoursCollectif? @relation(fields: [trialCoursCollectifId], references: [id])
+
+  status            ProspectStatus @default(NOUVEAU)
+  contactedByUserId String?
+  contactedAt       DateTime?
+  note              String? // note libre du gestionnaire (motif de perte, etc.)
+
+  createdAt DateTime @default(now())
+
+  @@index([salleId, status])
+  @@map("prospects")
+}
+

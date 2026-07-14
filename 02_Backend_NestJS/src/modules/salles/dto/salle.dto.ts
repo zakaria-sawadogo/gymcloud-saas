@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsUUID, IsObject } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsUUID, IsObject, Matches, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateSalleDto {
@@ -71,6 +71,19 @@ export class UpdateSalleBrandingDto {
   @IsOptional()
   @IsObject()
   socialLinks?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description:
+      'Sous-domaine du site public — ex: "fitnessclub" pour fitnessclub.gymcloud.africa (§3.2). Lettres minuscules, chiffres et tirets uniquement.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9]+(-[a-z0-9]+)*$/, {
+    message: 'Le sous-domaine ne peut contenir que des lettres minuscules, chiffres et tirets (ex: "fitnessclub")',
+  })
+  @MinLength(3)
+  @MaxLength(40)
+  publicSubdomain?: string;
 }
 
 export class UpdateSalleSettingsDto {

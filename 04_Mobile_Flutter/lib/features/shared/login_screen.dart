@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/auth/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/config/flavor_config.dart';
 
-/// Écran de connexion, partagé par les 4 flavors. Le libellé et l'icône
-/// s'adaptent légèrement au profil pour rassurer l'utilisateur qu'il
-/// est bien sur la bonne application (§4.7).
+/// Écran de connexion, unique pour tous les profils (§2.3) — l'app
+/// est désormais commune à tous, seul l'écran affiché APRÈS connexion
+/// dépend du rôle réel (voir app.dart, _RootRouter). Le libellé reste
+/// donc générique ici, faute de connaître encore le rôle à ce stade.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -19,19 +19,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
-
-  String get _appLabel {
-    switch (FlavorConfig.instance.flavor) {
-      case AppFlavor.adherent:
-        return 'Espace Adhérent';
-      case AppFlavor.coach:
-        return 'Espace Coach';
-      case AppFlavor.gestionnaire:
-        return 'Espace Gestionnaire';
-      case AppFlavor.proprietaire:
-        return 'Espace Propriétaire';
-    }
-  }
 
   Future<void> _submit() async {
     setState(() => _isLoading = true);
@@ -68,7 +55,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
-                Text(_appLabel, style: const TextStyle(color: AppColors.ink400, fontSize: 14)),
+                const Text(
+                  'Connectez-vous à votre espace',
+                  style: TextStyle(color: AppColors.ink400, fontSize: 14),
+                ),
                 const SizedBox(height: 32),
                 Container(
                   padding: const EdgeInsets.all(24),

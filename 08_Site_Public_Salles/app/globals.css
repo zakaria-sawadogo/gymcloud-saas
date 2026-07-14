@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+
+/*
+ * Palette neutre partagée par tous les sites publics. Les couleurs de
+ * marque (--salle-primary / --salle-secondary) sont injectées par
+ * salle via une variable CSS posée sur le conteneur racine de la page
+ * (voir app/s/[subdomain]/page.tsx) — jamais figées ici, puisque
+ * chaque salle personnalise les siennes (§3.4).
+ */
+@theme {
+  --color-ink-900: #14181b;
+  --color-ink-700: #333a3f;
+  --color-ink-600: #494f54;
+  --color-ink-400: #71767a;
+  --color-ink-100: #e5e7e8;
+  --color-ink-50: #f4f5f5;
+  --color-paper: #faf9f7;
+
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+:root {
+  /* Repli si une salle n'a pas encore personnalisé ses couleurs. */
+  --salle-primary: #0f3b4d;
+  --salle-secondary: #2e75b6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink-900);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

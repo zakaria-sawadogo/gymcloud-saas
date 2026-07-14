@@ -1,5 +1,5 @@
 name: gymcloud_mobile
-description: Applications mobiles GymCloud (Adhérent, Coach, Gestionnaire, Propriétaire)
+description: Application mobile GymCloud — unique pour tous les profils (Adhérent, Coach, Gestionnaire, Propriétaire), l'écran affiché dépend du rôle réel après connexion.
 publish_to: 'none'
 version: 1.0.0+1
 

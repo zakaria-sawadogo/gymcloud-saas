@@ -88,6 +88,7 @@ export interface Salle {
   subscriptionId: string;
   name: string;
   slug: string;
+  publicSubdomain?: string;
   logoUrl?: string;
   slogan?: string;
   email?: string;
@@ -100,6 +101,23 @@ export interface Salle {
   status: SalleStatus;
   isSalleSupplementaire: boolean;
   createdAt: string;
+}
+
+export interface Prospect {
+  id: string;
+  salleId: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+  message?: string;
+  source: 'INSCRIPTION' | 'ESSAI_GRATUIT';
+  status: 'NOUVEAU' | 'CONTACTE' | 'CONVERTI' | 'PERDU';
+  note?: string;
+  contactedAt?: string;
+  createdAt: string;
+  desiredCatalogue?: { name: string; price: number; currency: string };
+  trialCoursCollectif?: { name: string; startAt: string };
 }
 
 // ── SaaS ──────────────────────────────────────────────────────
@@ -394,4 +412,26 @@ export interface ApiError {
   statusCode: number;
   message: string | string[];
   error?: string;
+}
+
+// ── Prospects (site public) ──────────────────────────────────
+
+export type ProspectSource = 'INSCRIPTION' | 'ESSAI_GRATUIT';
+export type ProspectStatus = 'NOUVEAU' | 'CONTACTE' | 'CONVERTI' | 'PERDU';
+
+export interface Prospect {
+  id: string;
+  salleId: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+  message?: string;
+  source: ProspectSource;
+  status: ProspectStatus;
+  note?: string;
+  contactedAt?: string;
+  createdAt: string;
+  desiredCatalogue?: { name: string; price: number; currency: string };
+  trialCoursCollectif?: { name: string; startAt: string };
 }

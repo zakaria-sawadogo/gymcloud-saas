@@ -17,6 +17,10 @@ const STATUS_STYLES: Record<string, string> = {
   PAYEE: 'bg-primary-50 text-primary-700',
   EN_RETARD: 'bg-red-50 text-red-700',
   ARCHIVE: 'bg-ink-100 text-ink-400',
+  NOUVEAU: 'bg-accent-50 text-accent-700',
+  CONTACTE: 'bg-ink-100 text-ink-600',
+  CONVERTI: 'bg-primary-50 text-primary-700',
+  PERDU: 'bg-red-50 text-red-700',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -36,6 +40,10 @@ const STATUS_LABELS: Record<string, string> = {
   PAYEE: 'Payée',
   EN_RETARD: 'En retard',
   ARCHIVE: 'Archivé',
+  NOUVEAU: 'Nouveau',
+  CONTACTE: 'Contacté',
+  CONVERTI: 'Converti',
+  PERDU: 'Perdu',
 };
 
 export function StatusBadge({ status }: { status: string }) {
