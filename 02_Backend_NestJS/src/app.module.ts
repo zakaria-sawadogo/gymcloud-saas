@@ -25,6 +25,7 @@ import { CountriesModule } from './modules/countries/countries.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { PublicModule } from './modules/public/public.module';
 import { ProspectsModule } from './modules/prospects/prospects.module';
+import { SubscriptionRequestsModule } from './modules/subscription-requests/subscription-requests.module';
 
 // Module restant à ajouter au fur et à mesure du développement :
 // NotificationsModule (transverse — SMS/Email/WhatsApp/Push)
@@ -51,6 +52,7 @@ import { ProspectsModule } from './modules/prospects/prospects.module';
     RolesModule,
     PublicModule,
     ProspectsModule,
+    SubscriptionRequestsModule,
   ],
   providers: [
     AbilityFactory,

@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GymCloud — Le logiciel qui gère votre salle de sport</title>
 <meta name="description" content="GymCloud digitalise la gestion de votre salle de sport : contrôle d'accès QR, adhérents, paiements Mobile Money, réservations et multi-salles. Conçu pour l'Afrique de l'Ouest.">
+<link rel="canonical" href="https://gray-panther-213230.hostingersite.com/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://gray-panther-213230.hostingersite.com/">
+<meta property="og:title" content="GymCloud — Le logiciel qui gère votre salle de sport">
+<meta property="og:description" content="Contrôle d'accès QR, adhérents, paiements Mobile Money, réservations et multi-salles — pensé pour l'Afrique de l'Ouest.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GymCloud — Le logiciel qui gère votre salle de sport">
+<meta name="twitter:description" content="Contrôle d'accès QR, adhérents, paiements Mobile Money, réservations et multi-salles — pensé pour l'Afrique de l'Ouest.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -82,6 +90,12 @@
     transition:transform .15s, box-shadow .15s;
   }
   .nav-cta:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(61,255,154,0.35);}
+  .nav-login{
+    font-size:14px;font-weight:500;color:var(--paper);opacity:0.75;
+    padding:10px 4px;transition:opacity .15s;
+  }
+  .nav-login:hover{opacity:1;}
+  .nav-actions{display:flex;align-items:center;gap:20px;}
   .nav-mobile-toggle{display:none;background:none;border:0;color:var(--paper);cursor:pointer;padding:6px;}
   .mobile-menu{
     display:none;position:fixed;inset:72px 0 0 0;z-index:49;
@@ -96,6 +110,7 @@
   .mobile-menu .nav-cta{margin-top:22px;justify-content:center;}
   @media(max-width:860px){
     .nav-links{display:none;}
+    .nav-login{display:none;}
     .nav-mobile-toggle{display:block;}
   }
 
@@ -237,6 +252,55 @@
   .compare-item svg{flex-shrink:0;margin-top:3px;}
 
   /* ---------- MODULES ---------- */
+  /* ---------- APERÇU TABLEAU DE BORD ---------- */
+  .dash-mockup{
+    border-radius:18px;overflow:hidden;background:var(--ink);
+    box-shadow:0 30px 80px rgba(20,67,47,0.28);
+    border:1px solid var(--line-dark);
+  }
+  .dash-chrome{
+    display:flex;align-items:center;gap:8px;padding:14px 18px;
+    background:var(--ink-soft);border-bottom:1px solid var(--line);
+  }
+  .dash-dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+  .dash-url{
+    margin-left:10px;font-family:'JetBrains Mono';font-size:11.5px;color:rgba(250,248,243,0.45);
+    background:rgba(250,248,243,0.06);padding:4px 10px;border-radius:6px;
+  }
+  .dash-body{padding:28px;}
+  @media(max-width:640px){.dash-body{padding:20px;}}
+  .dash-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-radius:12px;overflow:hidden;margin-bottom:24px;}
+  @media(max-width:640px){.dash-stats{grid-template-columns:1fr;}}
+  .dash-stat{background:var(--ink-soft);padding:18px 20px;display:flex;flex-direction:column;gap:6px;}
+  .dash-stat-label{font-size:12px;color:rgba(250,248,243,0.5);}
+  .dash-stat-value{font-family:'Space Grotesk';font-size:24px;font-weight:600;color:var(--paper);}
+  .dash-stat-value small{font-size:13px;font-weight:500;color:rgba(250,248,243,0.55);}
+  .dash-stat-delta{font-family:'JetBrains Mono';font-size:11px;color:var(--signal);}
+  .dash-stat-delta--warn{color:#F5A94E;}
+  .dash-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;}
+  @media(max-width:760px){.dash-grid{grid-template-columns:1fr;}}
+  .dash-panel-label{display:block;font-family:'JetBrains Mono';font-size:11px;letter-spacing:0.04em;text-transform:uppercase;color:rgba(250,248,243,0.4);margin-bottom:16px;}
+  .dash-chart{background:var(--ink-soft);border-radius:12px;padding:18px 20px 20px;}
+  .dash-bars{display:flex;align-items:flex-end;gap:8px;height:90px;}
+  .dash-bar{
+    flex:1;background:rgba(61,255,154,0.28);border-radius:4px 4px 0 0;
+    height:var(--h);align-self:flex-end;
+    animation:barGrow .8s cubic-bezier(.2,.8,.2,1) backwards;
+  }
+  .dash-bar--now{background:var(--signal);}
+  .dash-bar:nth-child(1){animation-delay:.05s;} .dash-bar:nth-child(2){animation-delay:.1s;}
+  .dash-bar:nth-child(3){animation-delay:.15s;} .dash-bar:nth-child(4){animation-delay:.2s;}
+  .dash-bar:nth-child(5){animation-delay:.25s;} .dash-bar:nth-child(6){animation-delay:.3s;}
+  .dash-bar:nth-child(7){animation-delay:.35s;}
+  @keyframes barGrow{from{transform:scaleY(0);}to{transform:scaleY(1);}}
+  .dash-activity{background:var(--ink-soft);border-radius:12px;padding:18px 20px;}
+  .dash-activity-item{display:flex;gap:10px;padding:9px 0;border-top:1px solid var(--line);}
+  .dash-activity-item:first-of-type{border-top:none;padding-top:0;}
+  .dash-activity-dot{width:7px;height:7px;border-radius:50%;background:var(--signal);margin-top:6px;flex-shrink:0;}
+  .dash-activity-dot--warn{background:#F5A94E;}
+  .dash-activity-item p{margin:0;font-size:13px;color:var(--paper);}
+  .dash-activity-item span{font-size:11px;color:rgba(250,248,243,0.45);}
+
   .modules{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line-dark);border:1px solid var(--line-dark);border-radius:18px;overflow:hidden;}
   @media(max-width:860px){.modules{grid-template-columns:repeat(2,1fr);}}
   @media(max-width:560px){.modules{grid-template-columns:1fr;}}
@@ -326,6 +390,31 @@
   .cta-final p{position:relative;margin-top:16px;color:rgba(250,248,243,0.68);font-size:16px;}
   .cta-final .hero-ctas{position:relative;justify-content:center;margin-top:32px;}
 
+  .demo-form{position:relative;max-width:520px;margin:32px auto 0;text-align:left;}
+  .demo-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+  @media(max-width:560px){.demo-form-row{grid-template-columns:1fr;}}
+  .demo-form input,.demo-form select,.demo-form textarea{
+    width:100%;padding:13px 15px;border-radius:10px;
+    border:1px solid rgba(250,248,243,0.18);background:rgba(250,248,243,0.06);
+    color:var(--paper);font-family:'Inter';font-size:14.5px;outline:none;
+    transition:border-color .15s, background .15s;
+  }
+  .demo-form select{margin-bottom:12px;}
+  .demo-form textarea{margin-bottom:14px;resize:none;}
+  .demo-form input::placeholder,.demo-form textarea::placeholder{color:rgba(250,248,243,0.4);}
+  .demo-form select{color:rgba(250,248,243,0.7);}
+  .demo-form select option{background:var(--ink);color:var(--paper);}
+  .demo-form input:focus,.demo-form select:focus,.demo-form textarea:focus{
+    border-color:var(--signal);background:rgba(250,248,243,0.1);
+  }
+  .demo-form button[disabled]{opacity:0.6;cursor:not-allowed;}
+  .demo-form-error{
+    background:rgba(198,73,31,0.15);border:1px solid rgba(198,73,31,0.4);color:#ffb199;
+    padding:10px 14px;border-radius:8px;font-size:13.5px;margin-bottom:14px;
+  }
+  .demo-form-success{position:relative;max-width:420px;margin:32px auto 0;text-align:center;}
+  .demo-form-success p{margin-top:12px;font-size:15px;color:rgba(250,248,243,0.85);line-height:1.6;}
+
   /* ---------- FOOTER ---------- */
   footer{background:var(--ink);color:rgba(250,248,243,0.55);padding:56px 0 32px;font-size:13.5px;}
   .foot-grid{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:40px;padding-bottom:40px;border-bottom:1px solid var(--line);}
@@ -355,17 +444,21 @@
       <a href="#tarifs">Tarifs</a>
       <a href="#faq">Questions</a>
     </div>
-    <a href="#contact" class="nav-cta">Demander une démo</a>
-    <button class="nav-mobile-toggle" id="menuToggle" aria-label="Ouvrir le menu" aria-expanded="false">
-      <svg id="menuIconOpen" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-      <svg id="menuIconClose" width="24" height="24" viewBox="0 0 24 24" fill="none" style="display:none;"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-    </button>
+    <div class="nav-actions">
+      <a href="https://gymcloud.sahelsystem.com" class="nav-login">Se connecter</a>
+      <a href="#contact" class="nav-cta">Demander une démo</a>
+      <button class="nav-mobile-toggle" id="menuToggle" aria-label="Ouvrir le menu" aria-expanded="false">
+        <svg id="menuIconOpen" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        <svg id="menuIconClose" width="24" height="24" viewBox="0 0 24 24" fill="none" style="display:none;"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+    </div>
   </nav>
   <div class="mobile-menu" id="mobileMenu">
     <a href="#modules">Fonctionnalités</a>
     <a href="#comment">Comment ça marche</a>
     <a href="#tarifs">Tarifs</a>
     <a href="#faq">Questions</a>
+    <a href="https://gymcloud.sahelsystem.com">Se connecter</a>
     <a href="#contact" class="nav-cta">Demander une démo</a>
   </div>
 </header>
@@ -483,6 +576,84 @@
           <div class="compare-item">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 5" stroke="#3DFF9A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Toutes vos salles pilotées depuis un seul tableau de bord
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- APERÇU TABLEAU DE BORD -->
+  <section style="padding-top:0;">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Sous le capot</span>
+        <h2>Un vrai tableau de bord, pas un tableur.</h2>
+        <p>Revenus, salles, abonnements qui expirent, encaissements à valider — tout au même endroit, mis à jour en temps réel.</p>
+      </div>
+
+      <div class="dash-mockup reveal">
+        <div class="dash-chrome">
+          <span class="dash-dot" style="background:#FF5F57;"></span>
+          <span class="dash-dot" style="background:#FEBC2E;"></span>
+          <span class="dash-dot" style="background:#28C840;"></span>
+          <span class="dash-url">app.gymcloud.africa/vue-globale</span>
+        </div>
+        <div class="dash-body">
+          <div class="dash-stats">
+            <div class="dash-stat">
+              <span class="dash-stat-label">Revenus ce mois</span>
+              <span class="dash-stat-value">2 840 000 <small>XOF</small></span>
+              <span class="dash-stat-delta">+ 12% vs mois dernier</span>
+            </div>
+            <div class="dash-stat">
+              <span class="dash-stat-label">Adhérents actifs</span>
+              <span class="dash-stat-value">1 247</span>
+              <span class="dash-stat-delta">3 salles</span>
+            </div>
+            <div class="dash-stat">
+              <span class="dash-stat-label">Abonnements SaaS</span>
+              <span class="dash-stat-value">98% <small>à jour</small></span>
+              <span class="dash-stat-delta dash-stat-delta--warn">1 validation en attente</span>
+            </div>
+          </div>
+
+          <div class="dash-grid">
+            <div class="dash-chart">
+              <span class="dash-panel-label">Revenus — 7 derniers jours</span>
+              <div class="dash-bars">
+                <div class="dash-bar" style="--h:38%;"></div>
+                <div class="dash-bar" style="--h:52%;"></div>
+                <div class="dash-bar" style="--h:41%;"></div>
+                <div class="dash-bar" style="--h:67%;"></div>
+                <div class="dash-bar" style="--h:58%;"></div>
+                <div class="dash-bar" style="--h:79%;"></div>
+                <div class="dash-bar dash-bar--now" style="--h:64%;"></div>
+              </div>
+            </div>
+            <div class="dash-activity">
+              <span class="dash-panel-label">Activité récente</span>
+              <div class="dash-activity-item">
+                <span class="dash-activity-dot"></span>
+                <div>
+                  <p>Paiement encaissé — Fatou D.</p>
+                  <span>Il y a 4 min · Mobile Money</span>
+                </div>
+              </div>
+              <div class="dash-activity-item">
+                <span class="dash-activity-dot"></span>
+                <div>
+                  <p>Accès autorisé — Ibrahim T.</p>
+                  <span>Il y a 11 min · Salle Ouaga 2000</span>
+                </div>
+              </div>
+              <div class="dash-activity-item">
+                <span class="dash-activity-dot dash-activity-dot--warn"></span>
+                <div>
+                  <p>Abonnement expire dans 2 jours — Awa K.</p>
+                  <span>Il y a 20 min</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -667,14 +838,38 @@
       <div class="cta-final reveal">
         <div class="grain" aria-hidden="true"></div>
         <h2>Prêt à faire tourner votre salle autrement ?</h2>
-        <p>Un conseiller configure votre première salle avec vous, en moins de 20 minutes.</p>
-        <div class="hero-ctas">
-          <a href="mailto:contact@gymcloud.africa" class="btn-primary">
-            Demander une démo
+        <p>Laissez-nous vos coordonnées — un conseiller vous recontacte pour configurer votre première salle, en moins de 20 minutes.</p>
+
+        <form id="demoForm" class="demo-form">
+          <div class="demo-form-row">
+            <input type="text" id="df-firstName" placeholder="Prénom" required>
+            <input type="text" id="df-lastName" placeholder="Nom" required>
+          </div>
+          <div class="demo-form-row">
+            <input type="tel" id="df-phone" placeholder="Téléphone" required>
+            <input type="email" id="df-email" placeholder="E-mail (optionnel)">
+          </div>
+          <div class="demo-form-row">
+            <input type="text" id="df-companyName" placeholder="Nom de votre salle (optionnel)">
+            <input type="text" id="df-city" placeholder="Ville (optionnel)">
+          </div>
+          <select id="df-planId"><option value="">Plan qui vous intéresse (optionnel)</option></select>
+          <textarea id="df-message" placeholder="Un message ? (optionnel)" rows="2"></textarea>
+
+          <div id="demoFormError" class="demo-form-error" style="display:none;"></div>
+
+          <button type="submit" class="btn-primary" id="demoFormSubmit" style="width:100%;justify-content:center;">
+            Envoyer ma demande
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </a>
-          <a href="#tarifs" class="btn-ghost">Revoir les tarifs</a>
+          </button>
+        </form>
+
+        <div id="demoFormSuccess" class="demo-form-success" style="display:none;">
+          <svg width="34" height="34" viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="17" fill="rgba(61,255,154,0.15)"/><path d="M10 17.5l4.5 4.5L24 12" stroke="var(--signal)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p id="demoFormSuccessText"></p>
         </div>
+
+        <a href="#tarifs" class="btn-ghost" style="margin-top:18px;display:inline-flex;">Revoir les tarifs</a>
       </div>
     </div>
   </section>
@@ -749,6 +944,75 @@
         });
       }
     });
+  });
+
+  // ── Formulaire "Demander une démo" (§3.2, §9.5) ────────────────
+  // Envoie une simple demande d'abonnement (piste commerciale) au
+  // SUPER_ADMIN — ne crée jamais de compte propriétaire directement.
+  //
+  // ⚠️ À ajuster une fois le backend déployé : remplacez cette URL par
+  // celle réelle de votre API en production (ex: https://api.gymcloud.africa/api/v1).
+  const API_URL = 'http://localhost:3000/api/v1';
+
+  const planSelect = document.getElementById('df-planId');
+  fetch(`${API_URL}/public/plans`)
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(plans => {
+      plans.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.name} — ${Math.round(p.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g,' ')} XOF/mois`;
+        planSelect.appendChild(opt);
+      });
+    })
+    .catch(() => { /* silencieux — le champ reste optionnel si l'API n'est pas joignable */ });
+
+  const demoForm = document.getElementById('demoForm');
+  const demoFormError = document.getElementById('demoFormError');
+  const demoFormSubmit = document.getElementById('demoFormSubmit');
+
+  demoForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    demoFormError.style.display = 'none';
+
+    const payload = {
+      firstName: document.getElementById('df-firstName').value.trim(),
+      lastName: document.getElementById('df-lastName').value.trim(),
+      phone: document.getElementById('df-phone').value.trim(),
+      email: document.getElementById('df-email').value.trim() || undefined,
+      companyName: document.getElementById('df-companyName').value.trim() || undefined,
+      city: document.getElementById('df-city').value.trim() || undefined,
+      desiredPlanId: document.getElementById('df-planId').value || undefined,
+      message: document.getElementById('df-message').value.trim() || undefined,
+    };
+
+    demoFormSubmit.disabled = true;
+    demoFormSubmit.textContent = 'Envoi...';
+
+    fetch(`${API_URL}/public/subscription-requests`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    })
+      .then(async r => {
+        if(!r.ok){
+          const body = await r.json().catch(()=>({}));
+          throw new Error(Array.isArray(body.message) ? body.message[0] : (body.message || 'Une erreur est survenue.'));
+        }
+        return r.json();
+      })
+      .then(res => {
+        demoForm.style.display = 'none';
+        const successText = document.getElementById('demoFormSuccessText');
+        successText.textContent = res.message;
+        document.getElementById('demoFormSuccess').style.display = 'block';
+      })
+      .catch(err => {
+        demoFormError.textContent = err.message || 'Impossible d\'envoyer votre demande — réessayez dans un instant.';
+        demoFormError.style.display = 'block';
+        demoFormSubmit.disabled = false;
+        demoFormSubmit.innerHTML = 'Envoyer ma demande <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      });
   });
 </script>
 </body>

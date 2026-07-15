@@ -17,6 +17,7 @@ export type Subjects =
   | 'AuditLog'
   | 'Role'
   | 'Prospect'
+  | 'SaasSubscriptionRequest'
   | 'all';
 
 export type AppAbility = MongoAbility<[Actions, Subjects]>;
@@ -132,10 +133,13 @@ export class AbilityFactory {
 
       case 'RESPONSABLE_COMMERCIAL':
         // Suivi des propriétaires/salles à des fins commerciales —
-        // lecture seule, la création reste SUPER_ADMIN (§2.8).
+        // lecture seule, la création reste SUPER_ADMIN (§2.8). Le
+        // traitement des demandes d'abonnement du site vitrine est en
+        // revanche pleinement de son ressort (§3.2, §9.5).
         can('read', 'User');
         can('read', 'Salle');
         can('read', 'SaasSubscription');
+        can('manage', 'SaasSubscriptionRequest');
         break;
 
       case 'RESPONSABLE_MARKETING':

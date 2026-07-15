@@ -35,6 +35,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Vue globale', href: '/', icon: LayoutDashboard },
     { label: 'Salles', href: '/salles', icon: Building2 },
     { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
+    { label: 'Demandes d\'abonnement', href: '/demandes-abonnement', icon: UserPlus },
     { label: 'Plans SaaS', href: '/plans-saas', icon: Layers },
     { label: 'Facturation SaaS', href: '/facturation-saas', icon: CreditCard },
     { label: 'Personnel interne', href: '/personnel-interne', icon: ShieldCheck },
@@ -76,6 +77,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
   ],
   RESPONSABLE_COMMERCIAL: [
+    { label: 'Demandes d\'abonnement', href: '/demandes-abonnement', icon: UserPlus },
     { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
     { label: 'Salles', href: '/salles', icon: Building2 },
   ],

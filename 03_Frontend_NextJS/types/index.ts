@@ -103,23 +103,6 @@ export interface Salle {
   createdAt: string;
 }
 
-export interface Prospect {
-  id: string;
-  salleId: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  email?: string;
-  message?: string;
-  source: 'INSCRIPTION' | 'ESSAI_GRATUIT';
-  status: 'NOUVEAU' | 'CONTACTE' | 'CONVERTI' | 'PERDU';
-  note?: string;
-  contactedAt?: string;
-  createdAt: string;
-  desiredCatalogue?: { name: string; price: number; currency: string };
-  trialCoursCollectif?: { name: string; startAt: string };
-}
-
 // ── SaaS ──────────────────────────────────────────────────────
 
 export interface SaasPlan {
@@ -454,4 +437,24 @@ export interface Prospect {
   createdAt: string;
   desiredCatalogue?: { name: string; price: number; currency: string };
   trialCoursCollectif?: { name: string; startAt: string };
+}
+
+// ── Demandes d'abonnement (site vitrine) ─────────────────────
+
+export type SaasSubscriptionRequestStatus = 'NOUVELLE' | 'CONTACTEE' | 'CONVERTIE' | 'REJETEE';
+
+export interface SaasSubscriptionRequest {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email?: string;
+  companyName?: string;
+  city?: string;
+  message?: string;
+  status: SaasSubscriptionRequestStatus;
+  note?: string;
+  processedAt?: string;
+  createdAt: string;
+  desiredPlan?: { name: string; priceMonthly: number };
 }

@@ -21,6 +21,10 @@ const STATUS_STYLES: Record<string, string> = {
   CONTACTE: 'bg-ink-100 text-ink-600',
   CONVERTI: 'bg-primary-50 text-primary-700',
   PERDU: 'bg-red-50 text-red-700',
+  NOUVELLE: 'bg-accent-50 text-accent-700',
+  CONTACTEE: 'bg-ink-100 text-ink-600',
+  CONVERTIE: 'bg-primary-50 text-primary-700',
+  REJETEE: 'bg-red-50 text-red-700',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -44,6 +48,10 @@ const STATUS_LABELS: Record<string, string> = {
   CONTACTE: 'Contacté',
   CONVERTI: 'Converti',
   PERDU: 'Perdu',
+  NOUVELLE: 'Nouvelle',
+  CONTACTEE: 'Contactée',
+  CONVERTIE: 'Convertie',
+  REJETEE: 'Rejetée',
 };
 
 export function StatusBadge({ status }: { status: string }) {

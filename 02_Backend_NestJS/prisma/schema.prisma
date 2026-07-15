@@ -211,6 +211,7 @@ model SaasPlan {
   addons        SaasPlanAddon[]
   historyAsFromPlan SaasSubscriptionHistory[] @relation("HistoryFromPlan")
   historyAsToPlan   SaasSubscriptionHistory[] @relation("HistoryToPlan")
+  subscriptionRequests SaasSubscriptionRequest[]
 
   @@map("saas_plans")
 }
@@ -1053,5 +1054,44 @@ model Prospect {
 
   @@index([salleId, status])
   @@map("prospects")
+}
+
+enum SaasSubscriptionRequestStatus {
+  NOUVELLE
+  CONTACTEE
+  CONVERTIE // un compte propriétaire a été créé suite à cette demande
+  REJETEE
+}
+
+/// §3.2, §9.5 — Demande d'abonnement au niveau plateforme, captée
+/// depuis le site vitrine GymCloud (pas un site public de salle —
+/// celui-ci concerne quelqu'un qui n'a PAS ENCORE de salle du tout).
+/// Distincte de Prospect (salle-scoped, pour un futur ADHÉRENT) :
+/// ici, c'est un futur PROPRIÉTAIRE. Ne crée jamais de compte
+/// automatiquement — le SUPER_ADMIN traite la demande et crée le
+/// propriétaire lui-même via le parcours habituel (§2.4) une fois le
+/// contact établi.
+model SaasSubscriptionRequest {
+  id          String  @id @default(uuid())
+  firstName   String
+  lastName    String
+  phone       String
+  email       String?
+  companyName String? // nom de la salle/entreprise envisagée
+  city        String?
+  message     String?
+
+  desiredPlanId String?
+  desiredPlan   SaasPlan? @relation(fields: [desiredPlanId], references: [id])
+
+  status            SaasSubscriptionRequestStatus @default(NOUVELLE)
+  processedByUserId String?
+  processedAt       DateTime?
+  note              String? // note libre du SUPER_ADMIN (motif de rejet, etc.)
+
+  createdAt DateTime @default(now())
+
+  @@index([status])
+  @@map("saas_subscription_requests")
 }
 

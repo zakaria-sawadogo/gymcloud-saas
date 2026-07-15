@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RegisterProspectDto, RequestTrialSessionDto } from './dto/public.dto';
+import { RegisterProspectDto, RequestTrialSessionDto, RequestSubscriptionDto } from './dto/public.dto';
 
 /**
  * §3.2 — Site public par salle (fitnessclub.gymcloud.africa). Chaque
@@ -136,6 +136,66 @@ export class PublicService {
     return {
       id: prospect.id,
       message: 'Votre demande d\'essai a bien été reçue — la salle confirmera votre place par téléphone.',
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Demande d'abonnement plateforme (site vitrine GymCloud, §3.2, §9.5)
+  // ─────────────────────────────────────────────────────────────
+  //
+  // Distinct de tout ce qui précède : ici, la personne n'a PAS encore
+  // de salle — elle veut DEVENIR cliente de GymCloud. Ne crée jamais
+  // de compte propriétaire automatiquement : le SUPER_ADMIN traite la
+  // demande et crée le compte lui-même via le parcours habituel
+  // (§2.4) une fois le contact établi.
+
+  /** Plans publics (nom, tarifs, quotas) — pour le sélecteur du formulaire du site vitrine. */
+  async getPublicPlans() {
+    return this.prisma.saasPlan.findMany({
+      where: { status: 'ACTIF' },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        description: true,
+        priceMonthly: true,
+        priceAnnual: true,
+        trialDays: true,
+        quotaSalles: true,
+        quotaGestionnaires: true,
+        quotaAdherents: true,
+        modules: true,
+      },
+      orderBy: { displayOrder: 'asc' },
+    });
+  }
+
+  /** §3.2, §9.5 — Demande d'abonnement depuis le site vitrine : crée une piste, jamais un compte propriétaire. */
+  async requestSubscription(dto: RequestSubscriptionDto) {
+    if (dto.desiredPlanId) {
+      const plan = await this.prisma.saasPlan.findUnique({ where: { id: dto.desiredPlanId } });
+      if (!plan) throw new NotFoundException('Plan introuvable');
+    }
+
+    const request = await this.prisma.saasSubscriptionRequest.create({
+      data: {
+        id: randomUUID(),
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        phone: dto.phone,
+        email: dto.email,
+        companyName: dto.companyName,
+        city: dto.city,
+        message: dto.message,
+        desiredPlanId: dto.desiredPlanId,
+      },
+    });
+
+    // TODO(module notifications): alerter le SUPER_ADMIN d'une nouvelle demande.
+
+    return {
+      id: request.id,
+      message: 'Votre demande a bien été reçue — notre équipe vous recontactera rapidement pour finaliser votre inscription.',
     };
   }
 }

@@ -64,6 +64,9 @@ CREATE TYPE "ProspectSource" AS ENUM ('INSCRIPTION', 'ESSAI_GRATUIT');
 -- CreateEnum
 CREATE TYPE "ProspectStatus" AS ENUM ('NOUVEAU', 'CONTACTE', 'CONVERTI', 'PERDU');
 
+-- CreateEnum
+CREATE TYPE "SaasSubscriptionRequestStatus" AS ENUM ('NOUVELLE', 'CONTACTEE', 'CONVERTIE', 'REJETEE');
+
 -- CreateTable
 CREATE TABLE "countries" (
     "id" TEXT NOT NULL,
@@ -651,6 +654,26 @@ CREATE TABLE "prospects" (
     CONSTRAINT "prospects_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "saas_subscription_requests" (
+    "id" TEXT NOT NULL,
+    "firstName" TEXT NOT NULL,
+    "lastName" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "email" TEXT,
+    "companyName" TEXT,
+    "city" TEXT,
+    "message" TEXT,
+    "desiredPlanId" TEXT,
+    "status" "SaasSubscriptionRequestStatus" NOT NULL DEFAULT 'NOUVELLE',
+    "processedByUserId" TEXT,
+    "processedAt" TIMESTAMP(3),
+    "note" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "saas_subscription_requests_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "countries_code_key" ON "countries"("code");
 
@@ -812,6 +835,9 @@ CREATE INDEX "api_credentials_provider_scope_idx" ON "api_credentials"("provider
 
 -- CreateIndex
 CREATE INDEX "prospects_salleId_status_idx" ON "prospects"("salleId", "status");
+
+-- CreateIndex
+CREATE INDEX "saas_subscription_requests_status_idx" ON "saas_subscription_requests"("status");
 
 -- AddForeignKey
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -986,3 +1012,6 @@ ALTER TABLE "prospects" ADD CONSTRAINT "prospects_desiredCatalogueId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "prospects" ADD CONSTRAINT "prospects_trialCoursCollectifId_fkey" FOREIGN KEY ("trialCoursCollectifId") REFERENCES "cours_collectifs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "saas_subscription_requests" ADD CONSTRAINT "saas_subscription_requests_desiredPlanId_fkey" FOREIGN KEY ("desiredPlanId") REFERENCES "saas_plans"("id") ON DELETE SET NULL ON UPDATE CASCADE;

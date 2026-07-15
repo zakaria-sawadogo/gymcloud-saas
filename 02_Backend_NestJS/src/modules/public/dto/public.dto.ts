@@ -65,3 +65,48 @@ export class RequestTrialSessionDto {
   @MaxLength(500)
   message?: string;
 }
+
+export class RequestSubscriptionDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(80)
+  firstName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(80)
+  lastName!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(30)
+  phone!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({ description: 'Nom de la salle/entreprise envisagée' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  companyName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  city?: string;
+
+  @ApiPropertyOptional({ description: 'Plan qui intéresse le prospect, si connu' })
+  @IsOptional()
+  @IsUUID()
+  desiredPlanId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  message?: string;
+}
