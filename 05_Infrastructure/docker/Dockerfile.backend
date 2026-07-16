@@ -10,6 +10,13 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Requis par le moteur Prisma pour détecter la version d'OpenSSL —
+# sans ce paquet, Alpine ne fournit rien que Prisma puisse détecter,
+# et le moteur plante silencieusement au démarrage (erreur "Could not
+# parse schema engine response" — un plantage de chargement de
+# bibliothèque partagée déguisé en erreur JSON).
+RUN apk add --no-cache openssl
+
 COPY 02_Backend_NestJS/package*.json ./
 COPY 02_Backend_NestJS/prisma ./prisma/
 RUN npm ci
@@ -17,17 +24,29 @@ RUN npm ci
 COPY 02_Backend_NestJS/. .
 RUN npx prisma generate
 RUN npm run build
+# Compile aussi les scripts de seed en JS pur (dist-seed/) — évite de
+# dépendre de ts-node à l'exécution en production, qui s'est avéré
+# incompatible avec certaines versions de Node 20 (erreur "Unknown
+# file extension .ts", un bug de détection ESM/CJS de ts-node,
+# indépendant de ce projet).
+RUN npm run build:seed
 
 # ── Étape 2 : image de production allégée ───────────────────────
 FROM node:20-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Même raison qu'à l'étape 1 — cette étape est celle qui tourne
+# réellement en production et exécute `prisma migrate deploy` au
+# démarrage (voir docker-entrypoint.sh), donc tout aussi concernée.
+RUN apk add --no-cache openssl
+
 COPY 02_Backend_NestJS/package*.json ./
 COPY 02_Backend_NestJS/prisma ./prisma/
 RUN npm ci --omit=dev && npx prisma generate
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/dist-seed ./dist-seed
 COPY 05_Infrastructure/docker/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 

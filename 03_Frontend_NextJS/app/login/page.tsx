@@ -21,7 +21,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(phone, password);
-      router.push('/');
+      router.push('/dashboard');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
     } finally {
@@ -80,6 +80,10 @@ export default function LoginPage() {
             Se connecter
           </Button>
         </form>
+
+        <a href="/" className="mt-6 block text-center text-sm text-ink-400 hover:text-ink-600">
+          ← Retour à l'accueil
+        </a>
       </div>
     </div>
   );

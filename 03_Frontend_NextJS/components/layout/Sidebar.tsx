@@ -32,7 +32,7 @@ interface NavItem {
  */
 const NAV_BY_ROLE: Record<string, NavItem[]> = {
   SUPER_ADMIN: [
-    { label: 'Vue globale', href: '/', icon: LayoutDashboard },
+    { label: 'Vue globale', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Salles', href: '/salles', icon: Building2 },
     { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
     { label: 'Demandes d\'abonnement', href: '/demandes-abonnement', icon: UserPlus },
@@ -41,12 +41,12 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Personnel interne', href: '/personnel-interne', icon: ShieldCheck },
   ],
   PROPRIETAIRE: [
-    { label: 'Vue consolidée', href: '/', icon: LayoutDashboard },
+    { label: 'Vue consolidée', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Mes salles', href: '/salles', icon: Building2 },
     { label: 'Mon abonnement', href: '/mon-abonnement', icon: Layers },
   ],
   GESTIONNAIRE: [
-    { label: 'Tableau de bord', href: '/', icon: LayoutDashboard },
+    { label: 'Tableau de bord', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Adhérents', href: '/adherents', icon: Users },
     { label: 'Prospects', href: '/prospects', icon: UserPlus },
     { label: 'Formules d\'abonnement', href: '/abonnements', icon: Layers },
@@ -56,13 +56,13 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Marketing', href: '/marketing', icon: Megaphone },
   ],
   COACH: [
-    { label: 'Mon planning', href: '/', icon: CalendarCheck },
+    { label: 'Mon planning', href: '/dashboard', icon: CalendarCheck },
   ],
 
   // ── Personnel interne GymCloud (§2.2) — chaque rôle ne voit que ce
   // qui lui est réellement autorisé côté API (voir ability.factory.ts).
   ADMIN_GYMCLOUD: [
-    { label: 'Vue globale', href: '/', icon: LayoutDashboard },
+    { label: 'Vue globale', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Salles', href: '/salles', icon: Building2 },
     { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
     { label: 'Plans SaaS', href: '/plans-saas', icon: Layers },

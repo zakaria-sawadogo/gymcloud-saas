@@ -16,6 +16,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY 03_Frontend_NextJS/. .
 ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* est figé dans le bundle au moment du build, pas de
+# l'exécution — le passer en `environment:` docker-compose seul ne
+# suffit pas, il DOIT être fourni comme build arg (voir docker-compose.yml).
+ARG NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN npm run build
 
 # ── Étape 3 : image de production allégée (sortie "standalone") ─

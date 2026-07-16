@@ -53,8 +53,10 @@ export class TenantMiddleware implements NestMiddleware {
     'SUPERVISEUR_PAYS',
   ]);
 
-  // Chemins publics, vérifiés sur req.path (sans le préfixe global
-  // api/v1, déjà retiré par Express au moment où le middleware s'exécute).
+  // Chemins publics. Comparés à req.originalUrl (voir isPublicPath) —
+  // PAS req.path, qui s'est révélé toujours égal à "/" dans ce
+  // contexte précis (middleware global + préfixe NestJS), un piège
+  // découvert en production (§ voir historique du 16/07/2026).
   private readonly PUBLIC_PATHS = [
     '/auth/login',
     '/auth/refresh',
@@ -69,8 +71,15 @@ export class TenantMiddleware implements NestMiddleware {
   private readonly PUBLIC_PATH_PREFIXES = ['/public/'];
 
   private isPublicPath(req: Request): boolean {
-    if (this.PUBLIC_PATHS.some((p) => req.path === p || req.path.endsWith(p))) return true;
-    return this.PUBLIC_PATH_PREFIXES.some((prefix) => req.path.includes(prefix));
+    // req.path ne reflète pas fiablement le chemin réel dans ce
+    // contexte (middleware appliqué globalement avec préfixe NestJS —
+    // observé à "/" en toutes circonstances lors du diagnostic en
+    // production, malgré une requête réelle vers un autre chemin).
+    // req.originalUrl, lui, contient toujours le chemin complet tel
+    // que reçu — on retire juste une éventuelle query string.
+    const path = req.originalUrl.split('?')[0];
+    if (this.PUBLIC_PATHS.some((p) => path === p || path.endsWith(p))) return true;
+    return this.PUBLIC_PATH_PREFIXES.some((prefix) => path.includes(prefix));
   }
 
   async use(req: AuthenticatedRequest, res: Response, next: NextFunction) {

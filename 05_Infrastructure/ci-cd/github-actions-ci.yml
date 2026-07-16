@@ -118,5 +118,22 @@ jobs:
         run: |
           docker build -f 05_Infrastructure/docker/Dockerfile.frontend -t gymcloud-web:${{ github.sha }} .
 
-      # TODO: push vers un registre (GitHub Container Registry, ECR...)
-      # et déclenchement du déploiement (à adapter selon l'hébergeur retenu).
+  # ─────────────────────────────────────────────────────────────
+  # Déploiement sur le VPS (uniquement après succès du build Docker,
+  # et uniquement sur push vers main — jamais sur une simple PR)
+  # ─────────────────────────────────────────────────────────────
+  deploy:
+    name: Déployer sur le VPS
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Se connecter en SSH et lancer deploy.sh
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            bash ~/gymcloud-saas/05_Infrastructure/docker/deploy.sh

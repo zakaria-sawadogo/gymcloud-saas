@@ -74,7 +74,7 @@ services:
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-gymcloud_admin}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-changeme_dev_only}
-      CORS_ORIGINS: http://localhost:3001
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
       NODE_ENV: production
       PORT: 3000
     ports:
@@ -85,15 +85,22 @@ services:
     build:
       context: ../..
       dockerfile: 05_Infrastructure/docker/Dockerfile.frontend
+      args:
+        # NEXT_PUBLIC_API_URL doit être un ARG de build (figé dans le
+        # bundle), pas seulement une variable d'exécution — voir le
+        # commentaire dans Dockerfile.frontend. Sans ce bloc `args:`,
+        # le frontend continuerait de pointer vers localhost même en
+        # production, quoi que vous mettiez dans `environment:` ci-dessous.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api/v1}
     restart: unless-stopped
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000/api/v1
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api/v1}
     ports:
       - '3001:3001'
 
-  # ── Reverse proxy (TLS en production — voir nginx.conf) ──────
+  # ── Reverse proxy (TLS Let's Encrypt en production) ──────────
   nginx:
     image: nginx:alpine
     restart: unless-stopped
@@ -102,10 +109,28 @@ services:
       - web
     ports:
       - '80:80'
+      - '443:443'
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
+
+  # ── Renouvellement automatique du certificat TLS ─────────────
+  # Première émission : voir README_deploiement.md (commande manuelle
+  # ponctuelle) — ce service ne fait que le RENOUVELLEMENT continu
+  # (vérifie deux fois par jour, ne renouvelle que si <30 jours restants).
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: >-
+      /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  certbot_certs:
+  certbot_webroot:
