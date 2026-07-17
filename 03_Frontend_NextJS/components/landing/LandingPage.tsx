@@ -17,8 +17,42 @@ function cssVar(vars: Record<string, string>): CSSProperties {
 
 interface PublicPlan {
   id: string;
+  code: string;
   name: string;
+  description: string | null;
   priceMonthly: number;
+  priceAnnual: number;
+  trialDays: number;
+  quotaSalles: number;
+  quotaGestionnaires: number | null;
+  quotaAdherents: number | null;
+  modules: string[];
+}
+
+const MODULE_LABELS: Record<string, string> = {
+  qr_code: "Contrôle d'accès QR",
+  reservations: 'Réservations',
+  marketing: 'Marketing & fidélisation',
+  mobile: 'Application mobile',
+  whatsapp: 'Notifications WhatsApp',
+  rapports_avances: 'Rapports avancés',
+  api: 'Accès API',
+  bi: 'Tableaux de bord avancés (BI)',
+};
+
+/** Puces de fonctionnalités dérivées des vraies données du plan — jamais de texte figé qui pourrait se désynchroniser des tarifs réels. */
+function buildPlanFeatures(plan: PublicPlan): string[] {
+  const feats: string[] = [];
+  feats.push(plan.quotaSalles === 1 ? '1 salle incluse' : `${plan.quotaSalles} salles incluses`);
+  feats.push(plan.quotaGestionnaires == null ? 'Gestionnaires illimités' : `${plan.quotaGestionnaires} gestionnaire${plan.quotaGestionnaires > 1 ? 's' : ''}`);
+  feats.push(plan.quotaAdherents == null ? 'Adhérents illimités' : `Jusqu'à ${plan.quotaAdherents.toLocaleString('fr-FR')} adhérents`);
+  feats.push('Adhérents, abonnements, paiements');
+  // Modules avancés présents sur ce plan, dans un ordre de lecture stable
+  ['qr_code', 'reservations', 'marketing', 'mobile', 'whatsapp', 'rapports_avances', 'api', 'bi']
+    .filter((m) => plan.modules.includes(m))
+    .forEach((m) => feats.push(MODULE_LABELS[m]));
+  if (!plan.modules.includes('rapports_avances')) feats.push('Rapports standards');
+  return feats;
 }
 
 const FAQ_ITEMS = [
@@ -589,77 +623,35 @@ export function LandingPage() {
             </div>
 
             <div className={c('pricing-grid', 'reveal')}>
-              <div className={c('plan')}>
-                <div className={c('plan-name')}>Starter</div>
-                <div className={c('plan-desc')}>Pour démarrer avec une salle</div>
-                <div className={c('plan-price')}>
-                  <span className={c('amount')}>15 000</span>
-                  <span className={c('unit')}>XOF / mois</span>
-                </div>
-                <ul className={c('plan-feats')}>
-                  {['1 salle incluse', '1 gestionnaire', "Jusqu'à 200 adhérents", 'Adhérents, abonnements, paiements', 'Rapports standards'].map(
-                    (feat) => (
+              {plans.map((plan) => (
+                <div key={plan.id} className={c('plan', ...(plan.code === 'PROFESSIONAL' ? ['featured'] : []))}>
+                  {plan.code === 'PROFESSIONAL' && <span className={c('plan-tag')}>Le plus choisi</span>}
+                  <div className={c('plan-name')}>{plan.name}</div>
+                  <div className={c('plan-desc')}>{plan.description}</div>
+                  <div className={c('plan-price')}>
+                    <span className={c('amount')}>{Math.round(plan.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')}</span>
+                    <span className={c('unit')}>XOF / mois</span>
+                  </div>
+                  <ul className={c('plan-feats')}>
+                    {buildPlanFeatures(plan).map((feat) => (
                       <li key={feat}>
                         <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                           <path d="M2.5 8l3.5 3.5L12.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                         {feat}
                       </li>
-                    ),
-                  )}
-                </ul>
-                <a href="#contact" className={c('plan-cta')}>
-                  Démarrer l'essai gratuit
-                </a>
-              </div>
-
-              <div className={c('plan', 'featured')}>
-                <span className={c('plan-tag')}>Le plus choisi</span>
-                <div className={c('plan-name')}>Professional</div>
-                <div className={c('plan-desc')}>Pour les salles en croissance</div>
-                <div className={c('plan-price')}>
-                  <span className={c('amount')}>35 000</span>
-                  <span className={c('unit')}>XOF / mois</span>
+                    ))}
+                  </ul>
+                  <a href="#contact" className={c('plan-cta')}>
+                    {plan.trialDays > 0 ? "Démarrer l'essai gratuit" : 'Parler à un conseiller'}
+                  </a>
                 </div>
-                <ul className={c('plan-feats')}>
-                  {['2 salles incluses', '4 gestionnaires', "Jusqu'à 2 000 adhérents", "Contrôle d'accès QR", 'Réservations & Marketing', 'Application mobile'].map(
-                    (feat) => (
-                      <li key={feat}>
-                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                          <path d="M2.5 8l3.5 3.5L12.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        {feat}
-                      </li>
-                    ),
-                  )}
-                </ul>
-                <a href="#contact" className={c('plan-cta')}>
-                  Démarrer l'essai gratuit
-                </a>
-              </div>
-
-              <div className={c('plan')}>
-                <div className={c('plan-name')}>Enterprise</div>
-                <div className={c('plan-desc')}>Pour les chaînes multi-salles</div>
-                <div className={c('plan-price')}>
-                  <span className={c('amount')}>Sur devis</span>
-                </div>
-                <ul className={c('plan-feats')}>
-                  {['5 salles incluses, extensible', 'Gestionnaires illimités', 'Adhérents illimités', 'Tous les modules GymCloud', 'Rapports avancés & API'].map(
-                    (feat) => (
-                      <li key={feat}>
-                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                          <path d="M2.5 8l3.5 3.5L12.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        {feat}
-                      </li>
-                    ),
-                  )}
-                </ul>
-                <a href="#contact" className={c('plan-cta')}>
-                  Parler à un conseiller
-                </a>
-              </div>
+              ))}
+              {plans.length === 0 && (
+                <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--ink-400, #71767A)' }}>
+                  Chargement des tarifs...
+                </p>
+              )}
             </div>
             <p className={c('pricing-note')}>
               Tarifs indicatifs en XOF, hors taxes locales éventuelles. Salle supplémentaire au-delà du quota inclus : facturation à l'usage.

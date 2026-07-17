@@ -20,7 +20,6 @@
     color:var(--ink);
     font-family:'Inter',system-ui,sans-serif;
     -webkit-font-smoothing:antialiased;
-    overflow-x:hidden;
     min-height:100vh;
   }
   /* Grain subtil — évite le plat numérique sur les fonds sombres, apporte une texture "matière" plutôt que "écran" */

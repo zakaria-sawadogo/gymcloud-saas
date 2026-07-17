@@ -456,5 +456,5 @@ export interface SaasSubscriptionRequest {
   note?: string;
   processedAt?: string;
   createdAt: string;
-  desiredPlan?: { name: string; priceMonthly: number };
+  desiredPlan?: { id: string; name: string; priceMonthly: number };
 }

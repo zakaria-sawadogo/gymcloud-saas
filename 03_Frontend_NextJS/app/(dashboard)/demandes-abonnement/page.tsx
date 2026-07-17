@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { UserPlus, CheckCircle2, XCircle, PhoneCall } from 'lucide-react';
+import { UserPlus, CheckCircle2, XCircle, PhoneCall, UserCog } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input } from '@/components/ui/Input';
+import { CreateProprietaireModal } from '@/components/dashboard/CreateProprietaireModal';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import type { SaasSubscriptionRequest } from '@/types';
 
@@ -33,6 +34,7 @@ const STATUS_FILTERS = [
 export default function DemandesAbonnementPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [rejectingRequest, setRejectingRequest] = useState<SaasSubscriptionRequest | null>(null);
+  const [creatingFromRequest, setCreatingFromRequest] = useState<SaasSubscriptionRequest | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
   const path = `/subscription-requests${statusFilter ? `?status=${statusFilter}` : ''}`;
@@ -151,6 +153,10 @@ export default function DemandesAbonnementPage() {
                             Contactée
                           </Button>
                         )}
+                        <Button size="sm" variant="secondary" onClick={() => setCreatingFromRequest(r)}>
+                          <UserCog className="h-3.5 w-3.5" />
+                          Créer le propriétaire
+                        </Button>
                         <Button
                           size="sm"
                           variant="secondary"
@@ -173,6 +179,37 @@ export default function DemandesAbonnementPage() {
           </table>
         )}
       </Card>
+
+      {creatingFromRequest && (
+        <CreateProprietaireModal
+          isOpen
+          onClose={() => setCreatingFromRequest(null)}
+          initialData={{
+            firstName: creatingFromRequest.firstName,
+            lastName: creatingFromRequest.lastName,
+            phone: creatingFromRequest.phone,
+            email: creatingFromRequest.email,
+            companyName: creatingFromRequest.companyName,
+            salleCity: creatingFromRequest.city,
+            saasPlanId: creatingFromRequest.desiredPlan?.id,
+          }}
+          onCreated={async () => {
+            // Le propriétaire vient d'être créé avec succès (modal fermé
+            // après l'écran de confirmation) — reflète-le automatiquement
+            // dans le suivi de la demande, sans étape manuelle en plus.
+            const requestId = creatingFromRequest.id;
+            setCreatingFromRequest(null);
+            try {
+              await apiClient.patch(`/subscription-requests/${requestId}/converted`);
+            } catch {
+              // Silencieux — le propriétaire est déjà créé, ce qui compte le
+              // plus ; le SUPER_ADMIN peut toujours marquer "Convertie" à la
+              // main depuis la liste si cet appel a échoué.
+            }
+            refetch();
+          }}
+        />
+      )}
 
       {rejectingRequest && (
         <RejectRequestModal
