@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, Param } from '@nestjs/common';
 import { IsString, IsEmail, IsOptional, IsUUID } from 'class-validator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -33,6 +33,12 @@ export class CreateInternalUserDto {
   countryId?: string;
 }
 
+export class UpdateInternalUserRoleDto {
+  @ApiProperty({ description: 'ID du nouveau rôle à portée INTERNAL' })
+  @IsUUID()
+  roleId!: string;
+}
+
 /**
  * §2.2 — Personnel interne GymCloud (Support, Finance, Commercial,
  * Marketing, Superviseur Pays...), distinct des comptes clients
@@ -57,5 +63,16 @@ export class InternalUsersController {
   @ApiOperation({ summary: 'Liste du personnel interne GymCloud' })
   list() {
     return this.usersService.listInternalUsers();
+  }
+
+  @Patch(':userId/role')
+  @RequirePermission('manage', 'Role')
+  @ApiOperation({ summary: 'Changer le rôle d\'un membre du personnel interne — SUPER_ADMIN uniquement (§2.2)' })
+  updateRole(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateInternalUserRoleDto,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.usersService.updateInternalUserRole(userId, dto.roleId, user);
   }
 }

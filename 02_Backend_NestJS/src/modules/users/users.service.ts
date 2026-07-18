@@ -482,8 +482,63 @@ export class UsersService {
   async listInternalUsers() {
     return this.prisma.user.findMany({
       where: { role: { scope: 'INTERNAL' } },
-      include: { role: true, country: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        email: true,
+        status: true,
+        createdAt: true,
+        role: true,
+        country: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * §2.2 — Changer le rôle d'un membre du personnel interne GymCloud
+   * (ex: passer de RESPONSABLE_SUPPORT à RESPONSABLE_COMMERCIAL).
+   * Exclusivement SUPER_ADMIN — un rôle interne ne peut être remplacé
+   * que par un autre rôle interne, jamais par un rôle client
+   * (PROPRIETAIRE, GESTIONNAIRE...), qui suit son propre parcours de
+   * création dédié.
+   */
+  async updateInternalUserRole(userId: string, newRoleId: string, actor: TenantContext) {
+    if (actor.roleCode !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN peut modifier le rôle du personnel interne (§2.2)');
+    }
+
+    const targetUser = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
+    if (!targetUser) throw new NotFoundException('Utilisateur introuvable');
+    if (targetUser.role.scope !== 'INTERNAL') {
+      throw new ForbiddenException('Ce compte n\'est pas un compte de personnel interne');
+    }
+
+    const newRole = await this.prisma.role.findUniqueOrThrow({ where: { id: newRoleId } });
+    if (newRole.scope !== 'INTERNAL') {
+      throw new ForbiddenException('Le nouveau rôle doit aussi être un rôle interne GymCloud (§2.2)');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { roleId: newRoleId },
+      select: { id: true, firstName: true, lastName: true, phone: true, email: true, status: true, role: true },
+    });
+
+    // Le rôle conditionne les permissions (CASL) — invalider les sessions
+    // en cours pour forcer une reconnexion avec les droits à jour.
+    await this.prisma.refreshToken.updateMany({ where: { userId }, data: { revoked: true } });
+
+    await this.audit.log({
+      userId: actor.userId,
+      action: 'internal_user.role_change',
+      entityType: 'User',
+      entityId: userId,
+      metadata: { fromRoleId: targetUser.roleId, toRoleId: newRoleId },
+    });
+
+    return updated;
   }
 }

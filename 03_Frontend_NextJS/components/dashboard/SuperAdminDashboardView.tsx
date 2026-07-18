@@ -3,6 +3,7 @@
 import { Building2, UserCog, Users, Wallet, Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { StatCard } from './StatCard';
+import { DownloadReportButton } from './DownloadReportButton';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils';
 import type { SuperAdminDashboard, SaasKpis } from '@/types';
@@ -21,7 +22,10 @@ export function SuperAdminDashboardView() {
 
   return (
     <div>
-      <h1 className="font-display mb-6 text-2xl font-semibold text-ink-900">Vue globale de la plateforme</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="font-display text-2xl font-semibold text-ink-900">Vue globale de la plateforme</h1>
+        <DownloadReportButton path="/reporting/admin/pdf" filename="rapport-plateforme.pdf" />
+      </div>
 
       {/* §9.14 — Vue globale */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

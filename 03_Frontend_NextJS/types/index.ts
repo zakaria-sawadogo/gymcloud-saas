@@ -413,7 +413,7 @@ export interface InternalUser {
   email?: string;
   status: string;
   createdAt: string;
-  role: { name: string; code: string };
+  role: { id: string; name: string; code: string };
   country?: { name: string };
 }
 

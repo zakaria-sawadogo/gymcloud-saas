@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Users, Wallet, Activity, Building2 } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { StatCard } from './StatCard';
+import { DownloadReportButton } from './DownloadReportButton';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils';
 import type { ProprietaireDashboard } from '@/types';
@@ -18,7 +19,13 @@ export function ProprietaireDashboardView({ proprietaireId }: { proprietaireId: 
 
   return (
     <div>
-      <h1 className="font-display mb-6 text-2xl font-semibold text-ink-900">Vue consolidée</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="font-display text-2xl font-semibold text-ink-900">Vue consolidée</h1>
+        <DownloadReportButton
+          path={`/reporting/proprietaire/${proprietaireId}/pdf`}
+          filename="rapport-consolide.pdf"
+        />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

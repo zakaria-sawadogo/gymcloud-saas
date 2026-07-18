@@ -20,6 +20,7 @@ import type { InternalUser, Role, Country } from '@/types';
  */
 export default function PersonnelInternePage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingRoleFor, setEditingRoleFor] = useState<InternalUser | null>(null);
   const { data: users, isLoading, error, refetch } = useApi<InternalUser[]>('/internal-users');
 
   return (
@@ -56,6 +57,7 @@ export default function PersonnelInternePage() {
                 <th className="px-5 py-3">Téléphone</th>
                 <th className="px-5 py-3">Pays</th>
                 <th className="px-5 py-3">Créé le</th>
+                <th className="px-5 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
@@ -72,6 +74,11 @@ export default function PersonnelInternePage() {
                   <td className="px-5 py-3 text-ink-600">{u.phone}</td>
                   <td className="px-5 py-3 text-ink-600">{u.country?.name ?? '—'}</td>
                   <td className="px-5 py-3 text-ink-600">{formatDate(u.createdAt)}</td>
+                  <td className="px-5 py-3 text-right">
+                    <Button size="sm" variant="ghost" onClick={() => setEditingRoleFor(u)}>
+                      Modifier le rôle
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -87,7 +94,72 @@ export default function PersonnelInternePage() {
           refetch();
         }}
       />
+
+      {editingRoleFor && (
+        <UpdateRoleModal
+          user={editingRoleFor}
+          onClose={() => setEditingRoleFor(null)}
+          onUpdated={() => {
+            setEditingRoleFor(null);
+            refetch();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function UpdateRoleModal({
+  user,
+  onClose,
+  onUpdated,
+}: {
+  user: InternalUser;
+  onClose: () => void;
+  onUpdated: () => void;
+}) {
+  const { data: roles } = useApi<Role[]>('/roles?scope=INTERNAL');
+  const [roleId, setRoleId] = useState(user.role.id);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await apiClient.patch(`/internal-users/${user.id}/role`, { roleId });
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Modifier le rôle — ${user.firstName} ${user.lastName}`}>
+      <form onSubmit={handleSubmit}>
+        <Field label="Nouveau rôle">
+          <Select required value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+            {(roles ?? []).map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <p className="-mt-3 mb-4 text-xs text-ink-400">
+          L'utilisateur sera déconnecté de ses sessions actives pour appliquer les nouveaux droits.
+        </p>
+
+        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <Button type="submit" isLoading={isSubmitting} className="w-full">
+          Confirmer le changement de rôle
+        </Button>
+      </form>
+    </Modal>
   );
 }
 
