@@ -14,6 +14,7 @@ import {
   Layers,
   UserCog,
   ShieldCheck,
+  Settings,
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -138,6 +139,16 @@ export function Sidebar() {
             <p className="truncate text-xs text-ink-400">{user.roleCode}</p>
           </div>
         )}
+        <Link
+          href="/parametres"
+          className={cn(
+            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+            pathname === '/parametres' ? 'bg-primary-50 text-primary-700' : 'text-ink-600 hover:bg-ink-50',
+          )}
+        >
+          <Settings className="h-4 w-4" />
+          Paramètres
+        </Link>
         <button
           onClick={logout}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50"

@@ -122,6 +122,25 @@ export class AuthService {
   }
 
   /**
+   * §4.9 — Mise à jour de son propre profil (prénom, nom, email).
+   * Le téléphone n'est volontairement pas modifiable ici : c'est
+   * l'identifiant de connexion, tout changement passe par un parcours
+   * dédié avec vérification (hors périmètre actuel). Le rôle et le
+   * statut ne sont jamais modifiables par l'utilisateur lui-même.
+   */
+  async updateProfile(userId: string, data: { firstName?: string; lastName?: string; email?: string }) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+      },
+      select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+    });
+  }
+
+  /**
    * Émission d'un code OTP de réinitialisation (§4.9). L'envoi effectif
    * (SMS/WhatsApp) est délégué au module Notifications — non implémenté
    * à ce stade du développement, d'où l'exposition temporaire du code

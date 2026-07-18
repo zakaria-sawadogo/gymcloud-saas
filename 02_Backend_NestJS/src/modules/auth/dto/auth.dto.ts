@@ -1,5 +1,5 @@
-import { IsString, MinLength, Matches } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, MinLength, Matches, IsOptional, IsEmail } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
   @ApiProperty({ example: '+22670000000' })
@@ -54,4 +54,21 @@ export class ConfirmPasswordResetDto {
     message: 'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre (§13.4)',
   })
   newPassword!: string;
+}
+
+export class UpdateProfileDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
@@ -8,6 +8,7 @@ import {
   ChangePasswordDto,
   RequestPasswordResetDto,
   ConfirmPasswordResetDto,
+  UpdateProfileDto,
 } from './dto/auth.dto';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
 
@@ -41,6 +42,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Profil de l\'utilisateur connecté (rôle, salle, identité)' })
   async me(@CurrentUser() user: TenantContext) {
     return this.authService.getMe(user.userId);
+  }
+
+  @Patch('me')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Modifier son propre profil (prénom, nom, email) — le téléphone (identifiant de connexion), le rôle et le statut ne sont jamais modifiables ici (§4.9)',
+  })
+  async updateMe(@CurrentUser() user: TenantContext, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(user.userId, dto);
   }
 
   @Post('forgot-password')
