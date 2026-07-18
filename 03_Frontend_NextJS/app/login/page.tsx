@@ -79,6 +79,13 @@ export default function LoginPage() {
           <Button type="submit" isLoading={isLoading} className="w-full">
             Se connecter
           </Button>
+
+          <a
+            href="/forgot-password"
+            className="mt-4 block text-center text-sm text-primary-600 hover:underline"
+          >
+            Mot de passe oublié ?
+          </a>
         </form>
 
         <a href="/" className="mt-6 block text-center text-sm text-ink-400 hover:text-ink-600">

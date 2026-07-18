@@ -30,6 +30,7 @@ interface JwtPayload {
 export class AuthService {
   private readonly BCRYPT_ROUNDS = 12;
   private readonly MAX_FAILED_ATTEMPTS = 5;
+  private readonly PASSWORD_RESET_OTP_VALIDITY_MINUTES = 10;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -123,17 +124,58 @@ export class AuthService {
   /**
    * Émission d'un code OTP de réinitialisation (§4.9). L'envoi effectif
    * (SMS/WhatsApp) est délégué au module Notifications — non implémenté
-   * à ce stade du développement.
+   * à ce stade du développement, d'où l'exposition temporaire du code
+   * en clair (devOtpCode), à retirer une fois une passerelle SMS réelle
+   * branchée — même convention que le reste du projet (Mobile Money).
    */
-  async requestPasswordReset(phone: string): Promise<{ message: string }> {
+  async requestPasswordReset(phone: string): Promise<{ message: string; devOtpCode?: string }> {
     const user = await this.prisma.user.findUnique({ where: { phone } });
     // Réponse identique que l'utilisateur existe ou non (anti-énumération)
-    if (user) {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      // TODO(module notifications): envoyer l'OTP par SMS/WhatsApp et le
-      // stocker (hashé, TTL 10 min) pour vérification à l'étape suivante.
+    if (!user) {
+      return { message: 'Si ce numéro existe, un code a été envoyé.' };
     }
-    return { message: 'Si ce numéro existe, un code a été envoyé.' };
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + this.PASSWORD_RESET_OTP_VALIDITY_MINUTES * 60 * 1000);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordResetOtpCode: otp, passwordResetOtpExpiresAt: expiresAt },
+    });
+
+    return { message: 'Si ce numéro existe, un code a été envoyé.', devOtpCode: otp };
+  }
+
+  /**
+   * Confirmation de la réinitialisation (§4.9) : vérifie le code OTP
+   * émis par requestPasswordReset, applique le nouveau mot de passe,
+   * et invalide toutes les sessions actives par sécurité — même
+   * comportement qu'un changement de mot de passe classique.
+   */
+  async confirmPasswordReset(phone: string, otpCode: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { phone } });
+    if (!user || !user.passwordResetOtpCode || !user.passwordResetOtpExpiresAt) {
+      throw new BadRequestException('Code invalide ou expiré');
+    }
+    if (user.passwordResetOtpExpiresAt < new Date()) {
+      throw new BadRequestException('Code invalide ou expiré');
+    }
+    if (user.passwordResetOtpCode !== otpCode) {
+      throw new BadRequestException('Code invalide ou expiré');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, this.BCRYPT_ROUNDS);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordChangedAt: new Date(),
+        passwordResetOtpCode: null,
+        passwordResetOtpExpiresAt: null,
+      },
+    });
+    await this.prisma.refreshToken.updateMany({ where: { userId: user.id }, data: { revoked: true } });
+
+    return { message: 'Mot de passe réinitialisé. Vous pouvez vous connecter.' };
   }
 
   /**

@@ -275,6 +275,65 @@ export class AdherentsService {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // Compte (connexion) de l'adhérent — §4.2, distinct du statut
+  // d'abonnement ci-dessus (ACTIF/EN_GRACE/EXPIRE, qui régule l'accès
+  // à la salle). Ici : peut-il encore se connecter à l'application
+  // mobile du tout ? Un GESTIONNAIRE ne peut agir que sur les
+  // adhérents de SA salle.
+  // ─────────────────────────────────────────────────────────────
+
+  private async assertOwnsAdherentAccount(adherentId: string, actor: TenantContext) {
+    const adherent = await this.prisma.adherentProfile.findUnique({ where: { id: adherentId } });
+    if (!adherent) throw new NotFoundException('Adhérent introuvable');
+    if (!actor.isGlobalAccess && adherent.salleId !== actor.salleId) {
+      throw new ForbiddenException('Cet adhérent n\'appartient pas à votre salle');
+    }
+    return adherent;
+  }
+
+  async suspendAccount(adherentId: string, actor: TenantContext) {
+    const adherent = await this.assertOwnsAdherentAccount(adherentId, actor);
+    await this.prisma.user.update({ where: { id: adherent.userId }, data: { status: 'SUSPENDU' } });
+    await this.prisma.refreshToken.updateMany({ where: { userId: adherent.userId }, data: { revoked: true } });
+    await this.audit.log({
+      userId: actor.userId,
+      salleId: adherent.salleId,
+      action: 'adherent.account_suspend',
+      entityType: 'User',
+      entityId: adherent.userId,
+    });
+    return { message: 'Compte suspendu — cet adhérent ne peut plus se connecter à l\'application.' };
+  }
+
+  async reactivateAccount(adherentId: string, actor: TenantContext) {
+    const adherent = await this.assertOwnsAdherentAccount(adherentId, actor);
+    await this.prisma.user.update({ where: { id: adherent.userId }, data: { status: 'ACTIF' } });
+    await this.audit.log({
+      userId: actor.userId,
+      salleId: adherent.salleId,
+      action: 'adherent.account_reactivate',
+      entityType: 'User',
+      entityId: adherent.userId,
+    });
+    return { message: 'Compte réactivé.' };
+  }
+
+  /** §4.2 — Désactivation du compte : jamais un DELETE réel, l'historique (paiements, accès...) reste intact. */
+  async deactivateAccount(adherentId: string, actor: TenantContext) {
+    const adherent = await this.assertOwnsAdherentAccount(adherentId, actor);
+    await this.prisma.user.update({ where: { id: adherent.userId }, data: { status: 'DESACTIVE' } });
+    await this.prisma.refreshToken.updateMany({ where: { userId: adherent.userId }, data: { revoked: true } });
+    await this.audit.log({
+      userId: actor.userId,
+      salleId: adherent.salleId,
+      action: 'adherent.account_deactivate',
+      entityType: 'User',
+      entityId: adherent.userId,
+    });
+    return { message: 'Compte désactivé.' };
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // Catalogue d'abonnements par salle (§3.8, §5.6)
   // ─────────────────────────────────────────────────────────────
 

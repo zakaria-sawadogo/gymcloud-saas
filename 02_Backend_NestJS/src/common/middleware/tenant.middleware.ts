@@ -61,6 +61,7 @@ export class TenantMiddleware implements NestMiddleware {
     '/auth/login',
     '/auth/refresh',
     '/auth/forgot-password',
+    '/auth/reset-password',
     '/payments/mobile-money/webhook',
   ];
 

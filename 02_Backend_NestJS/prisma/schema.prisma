@@ -127,6 +127,13 @@ model User {
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
+  // Réinitialisation de mot de passe par OTP (§4.9) — même convention
+  // que le reste du projet (Mobile Money) : code en clair, pas de
+  // passerelle SMS réelle à ce stade, exposé en devOtpCode pour les
+  // tests (à retirer quand une vraie passerelle sera branchée).
+  passwordResetOtpCode      String?
+  passwordResetOtpExpiresAt DateTime?
+
   // Profils métier (1-1 optionnels selon le rôle)
   proprietaireProfile  Proprietaire?
   gestionnaireProfile  GestionnaireProfile?

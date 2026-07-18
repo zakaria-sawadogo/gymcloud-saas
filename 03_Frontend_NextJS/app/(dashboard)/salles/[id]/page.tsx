@@ -14,6 +14,7 @@ import { Field, Input } from '@/components/ui/Input';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { GestionnaireDashboardView } from '@/components/dashboard/GestionnaireDashboardView';
 import { SallePaymentsView } from '@/components/dashboard/SallePaymentsView';
+import { UserAccountActions } from '@/components/dashboard/UserAccountActions';
 import { formatCurrency } from '@/lib/utils';
 import type { Salle, GestionnaireProfile, CoachProfile } from '@/types';
 
@@ -137,7 +138,16 @@ export default function SalleDetailPage() {
                   <span className="text-sm font-medium text-ink-900">
                     {g.user.firstName} {g.user.lastName}
                   </span>
-                  <span className="text-xs text-ink-400">{g.user.phone}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-ink-400">{g.user.phone}</span>
+                    <UserAccountActions
+                      status={g.user.status}
+                      suspendPath={`/gestionnaires/${g.user.id}/suspend`}
+                      reactivatePath={`/gestionnaires/${g.user.id}/reactivate`}
+                      deactivatePath={`/gestionnaires/${g.user.id}/deactivate`}
+                      onChanged={refetchGestionnaires}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -173,6 +183,13 @@ export default function SalleDetailPage() {
                         <Coins className="h-3.5 w-3.5" />
                         Tarifs
                       </Button>
+                      <UserAccountActions
+                        status={c.user.status}
+                        suspendPath={`/coachs/${c.user.id}/suspend`}
+                        reactivatePath={`/coachs/${c.user.id}/reactivate`}
+                        deactivatePath={`/coachs/${c.user.id}/deactivate`}
+                        onChanged={refetchCoachs}
+                      />
                     </div>
                   </div>
                   {(c.pricePerSession != null || c.priceMonthly != null) && (

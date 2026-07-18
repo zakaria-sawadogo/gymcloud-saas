@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Select, Input } from '@/components/ui/Input';
+import { UserAccountActions } from '@/components/dashboard/UserAccountActions';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import type { AdherentProfile, AdherentAbonnement, AbonnementCatalogue } from '@/types';
 
@@ -71,6 +72,24 @@ export default function AdherentDetailPage() {
         </div>
         <StatusBadge status={adherent.status} />
       </div>
+
+      <Card className="mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-ink-900">Compte (connexion à l'application)</p>
+            <p className="text-xs text-ink-400">
+              Distinct du statut d'abonnement ci-dessus — détermine si cet adhérent peut se connecter.
+            </p>
+          </div>
+          <UserAccountActions
+            status={adherent.user.status}
+            suspendPath={`/adherents/${adherent.id}/account/suspend`}
+            reactivatePath={`/adherents/${adherent.id}/account/reactivate`}
+            deactivatePath={`/adherents/${adherent.id}/account/deactivate`}
+            onChanged={refetchAdherent}
+          />
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

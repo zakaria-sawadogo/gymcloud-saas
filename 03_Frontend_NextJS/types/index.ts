@@ -55,12 +55,16 @@ export interface GestionnaireProfile {
   id: string;
   salleId: string;
   user: {
+    id: string;
     firstName: string;
     lastName: string;
     phone: string;
     email?: string;
+    status: UserAccountStatus;
   };
 }
+
+export type UserAccountStatus = 'ACTIF' | 'SUSPENDU' | 'EN_ATTENTE_VALIDATION' | 'DESACTIVE';
 
 export interface CoachProfile {
   id: string;
@@ -71,10 +75,12 @@ export interface CoachProfile {
   priceMonthly?: number | null;
   currency?: string | null;
   user: {
+    id: string;
     firstName: string;
     lastName: string;
     phone: string;
     email?: string;
+    status: UserAccountStatus;
   };
 }
 
@@ -137,10 +143,12 @@ export interface AdherentProfile {
   status: AdherentStatus;
   joinedAt: string;
   user: {
+    id: string;
     firstName: string;
     lastName: string;
     phone: string;
     email?: string;
+    status: UserAccountStatus;
   };
 }
 

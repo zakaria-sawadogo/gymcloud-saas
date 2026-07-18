@@ -57,12 +57,14 @@ export class AbilityFactory {
         can('read', 'Booking');
         can('read', 'MarketingCampaign');
         can('read', 'Prospect');
-        // Peut créer des GESTIONNAIRE et COACH (matrice §2.8). La
+        // Peut créer des GESTIONNAIRE et COACH (matrice §2.8), et gérer
+        // leur cycle de vie (suspendre/réactiver/désactiver — §4.2). La
         // restriction fine (quel rôle précis, quelle salle) est
         // appliquée dans UsersService, pas ici — CASL reste
         // volontairement grossier pour rester lisible.
         can('create', 'User');
         can('read', 'User');
+        can('manage', 'User');
         cannot('update', 'SaasPlan');
         cannot('create', 'Salle'); // création exclusive SUPER_ADMIN (§3.2)
         break;
@@ -77,6 +79,7 @@ export class AbilityFactory {
         can('manage', 'Prospect'); // prospects captés depuis le site public de sa salle (§3.2)
         can('create', 'User'); // création de COACH uniquement (§2.8) — restriction fine en service
         can('read', 'User');
+        can('manage', 'User'); // suspendre/réactiver/désactiver COACH et ADHERENT de sa salle (§4.2) — restriction fine en service
         cannot('manage', 'SaasPlan');
         cannot('manage', 'SaasSubscription');
         break;

@@ -200,6 +200,32 @@ export class AdherentsController {
     return this.adherentsService.reactivate(id, user.userId);
   }
 
+  // §4.2 — Compte (connexion à l'application) — distinct du statut
+  // d'abonnement ci-dessus (ACTIF/EN_GRACE/EXPIRE, qui régule l'accès
+  // physique à la salle). Chemins volontairement différents
+  // (/account/...) pour ne jamais confondre les deux notions.
+
+  @Patch(':id/account/suspend')
+  @RequirePermission('manage', 'Adherent')
+  @ApiOperation({ summary: 'Suspendre le compte (connexion) d\'un adhérent — GESTIONNAIRE, sa salle uniquement (§4.2)' })
+  suspendAccount(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.adherentsService.suspendAccount(id, user);
+  }
+
+  @Patch(':id/account/reactivate')
+  @RequirePermission('manage', 'Adherent')
+  @ApiOperation({ summary: 'Réactiver le compte (connexion) d\'un adhérent' })
+  reactivateAccount(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.adherentsService.reactivateAccount(id, user);
+  }
+
+  @Patch(':id/account/deactivate')
+  @RequirePermission('manage', 'Adherent')
+  @ApiOperation({ summary: 'Désactiver (« supprimer ») le compte d\'un adhérent — historique conservé' })
+  deactivateAccount(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.adherentsService.deactivateAccount(id, user);
+  }
+
   // §5.7, §5.13, §8.3 — L'ancien endpoint POST :id/subscribe (sans
   // encaissement) a été retiré : une souscription payante ne doit
   // jamais pouvoir être créée sans paiement associé, y compris via un

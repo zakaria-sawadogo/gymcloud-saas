@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Patch } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateGestionnaireDto } from './dto/users.dto';
@@ -25,5 +25,26 @@ export class GestionnairesController {
   @ApiOperation({ summary: 'Liste des gestionnaires d\'une salle' })
   findBySalle(@Param('salleId') salleId: string) {
     return this.usersService.findGestionnairesBySalle(salleId);
+  }
+
+  @Patch(':userId/suspend')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Suspendre un gestionnaire — PROPRIETAIRE, sur l\'une de ses salles uniquement (§4.2, §4.4)' })
+  suspend(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.suspendGestionnaire(userId, user);
+  }
+
+  @Patch(':userId/reactivate')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Réactiver un gestionnaire' })
+  reactivate(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.reactivateGestionnaire(userId, user);
+  }
+
+  @Patch(':userId/deactivate')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Désactiver (« supprimer ») un gestionnaire — historique conservé' })
+  deactivate(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.deactivateGestionnaire(userId, user);
   }
 }

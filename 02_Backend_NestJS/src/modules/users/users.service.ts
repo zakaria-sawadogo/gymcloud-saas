@@ -175,7 +175,9 @@ export class UsersService {
   async findGestionnairesBySalle(salleId: string) {
     return this.prisma.gestionnaireProfile.findMany({
       where: { salleId },
-      include: { user: true },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, phone: true, email: true, status: true } },
+      },
     });
   }
 
@@ -235,7 +237,10 @@ export class UsersService {
   async findCoachsBySalle(salleId: string) {
     return this.prisma.coachProfile.findMany({
       where: { salleId },
-      include: { user: true, availabilities: true },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, phone: true, email: true, status: true } },
+        availabilities: true,
+      },
     });
   }
 
@@ -281,6 +286,103 @@ export class UsersService {
       entityId: userId,
     });
     return user;
+  }
+
+  /**
+   * §4.2 — Désactivation (« suppression ») d'un compte : jamais un
+   * DELETE SQL réel — un utilisateur peut être référencé par des
+   * paiements, réservations, journaux d'accès, etc., qu'il serait
+   * dangereux d'orphelin ou de perdre. DESACTIVE est distinct de
+   * SUSPENDU (généralement temporaire) — plus définitif dans l'esprit,
+   * mais techniquement toujours réversible par un SUPER_ADMIN.
+   */
+  async deactivateUser(userId: string, actorUserId: string) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: 'DESACTIVE' },
+    });
+    await this.prisma.refreshToken.updateMany({ where: { userId }, data: { revoked: true } });
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'user.deactivate',
+      entityType: 'User',
+      entityId: userId,
+    });
+    return user;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Gestionnaires — cycle de vie avec vérification d'appartenance
+  // (§4.2, §4.4) : un PROPRIETAIRE ne peut agir que sur les
+  // gestionnaires d'une salle qui lui appartient, jamais sur ceux
+  // d'un autre propriétaire.
+  // ─────────────────────────────────────────────────────────────
+
+  private async assertOwnsGestionnaire(gestionnaireUserId: string, actor: TenantContext) {
+    const profile = await this.prisma.gestionnaireProfile.findUnique({
+      where: { userId: gestionnaireUserId },
+      include: { salle: true },
+    });
+    if (!profile) throw new NotFoundException('Gestionnaire introuvable');
+    if (!actor.isGlobalAccess && profile.salle.proprietaireId !== actor.proprietaireId) {
+      throw new ForbiddenException('Ce gestionnaire n\'appartient pas à l\'une de vos salles');
+    }
+    return profile;
+  }
+
+  async suspendGestionnaire(gestionnaireUserId: string, actor: TenantContext) {
+    await this.assertOwnsGestionnaire(gestionnaireUserId, actor);
+    return this.suspendUser(gestionnaireUserId, actor.userId);
+  }
+
+  async reactivateGestionnaire(gestionnaireUserId: string, actor: TenantContext) {
+    await this.assertOwnsGestionnaire(gestionnaireUserId, actor);
+    return this.reactivateUser(gestionnaireUserId, actor.userId);
+  }
+
+  async deactivateGestionnaire(gestionnaireUserId: string, actor: TenantContext) {
+    await this.assertOwnsGestionnaire(gestionnaireUserId, actor);
+    return this.deactivateUser(gestionnaireUserId, actor.userId);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Coachs — cycle de vie avec vérification d'appartenance (§4.2,
+  // §4.5) : un GESTIONNAIRE ne peut agir que sur les coachs de SA
+  // salle ; un PROPRIETAIRE, sur les coachs de l'une de ses salles.
+  // ─────────────────────────────────────────────────────────────
+
+  private async assertOwnsCoach(coachUserId: string, actor: TenantContext) {
+    const profile = await this.prisma.coachProfile.findUnique({
+      where: { userId: coachUserId },
+      include: { salle: true },
+    });
+    if (!profile) throw new NotFoundException('Coach introuvable');
+    if (actor.isGlobalAccess) return profile;
+    if (actor.proprietaireId) {
+      if (profile.salle.proprietaireId !== actor.proprietaireId) {
+        throw new ForbiddenException('Ce coach n\'appartient pas à l\'une de vos salles');
+      }
+      return profile;
+    }
+    if (profile.salleId !== actor.salleId) {
+      throw new ForbiddenException('Ce coach n\'appartient pas à votre salle');
+    }
+    return profile;
+  }
+
+  async suspendCoach(coachUserId: string, actor: TenantContext) {
+    await this.assertOwnsCoach(coachUserId, actor);
+    return this.suspendUser(coachUserId, actor.userId);
+  }
+
+  async reactivateCoach(coachUserId: string, actor: TenantContext) {
+    await this.assertOwnsCoach(coachUserId, actor);
+    return this.reactivateUser(coachUserId, actor.userId);
+  }
+
+  async deactivateCoach(coachUserId: string, actor: TenantContext) {
+    await this.assertOwnsCoach(coachUserId, actor);
+    return this.deactivateUser(coachUserId, actor.userId);
   }
 
   // ─────────────────────────────────────────────────────────────

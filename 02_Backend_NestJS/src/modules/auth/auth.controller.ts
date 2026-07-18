@@ -7,6 +7,7 @@ import {
   RefreshTokenDto,
   ChangePasswordDto,
   RequestPasswordResetDto,
+  ConfirmPasswordResetDto,
 } from './dto/auth.dto';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
 
@@ -46,5 +47,11 @@ export class AuthController {
   @ApiOperation({ summary: 'Demande de réinitialisation par OTP (§4.9)' })
   async forgotPassword(@Body() dto: RequestPasswordResetDto) {
     return this.authService.requestPasswordReset(dto.phone);
+  }
+
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Confirmation de la réinitialisation avec le code OTP (§4.9)' })
+  async resetPassword(@Body() dto: ConfirmPasswordResetDto) {
+    return this.authService.confirmPasswordReset(dto.phone, dto.otpCode, dto.newPassword);
   }
 }

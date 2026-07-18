@@ -61,8 +61,22 @@ export class CoachsController {
 
   @Patch(':userId/suspend')
   @RequirePermission('manage', 'User')
-  @ApiOperation({ summary: 'Suspendre un compte utilisateur (§4.2)' })
+  @ApiOperation({ summary: 'Suspendre un compte coach — GESTIONNAIRE (sa salle) ou PROPRIETAIRE (ses salles) (§4.2, §4.5)' })
   suspend(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
-    return this.usersService.suspendUser(userId, user.userId);
+    return this.usersService.suspendCoach(userId, user);
+  }
+
+  @Patch(':userId/reactivate')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Réactiver un coach' })
+  reactivate(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.reactivateCoach(userId, user);
+  }
+
+  @Patch(':userId/deactivate')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Désactiver (« supprimer ») un coach — historique conservé' })
+  deactivate(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.deactivateCoach(userId, user);
   }
 }
