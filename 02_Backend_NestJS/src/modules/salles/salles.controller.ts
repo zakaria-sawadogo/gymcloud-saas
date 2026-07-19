@@ -42,25 +42,25 @@ export class SallesController {
   }
 
   @Patch(':id/branding')
-  @RequirePermission('manage', 'Salle')
-  @ApiOperation({ summary: 'Personnalisation de l\'identité visuelle (§3.4)' })
+  @RequirePermission('update', 'Salle')
+  @ApiOperation({ summary: 'Personnalisation de l\'identité visuelle — SUPER_ADMIN ou le PROPRIETAIRE de cette salle (§3.4)' })
   updateBranding(
     @Param('id') id: string,
     @Body() dto: UpdateSalleBrandingDto,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.sallesService.updateBranding(id, dto, user.userId);
+    return this.sallesService.updateBranding(id, dto, user);
   }
 
   @Patch(':id/settings')
-  @RequirePermission('manage', 'Salle')
-  @ApiOperation({ summary: 'Paramètres opérationnels (horaires, paiements, notifications — §3.5 à §3.9)' })
+  @RequirePermission('update', 'Salle')
+  @ApiOperation({ summary: 'Paramètres opérationnels — SUPER_ADMIN ou le PROPRIETAIRE de cette salle (§3.5 à §3.9)' })
   updateSettings(
     @Param('id') id: string,
     @Body() dto: UpdateSalleSettingsDto,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.sallesService.updateSettings(id, dto, user.userId);
+    return this.sallesService.updateSettings(id, dto, user);
   }
 
   @Patch(':id/suspend')

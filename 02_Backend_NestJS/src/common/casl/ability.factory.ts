@@ -50,6 +50,7 @@ export class AbilityFactory {
 
       case 'PROPRIETAIRE':
         can('read', 'Salle');
+        can('update', 'Salle'); // identité visuelle et paramètres de SES salles (§3.4-3.9) — appartenance vérifiée en service
         can('read', 'Adherent');
         can('read', 'Payment');
         can('read', 'SaasSubscription');

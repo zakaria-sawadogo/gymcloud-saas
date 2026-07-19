@@ -4,6 +4,7 @@ import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { SaasBillingService } from '../saas-billing/saas-billing.service';
+import { TenantContext } from '../../common/middleware/tenant.middleware';
 import { UpdateSalleBrandingDto, UpdateSalleSettingsDto } from './dto/salle.dto';
 
 interface CreateSalleInput {
@@ -142,7 +143,25 @@ export class SallesService {
     return this.prisma.salle.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
-  async updateBranding(salleId: string, dto: UpdateSalleBrandingDto, actorUserId: string) {
+  /**
+   * §3.4 — Seuls le SUPER_ADMIN et le PROPRIETAIRE de cette salle
+   * précise peuvent en modifier l'identité visuelle/les paramètres —
+   * jamais un autre propriétaire, jamais un gestionnaire (décision qui
+   * dépasse la gestion quotidienne). Centralisé ici pour ne pas
+   * dupliquer la vérification entre branding et settings.
+   */
+  private async assertOwnsSalleForConfig(salleId: string, actor: TenantContext) {
+    if (actor.isGlobalAccess) return;
+    const salle = await this.prisma.salle.findUnique({ where: { id: salleId } });
+    if (!salle) throw new NotFoundException('Salle introuvable');
+    if (!actor.proprietaireId || salle.proprietaireId !== actor.proprietaireId) {
+      throw new ForbiddenException('Cette salle ne vous appartient pas');
+    }
+  }
+
+  async updateBranding(salleId: string, dto: UpdateSalleBrandingDto, actor: TenantContext) {
+    await this.assertOwnsSalleForConfig(salleId, actor);
+
     if (dto.publicSubdomain) {
       const existing = await this.prisma.salle.findUnique({ where: { publicSubdomain: dto.publicSubdomain } });
       if (existing && existing.id !== salleId) {
@@ -156,7 +175,7 @@ export class SallesService {
       data: dto as any,
     });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       salleId,
       action: 'salle.branding_update',
       entityType: 'Salle',
@@ -165,13 +184,15 @@ export class SallesService {
     return salle;
   }
 
-  async updateSettings(salleId: string, dto: UpdateSalleSettingsDto, actorUserId: string) {
+  async updateSettings(salleId: string, dto: UpdateSalleSettingsDto, actor: TenantContext) {
+    await this.assertOwnsSalleForConfig(salleId, actor);
+
     const salle = await this.prisma.salle.update({
       where: { id: salleId },
       data: dto as any,
     });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       salleId,
       action: 'salle.settings_update',
       entityType: 'Salle',
