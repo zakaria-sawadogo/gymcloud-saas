@@ -80,4 +80,14 @@ export class SallesController {
   reactivate(@Param('id') id: string, @CurrentUser() user: TenantContext) {
     return this.sallesService.reactivate(id, user.userId);
   }
+
+  @Get(':id/checkin-qr')
+  @RequirePermission('read', 'Salle')
+  @ApiOperation({
+    summary:
+      'QR code fixe de la salle, à afficher/imprimer à l\'entrée — les adhérents le scannent avec leur propre téléphone pour pointer eux-mêmes (§6.14)',
+  })
+  getCheckinQr(@Param('id') id: string) {
+    return this.sallesService.getCheckinQrCode(id);
+  }
 }

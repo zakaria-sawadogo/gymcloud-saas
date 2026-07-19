@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, UserCog, Dumbbell, Coins, Globe, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Plus, UserCog, Dumbbell, Coins, Globe, ExternalLink, QrCode, Printer } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -101,6 +101,8 @@ export default function SalleDetailPage() {
           </div>
         </Card>
       )}
+
+      {salle && <CheckinQrCard salleId={salle.id} />}
 
       {salle && (
         <SubdomainModal
@@ -477,5 +479,61 @@ function SubdomainModal({
         </Button>
       </form>
     </Modal>
+  );
+}
+
+/**
+ * §6.14 — QR fixe de la salle, à afficher/imprimer à l'entrée. Les
+ * adhérents le scannent avec leur propre téléphone (application
+ * mobile) pour pointer eux-mêmes leur présence — distinct du badge
+ * individuel de chaque adhérent, que le personnel continue de scanner
+ * de son côté comme avant.
+ */
+function CheckinQrCard({ salleId }: { salleId: string }) {
+  const { data } = useApi<{ checkinQrToken: string; qrDataUrl: string }>(`/salles/${salleId}/checkin-qr`);
+
+  const handlePrint = () => {
+    if (!data) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`
+      <html>
+        <head><title>QR d'entrée</title></head>
+        <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+          <h1 style="margin-bottom:24px;">Scannez pour pointer votre entrée</h1>
+          <img src="${data.qrDataUrl}" style="width:400px;height:400px;" />
+        </body>
+      </html>
+    `);
+    win.document.close();
+    win.print();
+  };
+
+  return (
+    <Card className="mb-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+            <QrCode className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-ink-900">QR d'entrée (auto-pointage)</p>
+            <p className="text-xs text-ink-400">
+              À afficher ou imprimer à l'entrée — chaque adhérent le scanne avec son propre téléphone pour pointer
+              son entrée/sortie, sans passer par le personnel.
+            </p>
+          </div>
+        </div>
+        <Button size="sm" variant="secondary" onClick={handlePrint} disabled={!data}>
+          <Printer className="h-3.5 w-3.5" />
+          Imprimer
+        </Button>
+      </div>
+      {data && (
+        <div className="mt-4 flex justify-center">
+          <img src={data.qrDataUrl} alt="QR code d'entrée de la salle" className="h-40 w-40" />
+        </div>
+      )}
+    </Card>
   );
 }

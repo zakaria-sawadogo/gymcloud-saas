@@ -94,6 +94,7 @@ export class AbilityFactory {
         can('read', 'AdherentAbonnement');
         can('create', 'Booking');
         can('create', 'Payment');
+        can('create', 'AccessLog'); // §6.14 — auto-pointage via le QR fixe de sa salle, restriction fine en service
         break;
 
       // ── Personnel interne GymCloud (§2.2) — accès global (non lié

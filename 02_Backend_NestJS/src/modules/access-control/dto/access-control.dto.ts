@@ -25,3 +25,9 @@ export class ManualAccessDto {
   @IsString()
   reason?: string;
 }
+
+export class SelfCheckinDto {
+  @ApiProperty({ description: 'Jeton scanné depuis le QR fixe affiché à l\'entrée (Salle.checkinQrToken)' })
+  @IsString()
+  checkinQrToken!: string;
+}

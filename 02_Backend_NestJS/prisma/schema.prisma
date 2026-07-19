@@ -465,6 +465,11 @@ model Salle {
   logoUrl     String?
   slogan      String?
   description String?
+  // §6.14 — QR fixe affiché à l'entrée, scanné par les adhérents avec
+  // leur propre téléphone pour pointer eux-mêmes leur présence.
+  // Distinct du qrCodeToken individuel de chaque AdherentProfile
+  // (celui-là reste scanné par le personnel) — les deux coexistent.
+  checkinQrToken String @unique @default(uuid())
 
   // Coordonnées (§3.2)
   email       String?
@@ -688,6 +693,7 @@ model AdherentAbonnement {
 enum AccessMethod {
   QR_CODE
   MANUEL
+  AUTO_ADHERENT // §6.14 — adhérent scannant lui-même le QR fixe de la salle
 }
 
 model AccessLog {

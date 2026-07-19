@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { randomUUID, randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -66,32 +67,41 @@ export class AdherentsService {
     const tempPassword = randomBytes(9).toString('base64url');
     const passwordHash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
 
-    const user = await this.prisma.user.create({
-      data: {
-        id: randomUUID(),
-        phone: dto.phone,
-        email: dto.email,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        passwordHash,
-        roleId: role.id,
-        status: 'ACTIF',
-      },
-    });
+    // §5.6 — Création atomique : si l'une des deux écritures échoue
+    // (ex: collision de memberCode), AUCUNE des deux ne doit persister.
+    // Avant cette correction, un compte utilisateur orphelin (sans
+    // profil adhérent) restait en base à chaque échec, empêchant même
+    // les tentatives suivantes avec le même numéro de téléphone.
+    const { user, adherent } = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const user = await tx.user.create({
+        data: {
+          id: randomUUID(),
+          phone: dto.phone,
+          email: dto.email,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          passwordHash,
+          roleId: role.id,
+          status: 'ACTIF',
+        },
+      });
 
-    const adherent = await this.prisma.adherentProfile.create({
-      data: {
-        id: randomUUID(),
-        userId: user.id,
-        salleId: dto.salleId,
-        memberCode: await this.generateMemberCode(dto.salleId),
-        qrCodeToken: this.generateQrToken(),
-        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
-        gender: dto.gender,
-        address: dto.address,
-        emergencyContact: dto.emergencyContact,
-        status: 'ACTIF',
-      },
+      const adherent = await tx.adherentProfile.create({
+        data: {
+          id: randomUUID(),
+          userId: user.id,
+          salleId: dto.salleId,
+          memberCode: await this.generateMemberCode(dto.salleId, tx),
+          qrCodeToken: this.generateQrToken(),
+          dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+          gender: dto.gender,
+          address: dto.address,
+          emergencyContact: dto.emergencyContact,
+          status: 'ACTIF',
+        },
+      });
+
+      return { user, adherent };
     });
 
     await this.audit.log({
@@ -712,11 +722,30 @@ export class AdherentsService {
   // Helpers internes
   // ─────────────────────────────────────────────────────────────
 
-  private async generateMemberCode(salleId: string): Promise<string> {
-    const salle = await this.prisma.salle.findUniqueOrThrow({ where: { id: salleId } });
-    const count = await this.prisma.adherentProfile.count({ where: { salleId } });
+  /**
+   * §5.6 — Génère un code membre unique. Ne se contente plus de faire
+   * confiance à un simple comptage (count+1) : celui-ci peut recalculer
+   * le même numéro à chaque nouvel essai si une tentative précédente a
+   * échoué après le comptage mais avant l'écriture (ex: collision, ou
+   * tout autre échec) — boucle de vérification explicite à la place,
+   * jusqu'à trouver un code réellement libre.
+   */
+  private async generateMemberCode(
+    salleId: string,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<string> {
+    const salle = await tx.salle.findUniqueOrThrow({ where: { id: salleId } });
     const prefix = salle.slug.slice(0, 4).toUpperCase();
-    return `${prefix}-${String(count + 1).padStart(5, '0')}`;
+    const count = await tx.adherentProfile.count({ where: { salleId } });
+
+    for (let attempt = 0; attempt < 1000; attempt++) {
+      const candidate = `${prefix}-${String(count + 1 + attempt).padStart(5, '0')}`;
+      const existing = await tx.adherentProfile.findUnique({ where: { memberCode: candidate } });
+      if (!existing) return candidate;
+    }
+    // Filet de sécurité si 1000 codes consécutifs sont déjà pris (ne
+    // devrait jamais arriver en pratique) — suffixe aléatoire garanti unique.
+    return `${prefix}-${randomBytes(4).toString('hex').toUpperCase()}`;
   }
 
   private generateQrToken(): string {

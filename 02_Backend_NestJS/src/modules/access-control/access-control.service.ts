@@ -72,10 +72,44 @@ export class AccessControlService {
     return log;
   }
 
+  /**
+   * §6.14 — Auto-pointage : l'adhérent scanne lui-même, avec son
+   * propre téléphone, le QR fixe affiché à l'entrée de la salle
+   * (distinct de son propre badge, que le personnel scanne de son
+   * côté — les deux coexistent). L'identité de l'adhérent vient
+   * exclusivement de son propre jeton de connexion, jamais d'une
+   * valeur transmise par le client — impossible de pointer pour
+   * quelqu'un d'autre via ce chemin.
+   */
+  async selfCheckin(checkinQrToken: string, callerUserId: string) {
+    const salle = await this.prisma.salle.findUnique({ where: { checkinQrToken } });
+    if (!salle) {
+      throw new NotFoundException('QR code de salle invalide ou inconnu');
+    }
+
+    const adherent = await this.prisma.adherentProfile.findUnique({ where: { userId: callerUserId } });
+    if (!adherent) {
+      throw new ForbiddenException('Seul un adhérent peut pointer son propre accès de cette façon');
+    }
+    if (adherent.salleId !== salle.id) {
+      throw new ForbiddenException('Ce QR appartient à une autre salle que la vôtre (§2.3)');
+    }
+
+    const openSession = await this.prisma.accessLog.findFirst({
+      where: { adherentId: adherent.id, checkOutAt: null },
+      orderBy: { checkInAt: 'desc' },
+    });
+
+    if (openSession) {
+      return this.checkOut(openSession.id);
+    }
+    return this.checkIn(adherent.id, salle.id, 'AUTO_ADHERENT');
+  }
+
   private async checkIn(
     adherentId: string,
     salleId: string,
-    method: 'QR_CODE' | 'MANUEL',
+    method: 'QR_CODE' | 'MANUEL' | 'AUTO_ADHERENT',
     createdByUserId?: string,
   ) {
     const adherent = await this.prisma.adherentProfile.findUniqueOrThrow({

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { SaasBillingService } from '../saas-billing/saas-billing.service';
@@ -219,5 +220,17 @@ export class SallesService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
     return `${base}-${randomUUID().slice(0, 6)}`; // suffixe pour garantir l'unicité
+  }
+
+  /**
+   * §6.14 — Image du QR fixe de la salle, à afficher ou imprimer à
+   * l'entrée. Encode uniquement `checkinQrToken` — la même valeur que
+   * l'application mobile envoie ensuite à
+   * POST /access-control/self-checkin une fois scannée.
+   */
+  async getCheckinQrCode(salleId: string) {
+    const salle = await this.prisma.salle.findUniqueOrThrow({ where: { id: salleId } });
+    const qrDataUrl = await QRCode.toDataURL(salle.checkinQrToken, { margin: 1, width: 400 });
+    return { checkinQrToken: salle.checkinQrToken, qrDataUrl };
   }
 }

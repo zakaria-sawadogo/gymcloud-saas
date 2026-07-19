@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AccessControlService } from './access-control.service';
-import { ScanQrDto, ManualAccessDto } from './dto/access-control.dto';
+import { ScanQrDto, ManualAccessDto, SelfCheckinDto } from './dto/access-control.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
@@ -33,6 +33,16 @@ export class AccessControlController {
       user.userId,
       dto.reason,
     );
+  }
+
+  @Post('self-checkin')
+  @RequirePermission('create', 'AccessLog')
+  @ApiOperation({
+    summary:
+      'Auto-pointage par l\'adhérent lui-même, en scannant le QR fixe de sa salle avec son propre téléphone (§6.14)',
+  })
+  selfCheckin(@Body() dto: SelfCheckinDto, @CurrentUser() user: TenantContext) {
+    return this.accessControlService.selfCheckin(dto.checkinQrToken, user.userId);
   }
 
   @Get('salle/:salleId/current')
