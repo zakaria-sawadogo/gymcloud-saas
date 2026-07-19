@@ -34,8 +34,6 @@ import type { Salle, GestionnaireProfile, CoachProfile } from '@/types';
  * /payments (réservée au Gestionnaire), qu'il peut consulter et
  * encaisser des paiements pour n'importe quelle salle.
  */
-const PUBLIC_SITE_BASE_URL = process.env.NEXT_PUBLIC_PUBLIC_SITE_URL ?? 'http://localhost:3002';
-
 export default function SalleDetailPage() {
   const params = useParams<{ id: string }>();
   const { data: salle, refetch: refetchSalle } = useApi<Salle>(`/salles/${params.id}`);
@@ -79,12 +77,12 @@ export default function SalleDetailPage() {
                 <p className="text-sm font-medium text-ink-900">Site public</p>
                 {salle.publicSubdomain ? (
                   <a
-                    href={`${PUBLIC_SITE_BASE_URL}/s/${salle.publicSubdomain}`}
+                    href={`/s/${salle.publicSubdomain}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"
                   >
-                    {salle.publicSubdomain}.gymcloud.africa
+                    /s/{salle.publicSubdomain}
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 ) : (
@@ -464,8 +462,10 @@ function SubdomainModal({
               minLength={3}
               maxLength={40}
             />
-            <span className="whitespace-nowrap text-sm text-ink-400">.gymcloud.africa</span>
           </div>
+          <p className="mt-1.5 text-xs text-ink-400">
+            Site accessible à : gymcloud.sahelsystem.com/s/{subdomain || 'fitnessclub'}
+          </p>
         </Field>
         <p className="mb-4 text-xs text-ink-400">
           Lettres minuscules, chiffres et tirets uniquement. Ce site présente la salle, ses activités, et permet
