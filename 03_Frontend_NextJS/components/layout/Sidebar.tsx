@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Settings,
   Globe,
+  BarChart3,
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -42,10 +43,12 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Facturation SaaS', href: '/facturation-saas', icon: CreditCard },
     { label: 'Personnel interne', href: '/personnel-interne', icon: ShieldCheck },
     { label: 'Pays', href: '/pays', icon: Globe },
+    { label: 'Statistiques', href: '/statistiques', icon: BarChart3 },
   ],
   PROPRIETAIRE: [
     { label: 'Vue consolidée', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Mes salles', href: '/salles', icon: Building2 },
+    { label: 'Statistiques', href: '/statistiques', icon: BarChart3 },
     { label: 'Mon abonnement', href: '/mon-abonnement', icon: Layers },
   ],
   GESTIONNAIRE: [
@@ -57,6 +60,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Réservations', href: '/bookings', icon: CalendarCheck },
     { label: 'Paiements', href: '/payments', icon: CreditCard },
     { label: 'Marketing', href: '/marketing', icon: Megaphone },
+    { label: 'Statistiques', href: '/statistiques', icon: BarChart3 },
   ],
   COACH: [
     { label: 'Mon planning', href: '/dashboard', icon: CalendarCheck },
