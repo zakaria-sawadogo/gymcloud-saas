@@ -75,6 +75,7 @@ services:
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-gymcloud_admin}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-changeme_dev_only}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
       NODE_ENV: production
       PORT: 3000
     ports:

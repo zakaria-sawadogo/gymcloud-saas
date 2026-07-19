@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { MapPin, Phone, Clock, Sparkles, UserPlus, Users, ChevronRight } from 'lucide-react';
-import type { PublicSalle, PublicFormule, PublicCoursCollectif } from '@/lib/api';
-import { formatCurrency, formatDateTime } from '@/lib/utils';
+import { MapPin, Phone, Clock, Sparkles, UserPlus, Users, ChevronRight, Camera } from 'lucide-react';
+import type { PublicSalle, PublicFormule, PublicCoursCollectif, PublicGalleryImage, PublicPost } from '@/lib/api';
+import { formatCurrency, formatDateTime, formatDate } from '@/lib/utils';
 import { RegisterModal } from '@/components/RegisterModal';
 import { TrialModal } from '@/components/TrialModal';
 
@@ -17,11 +17,15 @@ export function PublicSiteClient({
   salle,
   catalogue,
   coursCollectifs,
+  gallery,
+  posts,
 }: {
   subdomain: string;
   salle: PublicSalle;
   catalogue: PublicFormule[];
   coursCollectifs: PublicCoursCollectif[];
+  gallery: PublicGalleryImage[];
+  posts: PublicPost[];
 }) {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [trialCours, setTrialCours] = useState<PublicCoursCollectif | null>(null);
@@ -102,6 +106,50 @@ export function PublicSiteClient({
       {salle.description && (
         <section className="mx-auto max-w-3xl px-6 py-14">
           <p className="text-base leading-relaxed text-ink-600">{salle.description}</p>
+        </section>
+      )}
+
+      {/* ── Actualités & promotions ── */}
+      {posts.length > 0 && (
+        <section className="px-6 py-14">
+          <div className="mx-auto max-w-5xl">
+            <h2 className="mb-8 font-display text-2xl font-semibold text-ink-900">Actualités</h2>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {posts.map((post) => (
+                <div key={post.id} className="overflow-hidden rounded-2xl border border-ink-100">
+                  {post.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={post.imageUrl} alt={post.title} className="h-40 w-full object-cover" />
+                  )}
+                  <div className="p-5">
+                    <p className="text-xs text-ink-400">{formatDate(post.publishedAt)}</p>
+                    <h3 className="mt-1 font-display text-base font-semibold text-ink-900">{post.title}</h3>
+                    <p className="mt-2 line-clamp-3 text-sm text-ink-600">{post.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Galerie photo ── */}
+      {gallery.length > 0 && (
+        <section className="bg-ink-50 px-6 py-14">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-8 flex items-center gap-2">
+              <Camera className="h-5 w-5" style={{ color: 'var(--salle-primary)' }} />
+              <h2 className="font-display text-2xl font-semibold text-ink-900">Galerie</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {gallery.map((img) => (
+                <div key={img.id} className="aspect-square overflow-hidden rounded-xl">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.imageUrl} alt={img.caption ?? salle.name} className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
       )}
 

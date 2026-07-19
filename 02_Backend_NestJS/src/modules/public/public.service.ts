@@ -76,6 +76,27 @@ export class PublicService {
     });
   }
 
+  /** §3.2, §3.4 — Galerie photo publique. */
+  async getGallery(subdomain: string) {
+    const salle = await this.getSalleBySubdomain(subdomain);
+    return this.prisma.salleGalleryImage.findMany({
+      where: { salleId: salle.id },
+      select: { id: true, imageUrl: true, caption: true },
+      orderBy: { displayOrder: 'asc' },
+    });
+  }
+
+  /** §3.2, §3.4 — Publications promotionnelles publiées, les plus récentes en premier. */
+  async getPosts(subdomain: string) {
+    const salle = await this.getSalleBySubdomain(subdomain);
+    return this.prisma.sallePost.findMany({
+      where: { salleId: salle.id, published: true },
+      select: { id: true, title: true, content: true, imageUrl: true, publishedAt: true },
+      orderBy: { publishedAt: 'desc' },
+      take: 20,
+    });
+  }
+
   /** §3.2 — Inscription en ligne : crée un prospect léger, jamais un compte adhérent. */
   async registerProspect(subdomain: string, dto: RegisterProspectDto) {
     const salle = await this.getSalleBySubdomain(subdomain);

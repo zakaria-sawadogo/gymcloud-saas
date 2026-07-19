@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { GestionnaireDashboardView } from '@/components/dashboard/GestionnaireDashboardView';
 import { SallePaymentsView } from '@/components/dashboard/SallePaymentsView';
 import { UserAccountActions } from '@/components/dashboard/UserAccountActions';
+import { SalleContentPanel } from '@/components/dashboard/SalleContentPanel';
 import { formatCurrency } from '@/lib/utils';
 import type { Salle, GestionnaireProfile, CoachProfile } from '@/types';
 
@@ -101,6 +102,8 @@ export default function SalleDetailPage() {
       )}
 
       {salle && <CheckinQrCard salleId={salle.id} />}
+
+      {salle && <SalleContentPanel salleId={salle.id} />}
 
       {salle && (
         <SubdomainModal

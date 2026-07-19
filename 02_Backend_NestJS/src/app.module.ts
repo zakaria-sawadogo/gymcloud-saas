@@ -26,6 +26,7 @@ import { RolesModule } from './modules/roles/roles.module';
 import { PublicModule } from './modules/public/public.module';
 import { ProspectsModule } from './modules/prospects/prospects.module';
 import { SubscriptionRequestsModule } from './modules/subscription-requests/subscription-requests.module';
+import { SalleContentModule } from './modules/salle-content/salle-content.module';
 
 // Module restant à ajouter au fur et à mesure du développement :
 // NotificationsModule (transverse — SMS/Email/WhatsApp/Push)
@@ -41,6 +42,7 @@ import { SubscriptionRequestsModule } from './modules/subscription-requests/subs
     AuthModule,
     SaasBillingModule,
     SallesModule,
+    SalleContentModule,
     UsersModule,
     AdherentsModule,
     AccessControlModule,

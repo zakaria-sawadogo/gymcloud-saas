@@ -1,0 +1,1 @@
+# Images de l'app (logo, illustrations...) — vide pour l'instant, dossier nécessaire car référencé dans pubspec.yaml (assets:), sinon 'flutter pub get'/build échoue sur un dossier absent.

@@ -154,6 +154,22 @@ export interface AdherentProfile {
   };
 }
 
+export interface SalleGalleryImage {
+  id: string;
+  imageUrl: string;
+  caption?: string;
+  displayOrder: number;
+}
+
+export interface SallePost {
+  id: string;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  published: boolean;
+  publishedAt: string;
+}
+
 export interface AbonnementCatalogue {
   id: string;
   salleId: string;

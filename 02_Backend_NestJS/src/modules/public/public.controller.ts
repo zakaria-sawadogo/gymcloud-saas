@@ -38,6 +38,18 @@ export class PublicController {
     return this.publicService.getUpcomingCoursCollectifs(subdomain);
   }
 
+  @Get(':subdomain/gallery')
+  @ApiOperation({ summary: 'Galerie photo publique (§3.4)' })
+  getGallery(@Param('subdomain') subdomain: string) {
+    return this.publicService.getGallery(subdomain);
+  }
+
+  @Get(':subdomain/posts')
+  @ApiOperation({ summary: 'Publications promotionnelles publiées (§3.4)' })
+  getPosts(@Param('subdomain') subdomain: string) {
+    return this.publicService.getPosts(subdomain);
+  }
+
   @Post(':subdomain/prospects')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({

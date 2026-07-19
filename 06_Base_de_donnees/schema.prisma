@@ -517,6 +517,8 @@ model Salle {
   coupons         Coupon[]
   auditLogs       AuditLog[]
   documents       SalleDocument[]
+  galleryImages   SalleGalleryImage[]
+  posts           SallePost[]
   prospects       Prospect[]
 
   @@index([proprietaireId])
@@ -535,6 +537,41 @@ model SalleDocument {
 
   @@index([salleId])
   @@map("salle_documents")
+}
+
+// §3.2, §3.4 — Galerie photo du site public d'une salle (installations,
+// ambiance...) — distincte du logo (identité) et des images de
+// publications (actualité ponctuelle).
+model SalleGalleryImage {
+  id           String   @id @default(uuid())
+  salleId      String
+  salle        Salle    @relation(fields: [salleId], references: [id], onDelete: Cascade)
+  imageUrl     String
+  caption      String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([salleId])
+  @@map("salle_gallery_images")
+}
+
+// §3.2, §3.4 — Fil de publications promotionnelles sur le site public
+// d'une salle (nouvelle offre, événement, actualité...) — distinct des
+// cours collectifs (planning réel des séances).
+model SallePost {
+  id          String    @id @default(uuid())
+  salleId     String
+  salle       Salle     @relation(fields: [salleId], references: [id], onDelete: Cascade)
+  title       String
+  content     String
+  imageUrl    String?
+  published   Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([salleId, published, publishedAt])
+  @@map("salle_posts")
 }
 
 // ───────────────────────────────────────────────────────────────────────

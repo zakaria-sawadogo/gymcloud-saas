@@ -86,8 +86,12 @@ interface RequestOptions extends RequestInit {
 async function request<T>(path: string, options: RequestOptions = {}, isRetry = false): Promise<T> {
   const { skipAuth, headers, ...rest } = options;
 
+  const isFormData = rest.body instanceof FormData;
   const finalHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
+    // Un FormData (upload de fichier) doit laisser le navigateur fixer
+    // lui-même Content-Type avec sa frontière (boundary) — la forcer
+    // ici casserait silencieusement l'envoi multipart.
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(headers as Record<string, string>),
   };
 
@@ -138,10 +142,18 @@ export const apiClient = {
   get: <T>(path: string, options?: RequestOptions) => request<T>(path, { ...options, method: 'GET' }),
 
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(path, { ...options, method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      ...options,
+      method: 'POST',
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+    }),
 
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(path, { ...options, method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      ...options,
+      method: 'PATCH',
+      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+    }),
 
   delete: <T>(path: string, options?: RequestOptions) =>
     request<T>(path, { ...options, method: 'DELETE' }),

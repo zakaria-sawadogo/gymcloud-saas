@@ -76,6 +76,28 @@ export async function getCoursCollectifs(subdomain: string): Promise<PublicCours
   return request<PublicCoursCollectif[]>(`/public/salles/${subdomain}/cours-collectifs`);
 }
 
+export interface PublicGalleryImage {
+  id: string;
+  imageUrl: string;
+  caption?: string;
+}
+
+export interface PublicPost {
+  id: string;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  publishedAt: string;
+}
+
+export async function getGallery(subdomain: string): Promise<PublicGalleryImage[]> {
+  return request<PublicGalleryImage[]>(`/public/salles/${subdomain}/gallery`);
+}
+
+export async function getPosts(subdomain: string): Promise<PublicPost[]> {
+  return request<PublicPost[]>(`/public/salles/${subdomain}/posts`);
+}
+
 export interface RegisterProspectPayload {
   firstName: string;
   lastName: string;
