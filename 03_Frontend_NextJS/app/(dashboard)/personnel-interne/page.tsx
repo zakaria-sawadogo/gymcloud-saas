@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
+import { UserAccountActions } from '@/components/dashboard/UserAccountActions';
 import { formatDate } from '@/lib/utils';
 import type { InternalUser, Role, Country } from '@/types';
 
@@ -75,9 +76,18 @@ export default function PersonnelInternePage() {
                   <td className="px-5 py-3 text-ink-600">{u.country?.name ?? '—'}</td>
                   <td className="px-5 py-3 text-ink-600">{formatDate(u.createdAt)}</td>
                   <td className="px-5 py-3 text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setEditingRoleFor(u)}>
-                      Modifier le rôle
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                      <UserAccountActions
+                        status={u.status}
+                        suspendPath={`/internal-users/${u.id}/suspend`}
+                        reactivatePath={`/internal-users/${u.id}/reactivate`}
+                        deactivatePath={`/internal-users/${u.id}/deactivate`}
+                        onChanged={refetch}
+                      />
+                      <Button size="sm" variant="ghost" onClick={() => setEditingRoleFor(u)}>
+                        Modifier le rôle
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}

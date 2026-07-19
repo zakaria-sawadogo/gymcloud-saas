@@ -265,7 +265,7 @@ const DECLARED_METHOD_LABELS: Record<string, string> = {
   ORANGE_MONEY: 'Orange Money',
   MOOV_MONEY: 'Moov Money',
   WAVE: 'Wave',
-  ESSAI_GRATUIT: 'Essai gratuit (0 XOF)',
+  ESSAI_GRATUIT: 'Essai gratuit (montant nul)',
 };
 
 /**

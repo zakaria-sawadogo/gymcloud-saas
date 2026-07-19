@@ -15,7 +15,7 @@ export interface CurrentUserProfile {
   adherentId: string | null;
   coachId: string | null;
   gestionnaireId: string | null;
-  salle: { id: string; name: string; logoUrl?: string } | null;
+  salle: { id: string; name: string; logoUrl?: string; currency: string } | null;
 }
 
 interface AuthContextValue {

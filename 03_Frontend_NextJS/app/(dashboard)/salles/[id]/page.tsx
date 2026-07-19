@@ -209,7 +209,7 @@ export default function SalleDetailPage() {
       <GestionnaireDashboardView salleId={params.id} />
 
       <div className="mt-6">
-        <SallePaymentsView salleId={params.id} />
+        <SallePaymentsView salleId={params.id} currency={salle?.country?.currency ?? 'XOF'} />
       </div>
 
       <CreateTeamMemberModal

@@ -95,19 +95,28 @@ async function main() {
     });
   }
 
-  console.log('Seed — pays de lancement...');
+  console.log('Seed — pays de lancement (UEMOA + Guinée)...');
 
-  await prisma.country.upsert({
-    where: { code: 'BF' },
-    update: {},
-    create: {
-      id: randomUUID(),
-      code: 'BF',
-      name: 'Burkina Faso',
-      currency: 'XOF',
-      timezone: 'Africa/Ouagadougou',
-    },
-  });
+  const countries = [
+    { code: 'BF', name: 'Burkina Faso', currency: 'XOF', timezone: 'Africa/Ouagadougou' },
+    { code: 'BJ', name: 'Bénin', currency: 'XOF', timezone: 'Africa/Porto-Novo' },
+    { code: 'CI', name: "Côte d'Ivoire", currency: 'XOF', timezone: 'Africa/Abidjan' },
+    { code: 'GW', name: 'Guinée-Bissau', currency: 'XOF', timezone: 'Africa/Bissau' },
+    { code: 'ML', name: 'Mali', currency: 'XOF', timezone: 'Africa/Bamako' },
+    { code: 'NE', name: 'Niger', currency: 'XOF', timezone: 'Africa/Niamey' },
+    { code: 'SN', name: 'Sénégal', currency: 'XOF', timezone: 'Africa/Dakar' },
+    { code: 'TG', name: 'Togo', currency: 'XOF', timezone: 'Africa/Lome' },
+    // Hors UEMOA — devise propre (Franc guinéen), ajoutée à la demande explicite.
+    { code: 'GN', name: 'Guinée', currency: 'GNF', timezone: 'Africa/Conakry' },
+  ];
+
+  for (const country of countries) {
+    await prisma.country.upsert({
+      where: { code: country.code },
+      update: {},
+      create: { id: randomUUID(), ...country },
+    });
+  }
 
   console.log('Seed — plans SaaS par défaut (§9.3)...');
 

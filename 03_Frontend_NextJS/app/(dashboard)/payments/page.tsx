@@ -13,5 +13,5 @@ export default function PaymentsPage() {
   const salleId = user?.salle?.id;
 
   if (!salleId) return null;
-  return <SallePaymentsView salleId={salleId} />;
+  return <SallePaymentsView salleId={salleId} currency={user?.salle?.currency ?? 'XOF'} />;
 }

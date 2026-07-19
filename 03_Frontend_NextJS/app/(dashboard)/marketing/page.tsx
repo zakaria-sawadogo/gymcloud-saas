@@ -54,7 +54,7 @@ export default function MarketingPage() {
         <Tabs
           tabs={[
             { id: 'campaigns', label: 'Campagnes', content: <CampaignsTab salleId={salleId} /> },
-            { id: 'coupons', label: 'Coupons', content: <CouponsTab salleId={salleId} /> },
+            { id: 'coupons', label: 'Coupons', content: <CouponsTab salleId={salleId} currency={user?.salle?.currency ?? 'XOF'} /> },
           ]}
         />
       )}
@@ -263,7 +263,7 @@ function CreateCampaignModal({
 // Onglet Coupons
 // ─────────────────────────────────────────────────────────────
 
-function CouponsTab({ salleId }: { salleId: string }) {
+function CouponsTab({ salleId, currency }: { salleId: string; currency: string }) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const { data: coupons, refetch } = useApi<Coupon[]>(`/salles/${salleId}/coupons`);
 
@@ -294,7 +294,7 @@ function CouponsTab({ salleId }: { salleId: string }) {
                 <tr key={c.id}>
                   <td className="px-5 py-3 font-mono font-medium text-ink-900">{c.code}</td>
                   <td className="px-5 py-3 text-ink-600">
-                    {c.discountType === 'PERCENT' ? `${c.discountValue}%` : `${c.discountValue} XOF`}
+                    {c.discountType === 'PERCENT' ? `${c.discountValue}%` : `${c.discountValue} ${currency}`}
                   </td>
                   <td className="px-5 py-3 text-ink-600">
                     {formatDate(c.validFrom)} → {formatDate(c.validTo)}
@@ -312,6 +312,7 @@ function CouponsTab({ salleId }: { salleId: string }) {
 
       <CreateCouponModal
         salleId={salleId}
+        currency={currency}
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onCreated={() => {
@@ -325,11 +326,13 @@ function CouponsTab({ salleId }: { salleId: string }) {
 
 function CreateCouponModal({
   salleId,
+  currency,
   isOpen,
   onClose,
   onCreated,
 }: {
   salleId: string;
+  currency: string;
   isOpen: boolean;
   onClose: () => void;
   onCreated: () => void;
@@ -384,7 +387,7 @@ function CreateCouponModal({
           </Select>
         </Field>
 
-        <Field label={discountType === 'PERCENT' ? 'Valeur (%)' : 'Valeur (XOF)'}>
+        <Field label={discountType === 'PERCENT' ? 'Valeur (%)' : `Valeur (${currency})`}>
           <Input
             type="number"
             min="0"

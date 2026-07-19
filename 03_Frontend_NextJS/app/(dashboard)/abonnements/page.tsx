@@ -89,6 +89,7 @@ export default function AbonnementsPage() {
       {salleId && (
         <CreateOrEditModal
           salleId={salleId}
+          defaultCurrency={user?.salle?.currency ?? 'XOF'}
           isOpen={isCreateOpen || !!editing}
           existing={editing}
           onClose={() => {
@@ -108,12 +109,14 @@ export default function AbonnementsPage() {
 
 function CreateOrEditModal({
   salleId,
+  defaultCurrency,
   isOpen,
   existing,
   onClose,
   onSaved,
 }: {
   salleId: string;
+  defaultCurrency: string;
   isOpen: boolean;
   existing: AbonnementCatalogue | null;
   onClose: () => void;
@@ -123,7 +126,7 @@ function CreateOrEditModal({
   const [description, setDescription] = useState(existing?.description ?? '');
   const [durationDays, setDurationDays] = useState(String(existing?.durationDays ?? '30'));
   const [price, setPrice] = useState(String(existing?.price ?? ''));
-  const [currency, setCurrency] = useState(existing?.currency ?? 'XOF');
+  const [currency, setCurrency] = useState(existing?.currency ?? defaultCurrency);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -140,7 +143,7 @@ function CreateOrEditModal({
       setDescription('');
       setDurationDays('30');
       setPrice('');
-      setCurrency('XOF');
+      setCurrency(defaultCurrency);
     }
   }, [existing]);
 

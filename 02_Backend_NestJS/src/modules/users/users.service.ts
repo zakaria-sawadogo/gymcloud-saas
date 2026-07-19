@@ -541,4 +541,31 @@ export class UsersService {
 
     return updated;
   }
+
+  /**
+   * §2.2, §4.2 — Cycle de vie d'un compte de personnel interne.
+   * Exclusivement SUPER_ADMIN — contrairement aux gestionnaires/coachs,
+   * aucune vérification d'appartenance à une salle n'est pertinente
+   * ici (le personnel interne n'est rattaché à aucune salle).
+   */
+  private assertCanManageInternalUser(actor: TenantContext) {
+    if (actor.roleCode !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN peut gérer les comptes de personnel interne (§2.2)');
+    }
+  }
+
+  async suspendInternalUser(userId: string, actor: TenantContext) {
+    this.assertCanManageInternalUser(actor);
+    return this.suspendUser(userId, actor.userId);
+  }
+
+  async reactivateInternalUser(userId: string, actor: TenantContext) {
+    this.assertCanManageInternalUser(actor);
+    return this.reactivateUser(userId, actor.userId);
+  }
+
+  async deactivateInternalUser(userId: string, actor: TenantContext) {
+    this.assertCanManageInternalUser(actor);
+    return this.deactivateUser(userId, actor.userId);
+  }
 }

@@ -123,7 +123,7 @@ export class SallesService {
   async findById(salleId: string) {
     const salle = await this.prisma.salle.findUnique({
       where: { id: salleId },
-      include: { subscription: { include: { saasPlan: true } }, proprietaire: true },
+      include: { subscription: { include: { saasPlan: true } }, proprietaire: true, country: true },
     });
     if (!salle) throw new NotFoundException('Salle introuvable');
     return salle;

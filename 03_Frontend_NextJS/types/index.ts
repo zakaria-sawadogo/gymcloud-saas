@@ -32,6 +32,7 @@ export interface Country {
   name: string;
   currency: string;
   timezone: string;
+  active: boolean;
 }
 
 export interface Proprietaire {
@@ -107,6 +108,7 @@ export interface Salle {
   status: SalleStatus;
   isSalleSupplementaire: boolean;
   createdAt: string;
+  country?: { code: string; name: string; currency: string };
 }
 
 // ── SaaS ──────────────────────────────────────────────────────
@@ -411,7 +413,7 @@ export interface InternalUser {
   lastName: string;
   phone: string;
   email?: string;
-  status: string;
+  status: UserAccountStatus;
   createdAt: string;
   role: { id: string; name: string; code: string };
   country?: { name: string };

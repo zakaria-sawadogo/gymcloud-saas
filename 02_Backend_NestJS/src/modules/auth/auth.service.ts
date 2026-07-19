@@ -209,9 +209,9 @@ export class AuthService {
       include: {
         role: true,
         proprietaireProfile: true,
-        gestionnaireProfile: { include: { salle: true } },
-        coachProfile: { include: { salle: true } },
-        adherentProfile: { include: { salle: true } },
+        gestionnaireProfile: { include: { salle: { include: { country: true } } } },
+        coachProfile: { include: { salle: { include: { country: true } } } },
+        adherentProfile: { include: { salle: { include: { country: true } } } },
       },
     });
 
@@ -229,7 +229,7 @@ export class AuthService {
       adherentId: user.adherentProfile?.id ?? null,
       coachId: user.coachProfile?.id ?? null,
       gestionnaireId: user.gestionnaireProfile?.id ?? null,
-      salle: salle ? { id: salle.id, name: salle.name, logoUrl: salle.logoUrl } : null,
+      salle: salle ? { id: salle.id, name: salle.name, logoUrl: salle.logoUrl, currency: salle.country.currency } : null,
     };
   }
 

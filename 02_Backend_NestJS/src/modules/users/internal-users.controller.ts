@@ -75,4 +75,25 @@ export class InternalUsersController {
   ) {
     return this.usersService.updateInternalUserRole(userId, dto.roleId, user);
   }
+
+  @Patch(':userId/suspend')
+  @RequirePermission('manage', 'Role')
+  @ApiOperation({ summary: 'Suspendre un compte de personnel interne — SUPER_ADMIN uniquement (§2.2, §4.2)' })
+  suspend(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.suspendInternalUser(userId, user);
+  }
+
+  @Patch(':userId/reactivate')
+  @RequirePermission('manage', 'Role')
+  @ApiOperation({ summary: 'Réactiver un compte de personnel interne' })
+  reactivate(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.reactivateInternalUser(userId, user);
+  }
+
+  @Patch(':userId/deactivate')
+  @RequirePermission('manage', 'Role')
+  @ApiOperation({ summary: 'Désactiver (« supprimer ») un compte de personnel interne — historique conservé' })
+  deactivate(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.deactivateInternalUser(userId, user);
+  }
 }

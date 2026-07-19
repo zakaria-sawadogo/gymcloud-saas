@@ -37,7 +37,7 @@ const METHOD_LABELS: Record<string, string> = {
  * (qui continue d'y accéder via `/payments`, désormais un simple
  * wrapper autour de ce composant).
  */
-export function SallePaymentsView({ salleId }: { salleId: string }) {
+export function SallePaymentsView({ salleId, currency }: { salleId: string; currency: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { data: caisse, refetch: refetchCaisse } = useApi<CaisseSummary>(
@@ -121,6 +121,7 @@ export function SallePaymentsView({ salleId }: { salleId: string }) {
 
       <RecordPaymentModal
         salleId={salleId}
+        currency={currency}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onRecorded={() => {
@@ -135,11 +136,13 @@ export function SallePaymentsView({ salleId }: { salleId: string }) {
 
 function RecordPaymentModal({
   salleId,
+  currency,
   isOpen,
   onClose,
   onRecorded,
 }: {
   salleId: string;
+  currency: string;
   isOpen: boolean;
   onClose: () => void;
   onRecorded: () => void;
@@ -200,7 +203,7 @@ function RecordPaymentModal({
         adherentId: adherentId || undefined,
         type,
         amount: numericAmount,
-        currency: 'XOF',
+        currency,
         couponCode: couponInfo ? couponCode : undefined,
       };
       if (isMobileMoney) {
@@ -256,7 +259,7 @@ function RecordPaymentModal({
           </Select>
         </Field>
 
-        <Field label="Montant (XOF)">
+        <Field label={`Montant (${currency})`}>
           <Input type="number" min="0" required value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
 
@@ -285,8 +288,8 @@ function RecordPaymentModal({
           {couponError && <p className="mt-1 text-xs text-red-600">{couponError}</p>}
           {couponInfo && (
             <p className="mt-1 text-xs text-primary-700">
-              Coupon valide : -{couponInfo.discountType === 'PERCENT' ? `${couponInfo.discountValue}%` : `${couponInfo.discountValue} XOF`}
-              {numericAmount > 0 && ` → montant final : ${finalAmount.toLocaleString('fr-FR')} XOF`}
+              Coupon valide : -{couponInfo.discountType === 'PERCENT' ? `${couponInfo.discountValue}%` : `${couponInfo.discountValue} ${currency}`}
+              {numericAmount > 0 && ` → montant final : ${finalAmount.toLocaleString('fr-FR')} ${currency}`}
             </p>
           )}
         </Field>
