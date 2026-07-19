@@ -1,0 +1,36 @@
+# ═══════════════════════════════════════════════════════════════
+# Dockerfile site public par salle — CONTEXTE DE BUILD = racine du
+# projet GymCloud_SaaS/ (voir docker-compose.yml : context: ../..),
+# pour rester cohérent avec Dockerfile.backend / Dockerfile.frontend.
+# ═══════════════════════════════════════════════════════════════
+
+# ── Étape 1 : dépendances ────────────────────────────────────────
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY 08_Site_Public_Salles/package*.json ./
+RUN npm ci
+
+# ── Étape 2 : build ──────────────────────────────────────────────
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY 08_Site_Public_Salles/. .
+ENV NEXT_TELEMETRY_DISABLED=1
+# Même remarque que pour Dockerfile.frontend : figé au build, pas à l'exécution.
+ARG NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+RUN npm run build
+
+# ── Étape 3 : image de production allégée (sortie "standalone") ─
+FROM node:20-alpine AS production
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+EXPOSE 3002
+ENV PORT=3002
+CMD ["node", "server.js"]

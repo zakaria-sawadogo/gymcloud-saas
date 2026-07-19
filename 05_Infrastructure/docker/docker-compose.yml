@@ -100,6 +100,26 @@ services:
     ports:
       - '3001:3001'
 
+  # ── Sites publics par salle (§3.2) ─────────────────────────────
+  # Chemin /s/:subdomain sur le domaine principal — pas de sous-domaine
+  # générique (*.gymcloud.sahelsystem.com) : demanderait un DNS wildcard
+  # et un certificat wildcard (validation DNS-01), plus complexe à
+  # maintenir sur cet hébergement que le mécanisme de repli par chemin
+  # déjà prévu dans l'app (voir 08_Site_Public_Salles/middleware.ts).
+  public-sites:
+    build:
+      context: ../..
+      dockerfile: 05_Infrastructure/docker/Dockerfile.public-sites
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api/v1}
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api/v1}
+    ports:
+      - '3002:3002'
+
   # ── Reverse proxy (TLS Let's Encrypt en production) ──────────
   nginx:
     image: nginx:alpine
@@ -107,6 +127,7 @@ services:
     depends_on:
       - api
       - web
+      - public-sites
     ports:
       - '80:80'
       - '443:443'

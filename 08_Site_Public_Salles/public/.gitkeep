@@ -1,0 +1,1 @@
+# Dossier des fichiers statiques publics (favicon, images...) — vide pour l'instant, nécessaire pour le build Docker (COPY échoue sur un dossier absent).

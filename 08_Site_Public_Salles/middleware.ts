@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * à /s/[subdomain] sans passer par un sous-domaine — le middleware ne
  * réécrit alors rien (host = localhost).
  */
-const ROOT_HOSTS = new Set(['localhost', 'gymcloud.africa', 'www.gymcloud.africa']);
+const ROOT_HOSTS = new Set(['localhost', 'gymcloud.africa', 'www.gymcloud.africa', 'gymcloud.sahelsystem.com']);
 
 export function middleware(req: NextRequest) {
   const host = req.headers.get('host') ?? '';
