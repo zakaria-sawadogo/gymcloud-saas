@@ -28,6 +28,27 @@ export class SalleContentService {
     }
   }
 
+  /** §3.4 — Image de bannière (hero) du site public — remplace l'image précédente si elle existe. */
+  async setCoverImage(
+    salleId: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string },
+    actor: TenantContext,
+  ) {
+    await this.assertOwnsSalle(salleId, actor);
+    const previous = await this.prisma.salle.findUnique({ where: { id: salleId }, select: { coverImageUrl: true } });
+    const coverImageUrl = await this.storage.uploadFile(file.buffer, `salles/${salleId}/banniere`, file.originalname, file.mimetype);
+    await this.prisma.salle.update({ where: { id: salleId }, data: { coverImageUrl } });
+    if (previous?.coverImageUrl) await this.storage.deleteFileByUrl(previous.coverImageUrl);
+    await this.audit.log({
+      userId: actor.userId,
+      salleId,
+      action: 'salle.cover_image_update',
+      entityType: 'Salle',
+      entityId: salleId,
+    });
+    return { coverImageUrl };
+  }
+
   // ── Galerie ──────────────────────────────────────────────────
 
   async listGallery(salleId: string, actor: TenantContext) {

@@ -103,7 +103,7 @@ export default function SalleDetailPage() {
 
       {salle && <CheckinQrCard salleId={salle.id} />}
 
-      {salle && <SalleContentPanel salleId={salle.id} />}
+      {salle && <SalleContentPanel salleId={salle.id} coverImageUrl={salle.coverImageUrl} />}
 
       {salle && (
         <SubdomainModal

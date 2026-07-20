@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SallesService } from './salles.service';
 import { CreateSalleDto, UpdateSalleBrandingDto, UpdateSalleSettingsDto } from './dto/salle.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CheckQuota } from '../../common/guards/quota.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
 
@@ -43,7 +44,8 @@ export class SallesController {
 
   @Patch(':id/branding')
   @RequirePermission('update', 'Salle')
-  @ApiOperation({ summary: 'Personnalisation de l\'identité visuelle — SUPER_ADMIN ou le PROPRIETAIRE de cette salle (§3.4)' })
+  @RequireModule('site_public')
+  @ApiOperation({ summary: 'Personnalisation de l\'identité visuelle — SUPER_ADMIN ou le PROPRIETAIRE de cette salle (§3.4, §9.3 module site_public)' })
   updateBranding(
     @Param('id') id: string,
     @Body() dto: UpdateSalleBrandingDto,

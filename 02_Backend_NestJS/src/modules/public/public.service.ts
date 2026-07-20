@@ -21,7 +21,15 @@ import { RegisterProspectDto, RequestTrialSessionDto, RequestSubscriptionDto } f
 export class PublicService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Salle par sous-domaine public — 404 si inexistante, désactivée, ou sans sous-domaine configuré. */
+  /**
+   * Salle par sous-domaine public — 404 si inexistante, désactivée,
+   * sans sous-domaine configuré, OU si le plan SaaS actuel de la
+   * salle n'inclut pas le module "site_public" (§9.3) — fonctionnalité
+   * optionnelle, pas automatique pour tous les plans. Un visiteur ne
+   * doit pas pouvoir distinguer "n'existe pas" de "plan ne l'inclut
+   * pas" : même 404 dans les deux cas, pas de fuite d'information
+   * commerciale interne.
+   */
   async getSalleBySubdomain(subdomain: string) {
     const salle = await this.prisma.salle.findFirst({
       where: { publicSubdomain: subdomain.toLowerCase(), status: 'ACTIF' },
@@ -41,10 +49,14 @@ export class PublicService {
         website: true,
         socialLinks: true,
         openingHours: true,
+        subscription: { select: { saasPlan: { select: { modules: true } } } },
       },
     });
-    if (!salle) throw new NotFoundException('Salle introuvable');
-    return salle;
+    if (!salle || !salle.subscription.saasPlan.modules.includes('site_public')) {
+      throw new NotFoundException('Salle introuvable');
+    }
+    const { subscription, ...publicFields } = salle;
+    return publicFields;
   }
 
   /** Formules publiques (nom, prix, durée) — jamais de coût interne (tarif salle supplémentaire, etc.). */

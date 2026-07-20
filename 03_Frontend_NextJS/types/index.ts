@@ -97,6 +97,7 @@ export interface Salle {
   slug: string;
   publicSubdomain?: string;
   logoUrl?: string;
+  coverImageUrl?: string;
   slogan?: string;
   email?: string;
   phone: string;

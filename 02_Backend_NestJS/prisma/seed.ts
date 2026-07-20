@@ -166,7 +166,7 @@ async function main() {
       quotaAdherents: 2000,
       modules: [
         'adherents', 'abonnements', 'paiements', 'rapports_standards',
-        'qr_code', 'reservations', 'marketing', 'mobile',
+        'qr_code', 'reservations', 'marketing', 'mobile', 'site_public',
       ],
     },
   });
@@ -191,7 +191,7 @@ async function main() {
       quotaAdherents: null,
       modules: [
         'adherents', 'abonnements', 'paiements', 'rapports_standards',
-        'qr_code', 'reservations', 'marketing', 'whatsapp', 'mobile',
+        'qr_code', 'reservations', 'marketing', 'whatsapp', 'mobile', 'site_public',
         'rapports_avances', 'api', 'bi',
       ],
     },

@@ -15,6 +15,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagg
 import { SalleContentService } from './salle-content.service';
 import { CreateGalleryImageDto, CreatePostDto, UpdatePostDto } from './dto/salle-content.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 Mo
@@ -31,13 +32,32 @@ function assertValidImage(file?: Express.Multer.File) {
 /**
  * §3.2, §3.4 — Contenu promotionnel du site public d'une salle
  * (galerie photo, publications) — PROPRIETAIRE de la salle ou
- * SUPER_ADMIN uniquement, vérifié en service.
+ * SUPER_ADMIN uniquement, vérifié en service. Nécessite en plus que
+ * le plan SaaS de la salle inclue le module "site_public" (§9.3) —
+ * fonctionnalité optionnelle, pas automatique pour tous les plans.
  */
 @ApiTags('Contenu promotionnel des salles')
 @ApiBearerAuth()
+@RequireModule('site_public')
 @Controller('salles/:salleId/content')
 export class SalleContentController {
   constructor(private readonly salleContentService: SalleContentService) {}
+
+  // ── Bannière (hero) ──────────────────────────────────────────
+
+  @Post('cover-image')
+  @RequirePermission('update', 'Salle')
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Définir/remplacer la bannière (hero) du site public (§3.4)' })
+  setCoverImage(
+    @Param('salleId') salleId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: TenantContext,
+  ) {
+    assertValidImage(file);
+    return this.salleContentService.setCoverImage(salleId, file, user);
+  }
 
   // ── Galerie ──────────────────────────────────────────────────
 

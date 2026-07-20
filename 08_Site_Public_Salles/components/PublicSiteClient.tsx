@@ -60,6 +60,33 @@ export function PublicSiteClient({
             )}
             <span className="font-display text-base font-semibold text-ink-900">{salle.name}</span>
           </div>
+
+          <nav className="hidden items-center gap-6 md:flex">
+            {posts.length > 0 && (
+              <a href="#actualites" className="text-sm font-medium text-ink-600 hover:text-ink-900">
+                Actualités
+              </a>
+            )}
+            {gallery.length > 0 && (
+              <a href="#galerie" className="text-sm font-medium text-ink-600 hover:text-ink-900">
+                Galerie
+              </a>
+            )}
+            {coursCollectifs.length > 0 && (
+              <a href="#activites" className="text-sm font-medium text-ink-600 hover:text-ink-900">
+                Activités
+              </a>
+            )}
+            {catalogue.length > 0 && (
+              <a href="#formules" className="text-sm font-medium text-ink-600 hover:text-ink-900">
+                Formules
+              </a>
+            )}
+            <a href="#contact" className="text-sm font-medium text-ink-600 hover:text-ink-900">
+              Contact
+            </a>
+          </nav>
+
           <button
             onClick={() => openRegisterWithFormule(undefined)}
             className="rounded-full px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
@@ -74,10 +101,23 @@ export function PublicSiteClient({
       <section
         className="relative overflow-hidden px-6 py-20 text-white"
         style={{
-          background: `linear-gradient(160deg, var(--salle-primary) 0%, var(--salle-secondary) 100%)`,
+          background: salle.coverImageUrl
+            ? undefined
+            : `linear-gradient(160deg, var(--salle-primary) 0%, var(--salle-secondary) 100%)`,
         }}
       >
-        <div className="mx-auto max-w-5xl">
+        {salle.coverImageUrl && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={salle.coverImageUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-black/50" />
+          </>
+        )}
+        <div className="relative mx-auto max-w-5xl">
           <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium uppercase tracking-wide">
             {salle.city}
           </p>
@@ -111,7 +151,7 @@ export function PublicSiteClient({
 
       {/* ── Actualités & promotions ── */}
       {posts.length > 0 && (
-        <section className="px-6 py-14">
+        <section id="actualites" className="px-6 py-14">
           <div className="mx-auto max-w-5xl">
             <h2 className="mb-8 font-display text-2xl font-semibold text-ink-900">Actualités</h2>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -135,7 +175,7 @@ export function PublicSiteClient({
 
       {/* ── Galerie photo ── */}
       {gallery.length > 0 && (
-        <section className="bg-ink-50 px-6 py-14">
+        <section id="galerie" className="bg-ink-50 px-6 py-14">
           <div className="mx-auto max-w-5xl">
             <div className="mb-8 flex items-center gap-2">
               <Camera className="h-5 w-5" style={{ color: 'var(--salle-primary)' }} />
@@ -198,7 +238,7 @@ export function PublicSiteClient({
 
       {/* ── Formules ── */}
       {catalogue.length > 0 && (
-        <section className="px-6 py-16">
+        <section id="formules" className="px-6 py-16">
           <div className="mx-auto max-w-5xl">
             <h2 className="mb-8 font-display text-2xl font-semibold text-ink-900">Nos formules</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -225,7 +265,7 @@ export function PublicSiteClient({
       )}
 
       {/* ── Contact ── */}
-      <section className="bg-ink-50 px-6 py-16">
+      <section id="contact" className="bg-ink-50 px-6 py-16">
         <div className="mx-auto max-w-3xl">
           <h2 className="mb-6 font-display text-2xl font-semibold text-ink-900">Nous trouver</h2>
           <div className="space-y-3 text-sm text-ink-600">

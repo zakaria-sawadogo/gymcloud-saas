@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Image as ImageIcon, Plus, Trash2, Megaphone, EyeOff, Eye } from 'lucide-react';
+import { Image as ImageIcon, Plus, Trash2, Megaphone, EyeOff, Eye, GalleryHorizontal } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -12,17 +12,90 @@ import { formatDate } from '@/lib/utils';
 import type { SalleGalleryImage, SallePost } from '@/types';
 
 /**
- * §3.2, §3.4 — Contenu promotionnel du site public : galerie photo et
- * fil de publications, gérés par le propriétaire de la salle. Distinct
- * des cours collectifs (planning réel), pensé pour la mise en avant
- * commerciale (nouvelle offre, événement, ambiance de la salle...).
+ * §3.2, §3.4 — Contenu promotionnel du site public : bannière, galerie
+ * photo et fil de publications, gérés par le propriétaire de la salle.
+ * Distinct des cours collectifs (planning réel), pensé pour la mise en
+ * avant commerciale (nouvelle offre, événement, ambiance de la
+ * salle...).
  */
-export function SalleContentPanel({ salleId }: { salleId: string }) {
+export function SalleContentPanel({
+  salleId,
+  coverImageUrl,
+}: {
+  salleId: string;
+  coverImageUrl?: string;
+}) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <GalleryCard salleId={salleId} />
-      <PostsCard salleId={salleId} />
+    <div className="space-y-4">
+      <CoverImageCard salleId={salleId} initialCoverImageUrl={coverImageUrl} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <GalleryCard salleId={salleId} />
+        <PostsCard salleId={salleId} />
+      </div>
     </div>
+  );
+}
+
+function CoverImageCard({ salleId, initialCoverImageUrl }: { salleId: string; initialCoverImageUrl?: string }) {
+  const [coverImageUrl, setCoverImageUrl] = useState(initialCoverImageUrl);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const result = await apiClient.post<{ coverImageUrl: string }>(`/salles/${salleId}/content/cover-image`, formData);
+      setCoverImageUrl(result.coverImageUrl);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <Card>
+      <div className="mb-4 flex items-center justify-between">
+        <CardHeader className="mb-0">
+          <CardTitle>Bannière du site public</CardTitle>
+        </CardHeader>
+        <label className="cursor-pointer">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary-50 px-3 py-2 text-sm font-medium text-primary-700 hover:bg-primary-100">
+            <GalleryHorizontal className="h-3.5 w-3.5" />
+            {coverImageUrl ? 'Remplacer' : 'Ajouter'}
+          </span>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleFileChange}
+            className="hidden"
+            disabled={isSubmitting}
+          />
+        </label>
+      </div>
+
+      {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+      {isSubmitting ? (
+        <div className="h-32 animate-pulse rounded-lg bg-ink-50" />
+      ) : coverImageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={coverImageUrl} alt="Bannière" className="h-32 w-full rounded-lg object-cover" />
+      ) : (
+        <div className="flex h-32 flex-col items-center justify-center gap-1.5 rounded-lg bg-ink-50 text-center">
+          <ImageIcon className="h-5 w-5 text-ink-300" />
+          <p className="text-xs text-ink-400">
+            Sans bannière, l&apos;en-tête affiche un simple dégradé de vos couleurs.
+          </p>
+        </div>
+      )}
+    </Card>
   );
 }
 
