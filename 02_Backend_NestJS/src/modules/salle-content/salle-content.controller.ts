@@ -13,7 +13,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { SalleContentService } from './salle-content.service';
-import { CreateGalleryImageDto, CreatePostDto, UpdatePostDto } from './dto/salle-content.dto';
+import { CreateGalleryImageDto, CreatePostDto, UpdatePostDto, CreateTestimonialDto } from './dto/salle-content.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
@@ -139,5 +139,36 @@ export class SalleContentController {
     @CurrentUser() user: TenantContext,
   ) {
     return this.salleContentService.deletePost(salleId, postId, user);
+  }
+
+  // ── Témoignages ──────────────────────────────────────────────
+
+  @Get('testimonials')
+  @RequirePermission('update', 'Salle')
+  @ApiOperation({ summary: 'Liste des témoignages (vue de gestion)' })
+  listTestimonials(@Param('salleId') salleId: string, @CurrentUser() user: TenantContext) {
+    return this.salleContentService.listTestimonials(salleId, user);
+  }
+
+  @Post('testimonials')
+  @RequirePermission('update', 'Salle')
+  @ApiOperation({ summary: 'Ajouter un témoignage d\'adhérent, saisi par le propriétaire (§3.4)' })
+  createTestimonial(
+    @Param('salleId') salleId: string,
+    @Body() dto: CreateTestimonialDto,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.salleContentService.createTestimonial(salleId, dto, user);
+  }
+
+  @Delete('testimonials/:testimonialId')
+  @RequirePermission('update', 'Salle')
+  @ApiOperation({ summary: 'Supprimer un témoignage' })
+  deleteTestimonial(
+    @Param('salleId') salleId: string,
+    @Param('testimonialId') testimonialId: string,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.salleContentService.deleteTestimonial(salleId, testimonialId, user);
   }
 }

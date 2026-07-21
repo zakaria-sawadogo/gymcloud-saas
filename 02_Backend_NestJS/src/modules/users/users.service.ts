@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { TenantContext } from '../../common/decorators/current-user.decorator';
 import { SallesService } from '../salles/salles.service';
+import { StorageService } from '../../common/storage/storage.service';
 import {
   CreateProprietaireDto,
   CreateGestionnaireDto,
@@ -33,6 +34,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly sallesService: SallesService,
+    private readonly storage: StorageService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -253,6 +255,15 @@ export class UsersService {
       where: { id: coachId },
       data,
     });
+  }
+
+  /** §3.4, §4.5 — Photo de profil du coach, affichée sur le site public ("Notre équipe"). */
+  async updateCoachPhoto(coachId: string, file: { buffer: Buffer; originalname: string; mimetype: string }) {
+    const coach = await this.prisma.coachProfile.findUniqueOrThrow({ where: { id: coachId } });
+    const photoUrl = await this.storage.uploadFile(file.buffer, `coachs/${coachId}`, file.originalname, file.mimetype);
+    await this.prisma.coachProfile.update({ where: { id: coachId }, data: { photoUrl } });
+    if (coach.photoUrl) await this.storage.deleteFileByUrl(coach.photoUrl);
+    return { photoUrl };
   }
 
   // ─────────────────────────────────────────────────────────────

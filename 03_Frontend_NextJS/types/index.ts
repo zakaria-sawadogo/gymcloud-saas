@@ -71,6 +71,7 @@ export interface CoachProfile {
   id: string;
   salleId: string;
   bio?: string;
+  photoUrl?: string;
   specialties: string[];
   pricePerSession?: number | null;
   priceMonthly?: number | null;
@@ -98,6 +99,7 @@ export interface Salle {
   publicSubdomain?: string;
   logoUrl?: string;
   coverImageUrl?: string;
+  socialLinks?: Record<string, string>;
   slogan?: string;
   email?: string;
   phone: string;
@@ -169,6 +171,15 @@ export interface SallePost {
   imageUrl?: string;
   published: boolean;
   publishedAt: string;
+  expiresAt?: string;
+}
+
+export interface SalleTestimonial {
+  id: string;
+  authorName: string;
+  content: string;
+  rating?: number;
+  displayOrder: number;
 }
 
 export interface AbonnementCatalogue {

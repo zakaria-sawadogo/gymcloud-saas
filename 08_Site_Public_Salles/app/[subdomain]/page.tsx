@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getSalle, getCatalogue, getCoursCollectifs, getGallery, getPosts } from '@/lib/api';
+import { getSalle, getCatalogue, getCoursCollectifs, getGallery, getPosts, getCoachs, getTestimonials } from '@/lib/api';
 import { PublicSiteClient } from '@/components/PublicSiteClient';
 
 /**
@@ -21,11 +21,13 @@ export default async function SallePublicPage({
   const salle = await getSalle(subdomain);
   if (!salle) notFound();
 
-  const [catalogue, coursCollectifs, gallery, posts] = await Promise.all([
+  const [catalogue, coursCollectifs, gallery, posts, coachs, testimonials] = await Promise.all([
     getCatalogue(subdomain),
     getCoursCollectifs(subdomain),
     getGallery(subdomain),
     getPosts(subdomain),
+    getCoachs(subdomain),
+    getTestimonials(subdomain),
   ]);
 
   return (
@@ -36,6 +38,8 @@ export default async function SallePublicPage({
       coursCollectifs={coursCollectifs}
       gallery={gallery}
       posts={posts}
+      coachs={coachs}
+      testimonials={testimonials}
     />
   );
 }

@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Post, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Patch, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { IsOptional, IsNumber, IsString, Min } from 'class-validator';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiPropertyOptional, ApiConsumes } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateCoachDto } from './dto/users.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
@@ -57,6 +58,20 @@ export class CoachsController {
   })
   updatePricing(@Param('id') id: string, @Body() dto: UpdateCoachPricingDto) {
     return this.usersService.updateCoachPricing(id, dto);
+  }
+
+  @Patch(':id/photo')
+  @RequirePermission('manage', 'User')
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Photo de profil du coach, affichée sur le site public (§3.4, §4.5)' })
+  updatePhoto(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Image requise');
+    if (file.size > 5 * 1024 * 1024) throw new BadRequestException('Image trop volumineuse (5 Mo maximum)');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      throw new BadRequestException('Format non supporté — utilisez JPEG, PNG ou WebP');
+    }
+    return this.usersService.updateCoachPhoto(id, file);
   }
 
   @Patch(':userId/suspend')

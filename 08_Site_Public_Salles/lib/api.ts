@@ -88,6 +88,7 @@ export interface PublicPost {
   content: string;
   imageUrl?: string;
   publishedAt: string;
+  expiresAt?: string;
 }
 
 export async function getGallery(subdomain: string): Promise<PublicGalleryImage[]> {
@@ -96,6 +97,30 @@ export async function getGallery(subdomain: string): Promise<PublicGalleryImage[
 
 export async function getPosts(subdomain: string): Promise<PublicPost[]> {
   return request<PublicPost[]>(`/public/salles/${subdomain}/posts`);
+}
+
+export interface PublicCoach {
+  id: string;
+  firstName: string;
+  lastName: string;
+  bio?: string;
+  photoUrl?: string;
+  specialties: string[];
+}
+
+export async function getCoachs(subdomain: string): Promise<PublicCoach[]> {
+  return request<PublicCoach[]>(`/public/salles/${subdomain}/coachs`);
+}
+
+export interface PublicTestimonial {
+  id: string;
+  authorName: string;
+  content: string;
+  rating?: number;
+}
+
+export async function getTestimonials(subdomain: string): Promise<PublicTestimonial[]> {
+  return request<PublicTestimonial[]>(`/public/salles/${subdomain}/testimonials`);
 }
 
 export interface RegisterProspectPayload {

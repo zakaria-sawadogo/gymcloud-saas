@@ -50,6 +50,18 @@ export class PublicController {
     return this.publicService.getPosts(subdomain);
   }
 
+  @Get(':subdomain/coachs')
+  @ApiOperation({ summary: 'Équipe de coachs mise en avant (§3.4)' })
+  getCoachs(@Param('subdomain') subdomain: string) {
+    return this.publicService.getCoachs(subdomain);
+  }
+
+  @Get(':subdomain/testimonials')
+  @ApiOperation({ summary: 'Témoignages d\'adhérents (§3.4)' })
+  getTestimonials(@Param('subdomain') subdomain: string) {
+    return this.publicService.getTestimonials(subdomain);
+  }
+
   @Post(':subdomain/prospects')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Image as ImageIcon, Plus, Trash2, Megaphone, EyeOff, Eye, GalleryHorizontal } from 'lucide-react';
+import { Image as ImageIcon, Plus, Trash2, Megaphone, EyeOff, Eye, GalleryHorizontal, Star, Share2 } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -9,29 +9,40 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input } from '@/components/ui/Input';
 import { formatDate } from '@/lib/utils';
-import type { SalleGalleryImage, SallePost } from '@/types';
+import type { SalleGalleryImage, SallePost, SalleTestimonial } from '@/types';
+
+const SOCIAL_PLATFORMS: Array<{ key: string; label: string; placeholder: string }> = [
+  { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/votresalle' },
+  { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/votresalle' },
+  { key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@votresalle' },
+  { key: 'whatsapp', label: 'WhatsApp', placeholder: 'https://wa.me/2260000000' },
+];
 
 /**
  * §3.2, §3.4 — Contenu promotionnel du site public : bannière, galerie
- * photo et fil de publications, gérés par le propriétaire de la salle.
- * Distinct des cours collectifs (planning réel), pensé pour la mise en
- * avant commerciale (nouvelle offre, événement, ambiance de la
- * salle...).
+ * photo, fil de publications, témoignages et réseaux sociaux, gérés
+ * par le propriétaire de la salle. Distinct des cours collectifs
+ * (planning réel), pensé pour la mise en avant commerciale (nouvelle
+ * offre, événement, ambiance de la salle...).
  */
 export function SalleContentPanel({
   salleId,
   coverImageUrl,
+  socialLinks,
 }: {
   salleId: string;
   coverImageUrl?: string;
+  socialLinks?: Record<string, string>;
 }) {
   return (
     <div className="space-y-4">
       <CoverImageCard salleId={salleId} initialCoverImageUrl={coverImageUrl} />
+      <SocialLinksCard salleId={salleId} initialSocialLinks={socialLinks} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <GalleryCard salleId={salleId} />
         <PostsCard salleId={salleId} />
       </div>
+      <TestimonialsCard salleId={salleId} />
     </div>
   );
 }
@@ -343,6 +354,7 @@ function CreatePostModal({
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [expiresAt, setExpiresAt] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -355,10 +367,12 @@ function CreatePostModal({
       formData.append('title', title);
       formData.append('content', content);
       if (file) formData.append('image', file);
+      if (expiresAt) formData.append('expiresAt', new Date(expiresAt).toISOString());
       await apiClient.post(`/salles/${salleId}/content/posts`, formData);
       setTitle('');
       setContent('');
       setFile(null);
+      setExpiresAt('');
       onCreated();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -391,11 +405,218 @@ function CreatePostModal({
             className="block w-full text-sm text-ink-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-primary-700"
           />
         </Field>
+        <Field label="Offre valable jusqu'au (optionnel)">
+          <Input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} min={new Date().toISOString().slice(0, 10)} />
+        </Field>
+        <p className="-mt-3 mb-4 text-xs text-ink-400">
+          Laissez vide pour une actualité sans date limite. Avec une date, un badge de compte à rebours s&apos;affiche
+          et la publication disparaît automatiquement du site une fois passée.
+        </p>
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         <Button type="submit" isLoading={isSubmitting} className="w-full">
           Publier
+        </Button>
+      </form>
+    </Modal>
+  );
+}
+
+function SocialLinksCard({ salleId, initialSocialLinks }: { salleId: string; initialSocialLinks?: Record<string, string> }) {
+  const [links, setLinks] = useState<Record<string, string>>(initialSocialLinks ?? {});
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSave = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      // Ne garder que les liens réellement renseignés.
+      const cleaned = Object.fromEntries(Object.entries(links).filter(([, v]) => v.trim().length > 0));
+      await apiClient.patch(`/salles/${salleId}/branding`, { socialLinks: cleaned });
+      setLinks(cleaned);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Réseaux sociaux</CardTitle>
+      </CardHeader>
+      <p className="mb-4 text-xs text-ink-400">
+        Affichés en icônes dans le pied de page du site public. Laissez vide ce que vous n&apos;utilisez pas.
+      </p>
+      <div className="space-y-3">
+        {SOCIAL_PLATFORMS.map((platform) => (
+          <Field key={platform.key} label={platform.label}>
+            <Input
+              value={links[platform.key] ?? ''}
+              onChange={(e) => setLinks((prev) => ({ ...prev, [platform.key]: e.target.value }))}
+              placeholder={platform.placeholder}
+            />
+          </Field>
+        ))}
+      </div>
+
+      {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+      <Button onClick={handleSave} isLoading={isSubmitting} size="sm">
+        Enregistrer
+      </Button>
+    </Card>
+  );
+}
+
+function TestimonialsCard({ salleId }: { salleId: string }) {
+  const { data: testimonials, isLoading, refetch } = useApi<SalleTestimonial[]>(`/salles/${salleId}/content/testimonials`);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Supprimer ce témoignage ?')) return;
+    try {
+      await apiClient.delete(`/salles/${salleId}/content/testimonials/${id}`);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    }
+  };
+
+  return (
+    <Card>
+      <div className="mb-4 flex items-center justify-between">
+        <CardHeader className="mb-0">
+          <CardTitle>Avis clients</CardTitle>
+        </CardHeader>
+        <Button size="sm" onClick={() => setIsAddOpen(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          Ajouter
+        </Button>
+      </div>
+      <p className="mb-4 text-xs text-ink-400">
+        Saisis par vous — pas de dépôt d&apos;avis public en libre accès, pour éviter les faux avis.
+      </p>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-16 animate-pulse rounded-lg bg-ink-50" />
+          ))}
+        </div>
+      ) : !testimonials || testimonials.length === 0 ? (
+        <p className="py-6 text-center text-sm text-ink-400">Aucun témoignage pour l&apos;instant.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {testimonials.map((t) => (
+            <div key={t.id} className="rounded-lg border border-ink-100 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  {t.rating && (
+                    <div className="mb-1 flex gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-3 w-3 ${i < t.rating! ? 'fill-amber-400 text-amber-400' : 'text-ink-200'}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <p className="line-clamp-3 text-sm italic text-ink-700">&laquo; {t.content} &raquo;</p>
+                  <p className="mt-1 text-xs font-medium text-ink-500">— {t.authorName}</p>
+                </div>
+                <button
+                  onClick={() => handleDelete(t.id)}
+                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-ink-400 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <AddTestimonialModal
+        salleId={salleId}
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        onAdded={() => {
+          setIsAddOpen(false);
+          refetch();
+        }}
+      />
+    </Card>
+  );
+}
+
+function AddTestimonialModal({
+  salleId,
+  isOpen,
+  onClose,
+  onAdded,
+}: {
+  salleId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [authorName, setAuthorName] = useState('');
+  const [content, setContent] = useState('');
+  const [rating, setRating] = useState<number>(5);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await apiClient.post(`/salles/${salleId}/content/testimonials`, { authorName, content, rating });
+      setAuthorName('');
+      setContent('');
+      setRating(5);
+      onAdded();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Ajouter un témoignage">
+      <form onSubmit={handleSubmit}>
+        <Field label="Nom de l'adhérent">
+          <Input required value={authorName} onChange={(e) => setAuthorName(e.target.value)} placeholder="Fatou K." />
+        </Field>
+        <Field label="Témoignage">
+          <textarea
+            required
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={3}
+            className="w-full rounded-lg border border-ink-100 px-3 py-2 text-sm outline-none focus:border-primary-400"
+            placeholder="Ce que la personne a dit ou aurait dit de la salle..."
+          />
+        </Field>
+        <Field label="Note">
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} type="button" onClick={() => setRating(n)} className="p-0.5">
+                <Star className={`h-6 w-6 ${n <= rating ? 'fill-amber-400 text-amber-400' : 'text-ink-200'}`} />
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <Button type="submit" isLoading={isSubmitting} className="w-full">
+          Ajouter
         </Button>
       </form>
     </Modal>

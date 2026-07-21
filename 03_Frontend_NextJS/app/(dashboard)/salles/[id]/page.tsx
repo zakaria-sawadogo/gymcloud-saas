@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, UserCog, Dumbbell, Coins, Globe, ExternalLink, QrCode, Printer } from 'lucide-react';
+import { ArrowLeft, Plus, UserCog, Dumbbell, Coins, Globe, ExternalLink, QrCode, Printer, Camera } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -103,7 +103,7 @@ export default function SalleDetailPage() {
 
       {salle && <CheckinQrCard salleId={salle.id} />}
 
-      {salle && <SalleContentPanel salleId={salle.id} coverImageUrl={salle.coverImageUrl} />}
+      {salle && <SalleContentPanel salleId={salle.id} coverImageUrl={salle.coverImageUrl} socialLinks={salle.socialLinks} />}
 
       {salle && (
         <SubdomainModal
@@ -177,9 +177,12 @@ export default function SalleDetailPage() {
               {coachs.map((c) => (
                 <div key={c.id} className="rounded-lg bg-ink-50 px-3 py-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-ink-900">
-                      {c.user.firstName} {c.user.lastName}
-                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <CoachPhotoUpload coachId={c.id} photoUrl={c.photoUrl} name={c.user.firstName} onUploaded={refetchCoachs} />
+                      <span className="text-sm font-medium text-ink-900">
+                        {c.user.firstName} {c.user.lastName}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-ink-400">{c.user.phone}</span>
                       <Button size="sm" variant="ghost" onClick={() => setPricingCoach(c)}>
@@ -538,5 +541,64 @@ function CheckinQrCard({ salleId }: { salleId: string }) {
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * §3.4, §4.5 — Photo de profil du coach, affichée sur le site public
+ * ("Notre équipe"). Petit avatar cliquable ; upload direct, pas de modal.
+ */
+function CoachPhotoUpload({
+  coachId,
+  photoUrl,
+  name,
+  onUploaded,
+}: {
+  coachId: string;
+  photoUrl?: string;
+  name: string;
+  onUploaded: () => void;
+}) {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      await apiClient.patch(`/coachs/${coachId}/photo`, formData);
+      onUploaded();
+    } catch {
+      // Échec silencieux ici — la liste ne montrera simplement pas de changement,
+      // l'utilisateur peut réessayer directement.
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <label className="relative cursor-pointer">
+      {photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photoUrl} alt={name} className="h-8 w-8 rounded-full object-cover" />
+      ) : (
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-semibold text-primary-700">
+          {name.charAt(0)}
+        </div>
+      )}
+      <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow">
+        <Camera className="h-2.5 w-2.5 text-ink-500" />
+      </div>
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleFileChange}
+        disabled={isUploading}
+        className="hidden"
+      />
+    </label>
   );
 }

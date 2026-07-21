@@ -98,14 +98,45 @@ export class PublicService {
     });
   }
 
-  /** §3.2, §3.4 — Publications promotionnelles publiées, les plus récentes en premier. */
+  /** §3.2, §3.4 — Publications promotionnelles publiées, non expirées, les plus récentes en premier. */
   async getPosts(subdomain: string) {
     const salle = await this.getSalleBySubdomain(subdomain);
     return this.prisma.sallePost.findMany({
-      where: { salleId: salle.id, published: true },
-      select: { id: true, title: true, content: true, imageUrl: true, publishedAt: true },
+      where: {
+        salleId: salle.id,
+        published: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { id: true, title: true, content: true, imageUrl: true, publishedAt: true, expiresAt: true },
       orderBy: { publishedAt: 'desc' },
       take: 20,
+    });
+  }
+
+  /** §3.2, §3.4 — Équipe de coachs mise en avant. */
+  async getCoachs(subdomain: string) {
+    const salle = await this.getSalleBySubdomain(subdomain);
+    const coachs = await this.prisma.coachProfile.findMany({
+      where: { salleId: salle.id, user: { status: 'ACTIF' } },
+      select: { id: true, bio: true, photoUrl: true, specialties: true, user: { select: { firstName: true, lastName: true } } },
+    });
+    return coachs.map((c: (typeof coachs)[number]) => ({
+      id: c.id,
+      firstName: c.user.firstName,
+      lastName: c.user.lastName,
+      bio: c.bio,
+      photoUrl: c.photoUrl,
+      specialties: c.specialties,
+    }));
+  }
+
+  /** §3.2, §3.4 — Témoignages d'adhérents mis en avant par le propriétaire. */
+  async getTestimonials(subdomain: string) {
+    const salle = await this.getSalleBySubdomain(subdomain);
+    return this.prisma.salleTestimonial.findMany({
+      where: { salleId: salle.id },
+      select: { id: true, authorName: true, content: true, rating: true },
+      orderBy: { displayOrder: 'asc' },
     });
   }
 

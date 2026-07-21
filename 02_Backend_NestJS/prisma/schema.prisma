@@ -519,6 +519,7 @@ model Salle {
   documents       SalleDocument[]
   galleryImages   SalleGalleryImage[]
   posts           SallePost[]
+  testimonials    SalleTestimonial[]
   prospects       Prospect[]
 
   @@index([proprietaireId])
@@ -567,11 +568,29 @@ model SallePost {
   imageUrl    String?
   published   Boolean   @default(true)
   publishedAt DateTime  @default(now())
+  expiresAt   DateTime? // §3.4 — promo à durée limitée ; passé cette date, n'apparaît plus publiquement
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@index([salleId, published, publishedAt])
   @@map("salle_posts")
+}
+
+// §3.2, §3.4 — Témoignages d'adhérents mis en avant sur le site public,
+// saisis par le propriétaire (pas de dépôt d'avis public en libre accès
+// — évite le spam/faux avis, cohérent avec galerie/publications).
+model SalleTestimonial {
+  id         String   @id @default(uuid())
+  salleId    String
+  salle      Salle    @relation(fields: [salleId], references: [id], onDelete: Cascade)
+  authorName String
+  content    String
+  rating     Int?     // 1 à 5, optionnel
+  displayOrder Int    @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([salleId])
+  @@map("salle_testimonials")
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -598,6 +617,7 @@ model CoachProfile {
   salleId   String  // une seule salle en V1 (§2.3) — extensible V2 vers table de jointure
   salle     Salle   @relation(fields: [salleId], references: [id])
   bio       String?
+  photoUrl  String?
   specialties String[]
 
   // Tarification des séances individuelles (§7.7) — null = incluses

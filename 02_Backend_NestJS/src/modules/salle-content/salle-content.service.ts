@@ -117,7 +117,7 @@ export class SalleContentService {
       ? await this.storage.uploadFile(file.buffer, `salles/${salleId}/publications`, file.originalname, file.mimetype)
       : undefined;
     const post = await this.prisma.sallePost.create({
-      data: { salleId, title: dto.title, content: dto.content, imageUrl },
+      data: { salleId, title: dto.title, content: dto.content, imageUrl, expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined },
     });
     await this.audit.log({
       userId: actor.userId,
@@ -135,7 +135,12 @@ export class SalleContentService {
     if (!existing || existing.salleId !== salleId) throw new NotFoundException('Publication introuvable');
     const post = await this.prisma.sallePost.update({
       where: { id: postId },
-      data: { title: dto.title, content: dto.content, published: dto.published },
+      data: {
+        title: dto.title,
+        content: dto.content,
+        published: dto.published,
+        expiresAt: dto.expiresAt !== undefined ? (dto.expiresAt ? new Date(dto.expiresAt) : null) : undefined,
+      },
     });
     await this.audit.log({
       userId: actor.userId,
@@ -161,5 +166,55 @@ export class SalleContentService {
       entityId: postId,
     });
     return { message: 'Publication supprimée' };
+  }
+
+  // ── Témoignages ──────────────────────────────────────────────
+
+  async listTestimonials(salleId: string, actor: TenantContext) {
+    await this.assertOwnsSalle(salleId, actor);
+    return this.prisma.salleTestimonial.findMany({
+      where: { salleId },
+      orderBy: { displayOrder: 'asc' },
+    });
+  }
+
+  async createTestimonial(
+    salleId: string,
+    dto: { authorName: string; content: string; rating?: number; displayOrder?: number },
+    actor: TenantContext,
+  ) {
+    await this.assertOwnsSalle(salleId, actor);
+    const testimonial = await this.prisma.salleTestimonial.create({
+      data: {
+        salleId,
+        authorName: dto.authorName,
+        content: dto.content,
+        rating: dto.rating,
+        displayOrder: dto.displayOrder ?? 0,
+      },
+    });
+    await this.audit.log({
+      userId: actor.userId,
+      salleId,
+      action: 'salle.testimonial_create',
+      entityType: 'SalleTestimonial',
+      entityId: testimonial.id,
+    });
+    return testimonial;
+  }
+
+  async deleteTestimonial(salleId: string, testimonialId: string, actor: TenantContext) {
+    await this.assertOwnsSalle(salleId, actor);
+    const existing = await this.prisma.salleTestimonial.findUnique({ where: { id: testimonialId } });
+    if (!existing || existing.salleId !== salleId) throw new NotFoundException('Témoignage introuvable');
+    await this.prisma.salleTestimonial.delete({ where: { id: testimonialId } });
+    await this.audit.log({
+      userId: actor.userId,
+      salleId,
+      action: 'salle.testimonial_delete',
+      entityType: 'SalleTestimonial',
+      entityId: testimonialId,
+    });
+    return { message: 'Témoignage supprimé' };
   }
 }
