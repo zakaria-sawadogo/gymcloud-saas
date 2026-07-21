@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input } from '@/components/ui/Input';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Tabs } from '@/components/ui/Tabs';
 import { GestionnaireDashboardView } from '@/components/dashboard/GestionnaireDashboardView';
 import { SallePaymentsView } from '@/components/dashboard/SallePaymentsView';
 import { UserAccountActions } from '@/components/dashboard/UserAccountActions';
@@ -68,44 +69,6 @@ export default function SalleDetailPage() {
       )}
 
       {salle && (
-        <Card className="mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
-                <Globe className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-ink-900">Site public</p>
-                {salle.publicSubdomain ? (
-                  <a
-                    href={`/s/${salle.publicSubdomain}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"
-                  >
-                    /s/{salle.publicSubdomain}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                ) : (
-                  <p className="text-xs text-ink-400">
-                    Aucun sous-domaine configuré — la présentation, l'inscription en ligne et les essais gratuits ne
-                    sont pas encore accessibles au public.
-                  </p>
-                )}
-              </div>
-            </div>
-            <Button size="sm" variant="secondary" onClick={() => setIsSubdomainModalOpen(true)}>
-              {salle.publicSubdomain ? 'Modifier' : 'Configurer'}
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {salle && <CheckinQrCard salleId={salle.id} />}
-
-      {salle && <SalleContentPanel salleId={salle.id} coverImageUrl={salle.coverImageUrl} socialLinks={salle.socialLinks} />}
-
-      {salle && (
         <SubdomainModal
           salleId={salle.id}
           currentSubdomain={salle.publicSubdomain}
@@ -118,105 +81,162 @@ export default function SalleDetailPage() {
         />
       )}
 
-      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Équipe — Gestionnaires</CardTitle>
-            <Button size="sm" onClick={() => setIsCreateGestionnaireOpen(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              Nouveau
-            </Button>
-          </CardHeader>
+      {salle && (
+        <Tabs
+          tabs={[
+            {
+              id: 'overview',
+              label: "Vue d'ensemble",
+              content: (
+                <>
+                  <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Équipe — Gestionnaires</CardTitle>
+                        <Button size="sm" onClick={() => setIsCreateGestionnaireOpen(true)}>
+                          <Plus className="h-3.5 w-3.5" />
+                          Nouveau
+                        </Button>
+                      </CardHeader>
 
-          {!gestionnaires || gestionnaires.length === 0 ? (
-            <EmptyState
-              icon={<UserCog className="h-6 w-6" />}
-              title="Aucun gestionnaire"
-              description="Nécessaire pour gérer adhérents, contrôle d'accès et paiements."
-            />
-          ) : (
-            <div className="space-y-2">
-              {gestionnaires.map((g) => (
-                <div key={g.id} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
-                  <span className="text-sm font-medium text-ink-900">
-                    {g.user.firstName} {g.user.lastName}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-ink-400">{g.user.phone}</span>
-                    <UserAccountActions
-                      status={g.user.status}
-                      suspendPath={`/gestionnaires/${g.user.id}/suspend`}
-                      reactivatePath={`/gestionnaires/${g.user.id}/reactivate`}
-                      deactivatePath={`/gestionnaires/${g.user.id}/deactivate`}
-                      onChanged={refetchGestionnaires}
-                    />
+                      {!gestionnaires || gestionnaires.length === 0 ? (
+                        <EmptyState
+                          icon={<UserCog className="h-6 w-6" />}
+                          title="Aucun gestionnaire"
+                          description="Nécessaire pour gérer adhérents, contrôle d'accès et paiements."
+                        />
+                      ) : (
+                        <div className="space-y-2">
+                          {gestionnaires.map((g) => (
+                            <div key={g.id} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
+                              <span className="text-sm font-medium text-ink-900">
+                                {g.user.firstName} {g.user.lastName}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-ink-400">{g.user.phone}</span>
+                                <UserAccountActions
+                                  status={g.user.status}
+                                  suspendPath={`/gestionnaires/${g.user.id}/suspend`}
+                                  reactivatePath={`/gestionnaires/${g.user.id}/reactivate`}
+                                  deactivatePath={`/gestionnaires/${g.user.id}/deactivate`}
+                                  onChanged={refetchGestionnaires}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Équipe — Coachs</CardTitle>
+                        <Button size="sm" onClick={() => setIsCreateCoachOpen(true)}>
+                          <Plus className="h-3.5 w-3.5" />
+                          Nouveau
+                        </Button>
+                      </CardHeader>
+
+                      {!coachs || coachs.length === 0 ? (
+                        <EmptyState
+                          icon={<Dumbbell className="h-6 w-6" />}
+                          title="Aucun coach"
+                          description="Nécessaire pour planifier des cours collectifs et séances individuelles (§7)."
+                        />
+                      ) : (
+                        <div className="space-y-2">
+                          {coachs.map((c) => (
+                            <div key={c.id} className="rounded-lg bg-ink-50 px-3 py-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                  <CoachPhotoUpload coachId={c.id} photoUrl={c.photoUrl} name={c.user.firstName} onUploaded={refetchCoachs} />
+                                  <span className="text-sm font-medium text-ink-900">
+                                    {c.user.firstName} {c.user.lastName}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-ink-400">{c.user.phone}</span>
+                                  <Button size="sm" variant="ghost" onClick={() => setPricingCoach(c)}>
+                                    <Coins className="h-3.5 w-3.5" />
+                                    Tarifs
+                                  </Button>
+                                  <UserAccountActions
+                                    status={c.user.status}
+                                    suspendPath={`/coachs/${c.user.id}/suspend`}
+                                    reactivatePath={`/coachs/${c.user.id}/reactivate`}
+                                    deactivatePath={`/coachs/${c.user.id}/deactivate`}
+                                    onChanged={refetchCoachs}
+                                  />
+                                </div>
+                              </div>
+                              {(c.pricePerSession != null || c.priceMonthly != null) && (
+                                <p className="mt-1 text-xs text-ink-500">
+                                  {c.pricePerSession != null && `${formatCurrency(c.pricePerSession, c.currency ?? 'XOF')}/séance`}
+                                  {c.pricePerSession != null && c.priceMonthly != null && ' · '}
+                                  {c.priceMonthly != null && `${formatCurrency(c.priceMonthly, c.currency ?? 'XOF')}/mois`}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Équipe — Coachs</CardTitle>
-            <Button size="sm" onClick={() => setIsCreateCoachOpen(true)}>
-              <Plus className="h-3.5 w-3.5" />
-              Nouveau
-            </Button>
-          </CardHeader>
+                  <GestionnaireDashboardView salleId={params.id} />
 
-          {!coachs || coachs.length === 0 ? (
-            <EmptyState
-              icon={<Dumbbell className="h-6 w-6" />}
-              title="Aucun coach"
-              description="Nécessaire pour planifier des cours collectifs et séances individuelles (§7)."
-            />
-          ) : (
-            <div className="space-y-2">
-              {coachs.map((c) => (
-                <div key={c.id} className="rounded-lg bg-ink-50 px-3 py-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <CoachPhotoUpload coachId={c.id} photoUrl={c.photoUrl} name={c.user.firstName} onUploaded={refetchCoachs} />
-                      <span className="text-sm font-medium text-ink-900">
-                        {c.user.firstName} {c.user.lastName}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-ink-400">{c.user.phone}</span>
-                      <Button size="sm" variant="ghost" onClick={() => setPricingCoach(c)}>
-                        <Coins className="h-3.5 w-3.5" />
-                        Tarifs
+                  <div className="mt-6">
+                    <SallePaymentsView salleId={params.id} currency={salle?.country?.currency ?? 'XOF'} />
+                  </div>
+                </>
+              ),
+            },
+            {
+              id: 'site',
+              label: 'Administration site',
+              content: (
+                <>
+                  <Card className="mb-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+                          <Globe className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-ink-900">Site public</p>
+                          {salle.publicSubdomain ? (
+                            <a
+                              href={`/s/${salle.publicSubdomain}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-primary-600 hover:underline"
+                            >
+                              /s/{salle.publicSubdomain}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            <p className="text-xs text-ink-400">
+                              Aucun sous-domaine configuré — la présentation, l&apos;inscription en ligne et les essais
+                              gratuits ne sont pas encore accessibles au public.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <Button size="sm" variant="secondary" onClick={() => setIsSubdomainModalOpen(true)}>
+                        {salle.publicSubdomain ? 'Modifier' : 'Configurer'}
                       </Button>
-                      <UserAccountActions
-                        status={c.user.status}
-                        suspendPath={`/coachs/${c.user.id}/suspend`}
-                        reactivatePath={`/coachs/${c.user.id}/reactivate`}
-                        deactivatePath={`/coachs/${c.user.id}/deactivate`}
-                        onChanged={refetchCoachs}
-                      />
                     </div>
-                  </div>
-                  {(c.pricePerSession != null || c.priceMonthly != null) && (
-                    <p className="mt-1 text-xs text-ink-500">
-                      {c.pricePerSession != null && `${formatCurrency(c.pricePerSession, c.currency ?? 'XOF')}/séance`}
-                      {c.pricePerSession != null && c.priceMonthly != null && ' · '}
-                      {c.priceMonthly != null && `${formatCurrency(c.priceMonthly, c.currency ?? 'XOF')}/mois`}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
+                  </Card>
 
-      <GestionnaireDashboardView salleId={params.id} />
+                  <CheckinQrCard salleId={salle.id} />
 
-      <div className="mt-6">
-        <SallePaymentsView salleId={params.id} currency={salle?.country?.currency ?? 'XOF'} />
-      </div>
+                  <SalleContentPanel salleId={salle.id} coverImageUrl={salle.coverImageUrl} socialLinks={salle.socialLinks} />
+                </>
+              ),
+            },
+          ]}
+        />
+      )}
 
       <CreateTeamMemberModal
         kind="gestionnaire"
