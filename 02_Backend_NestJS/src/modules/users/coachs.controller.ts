@@ -50,6 +50,13 @@ export class CoachsController {
     return this.usersService.findCoachsBySalle(salleId);
   }
 
+  @Get('salle/:salleId/for-booking')
+  @RequirePermission('read', 'Booking')
+  @ApiOperation({ summary: 'Liste des coachs d\'une salle, pour choisir avec qui réserver une séance individuelle (§7.6)' })
+  findBySalleForBooking(@Param('salleId') salleId: string) {
+    return this.usersService.findCoachsForBooking(salleId);
+  }
+
   @Patch(':id/pricing')
   @RequirePermission('manage', 'User')
   @ApiOperation({

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/config/flavor_config.dart';
 import '../../../core/theme/app_theme.dart';
@@ -23,6 +26,7 @@ class QrCodeScreen extends StatefulWidget {
 class _QrCodeScreenState extends State<QrCodeScreen> {
   String? _qrToken;
   bool _isLoading = true;
+  bool _isDownloadingCard = false;
 
   @override
   void initState() {
@@ -39,6 +43,30 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
       _qrToken = profile.qrCodeToken;
       _isLoading = false;
     });
+  }
+
+  Future<void> _downloadCard() async {
+    final adherentId = context.read<AuthProvider>().user?.adherentId;
+    if (adherentId == null) return;
+    setState(() => _isDownloadingCard = true);
+    try {
+      final repo = AdherentRepository(context.read());
+      final bytes = await repo.downloadCard(adherentId);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/carte-membre.pdf');
+      await file.writeAsBytes(bytes);
+      if (mounted) {
+        await Share.shareXFiles([XFile(file.path)], text: 'Ma carte de membre GymCloud');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible de télécharger la carte pour le moment')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloadingCard = false);
+    }
   }
 
   Future<void> _openPublicSite(String subdomain) async {
@@ -87,6 +115,18 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
                     style: TextStyle(color: AppColors.ink400, fontSize: 13),
                   ),
                   const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    onPressed: _isDownloadingCard ? null : _downloadCard,
+                    icon: _isDownloadingCard
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.badge_outlined),
+                    label: const Text('Télécharger ma carte'),
+                  ),
+                  const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: () {
                       Navigator.of(context).push(

@@ -58,10 +58,46 @@ class _PlanningScreenState extends State<PlanningScreen> {
     }
   }
 
+  Future<void> _approve(Booking booking) async {
+    try {
+      await _repo.approveSeance(booking.id);
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.danger));
+      }
+    }
+  }
+
+  Future<void> _reject(Booking booking) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Refuser cette demande ?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Retour')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Refuser')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _repo.rejectSeance(booking.id);
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: AppColors.danger));
+      }
+    }
+  }
+
   Map<String, List<Booking>> get _groupedByDay {
     final grouped = <String, List<Booking>>{};
     final formatter = DateFormat('EEEE dd MMMM', 'fr_FR');
-    for (final b in _bookings) {
+    final relevant = _bookings.where((b) => !(b.type == 'SEANCE_INDIVIDUELLE' && b.status == 'EN_ATTENTE'));
+    for (final b in relevant) {
       final key = formatter.format(b.startAt);
       grouped.putIfAbsent(key, () => []).add(b);
     }
@@ -70,6 +106,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pendingRequests = _bookings.where((b) => b.type == 'SEANCE_INDIVIDUELLE' && b.status == 'EN_ATTENTE').toList();
     final grouped = _groupedByDay;
 
     return Scaffold(
@@ -78,33 +115,63 @@ class _PlanningScreenState extends State<PlanningScreen> {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _load,
-              child: _bookings.isEmpty
-                  ? ListView(
-                      children: const [
-                        Padding(
-                          padding: EdgeInsets.only(top: 60),
-                          child: Center(child: Text('Aucune séance planifiée', style: TextStyle(color: AppColors.ink400))),
-                        ),
-                      ],
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: grouped.entries.map((entry) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8, top: 8),
-                              child: Text(
-                                entry.key[0].toUpperCase() + entry.key.substring(1),
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (pendingRequests.isNotEmpty) ...[
+                    const Text('Demandes à valider', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                    const SizedBox(height: 8),
+                    ...pendingRequests.map(
+                      (b) => Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        color: AppColors.accent.withValues(alpha: 0.06),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      DateFormat('EEE dd MMM · HH:mm', 'fr_FR').format(b.startAt),
+                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            ...entry.value.map((b) => _BookingRow(booking: b, onAttendance: _handleAttendance)),
-                          ],
-                        );
-                      }).toList(),
+                              TextButton(onPressed: () => _reject(b), child: const Text('Refuser')),
+                              ElevatedButton(onPressed: () => _approve(b), child: const Text('Valider')),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
+                    const SizedBox(height: 20),
+                  ],
+                  if (_bookings.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 60),
+                      child: Center(child: Text('Aucune séance planifiée', style: TextStyle(color: AppColors.ink400))),
+                    )
+                  else
+                    ...grouped.entries.map((entry) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8, top: 8),
+                            child: Text(
+                              entry.key[0].toUpperCase() + entry.key.substring(1),
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                            ),
+                          ),
+                          ...entry.value.map((b) => _BookingRow(booking: b, onAttendance: _handleAttendance)),
+                        ],
+                      );
+                    }),
+                ],
+              ),
             ),
     );
   }

@@ -246,6 +246,40 @@ export class UsersService {
     });
   }
 
+  /**
+   * §7.6, §7.7 — Liste des coachs d'une salle, réservée à la prise de
+   * décision de réservation (adhérent choisissant avec qui prendre une
+   * séance individuelle) — champs volontairement limités (pas de
+   * téléphone/email, contrairement à `findCoachsBySalle` réservé au
+   * personnel).
+   */
+  async findCoachsForBooking(salleId: string) {
+    const coachs = await this.prisma.coachProfile.findMany({
+      where: { salleId, user: { status: 'ACTIF' } },
+      select: {
+        id: true,
+        bio: true,
+        photoUrl: true,
+        specialties: true,
+        pricePerSession: true,
+        priceMonthly: true,
+        currency: true,
+        user: { select: { firstName: true, lastName: true } },
+      },
+    });
+    return coachs.map((c: (typeof coachs)[number]) => ({
+      id: c.id,
+      firstName: c.user.firstName,
+      lastName: c.user.lastName,
+      bio: c.bio,
+      photoUrl: c.photoUrl,
+      specialties: c.specialties,
+      pricePerSession: c.pricePerSession,
+      priceMonthly: c.priceMonthly,
+      currency: c.currency,
+    }));
+  }
+
   /** §7.7 — Configure la tarification des séances individuelles d'un coach. */
   async updateCoachPricing(
     coachId: string,

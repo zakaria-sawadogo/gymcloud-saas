@@ -14,14 +14,14 @@ export class CoursCollectifsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   @Post()
-  @RequirePermission('manage', 'Booking')
-  @ApiOperation({ summary: 'Planifier un cours collectif (§7.1)' })
+  @RequirePermission('create', 'Booking')
+  @ApiOperation({ summary: 'Planifier un cours collectif — gestionnaire, ou coach pour lui-même (§7.1)' })
   create(
     @Param('salleId') salleId: string,
     @Body() dto: CreateCoursCollectifDto,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.bookingsService.createCoursCollectif(salleId, dto, user.userId);
+    return this.bookingsService.createCoursCollectif(salleId, dto, { userId: user.userId, roleCode: user.roleCode });
   }
 
   @Get()
@@ -39,13 +39,13 @@ export class CoursCollectifsController {
   }
 
   @Patch(':coursId')
-  @RequirePermission('manage', 'Booking')
-  @ApiOperation({ summary: 'Modifier un cours collectif' })
+  @RequirePermission('update', 'Booking')
+  @ApiOperation({ summary: 'Modifier un cours collectif — gestionnaire, ou coach pour ses propres cours' })
   update(
     @Param('coursId') coursId: string,
     @Body() dto: UpdateCoursCollectifDto,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.bookingsService.updateCoursCollectif(coursId, dto, user.userId);
+    return this.bookingsService.updateCoursCollectif(coursId, dto, { userId: user.userId, roleCode: user.roleCode });
   }
 }

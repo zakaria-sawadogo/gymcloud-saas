@@ -7,6 +7,7 @@ import '../../../core/widgets/status_badge.dart';
 import '../../../core/models/adherent.dart';
 import '../adherent_repository.dart';
 import '../../shared/logout_button.dart';
+import 'renew_subscription_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex) onNavigateToTab;
@@ -99,8 +100,15 @@ class _SubscriptionCard extends StatelessWidget {
               const Text('Aucun abonnement actif', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
               const SizedBox(height: 4),
               Text(
-                'Rendez-vous à l\'accueil de ${salleName ?? 'votre salle'} pour souscrire un abonnement.',
+                'Faites votre demande de réabonnement directement ici, ou à l\'accueil de ${salleName ?? 'votre salle'}.',
                 style: const TextStyle(color: AppColors.ink600),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const RenewSubscriptionScreen()),
+                ),
+                child: const Text('Se réabonner'),
               ),
             ],
           ),
@@ -135,6 +143,20 @@ class _SubscriptionCard extends StatelessWidget {
             Text(
               'Jusqu\'au ${DateFormat('dd MMM yyyy', 'fr_FR').format(subscription!.endDate)}',
               style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white70),
+                ),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const RenewSubscriptionScreen()),
+                ),
+                child: const Text('Se réabonner par avance'),
+              ),
             ),
           ],
         ),

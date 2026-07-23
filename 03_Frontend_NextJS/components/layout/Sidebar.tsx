@@ -64,6 +64,10 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   ],
   COACH: [
     { label: 'Mon planning', href: '/dashboard', icon: CalendarCheck },
+    { label: 'Réservations', href: '/bookings', icon: CalendarCheck },
+  ],
+  ADHERENT: [
+    { label: 'Mon espace', href: '/dashboard', icon: LayoutDashboard },
   ],
 
   // ── Personnel interne GymCloud (§2.2) — chaque rôle ne voit que ce

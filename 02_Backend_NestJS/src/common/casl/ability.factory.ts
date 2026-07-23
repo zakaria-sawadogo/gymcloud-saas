@@ -88,11 +88,13 @@ export class AbilityFactory {
 
       case 'COACH':
         can('read', 'Booking');
-        can('update', 'Booking'); // ses propres séances uniquement — filtré au niveau service
+        can('create', 'Booking'); // créer ses propres cours collectifs (§7.2) — restriction fine en service
+        can('update', 'Booking'); // ses propres séances/cours uniquement — filtré au niveau service
         break;
 
       case 'ADHERENT':
         can('read', 'AdherentAbonnement');
+        can('read', 'Booking'); // consulter cours/coachs disponibles avant de réserver (§7)
         can('create', 'Booking');
         can('create', 'Payment');
         can('create', 'AccessLog'); // §6.14 — auto-pointage via le QR fixe de sa salle, restriction fine en service

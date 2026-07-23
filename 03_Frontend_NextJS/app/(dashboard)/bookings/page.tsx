@@ -21,13 +21,17 @@ interface CoachOption {
 export default function BookingsPage() {
   const { user } = useAuth();
   const salleId = user?.salle?.id;
+  const isCoach = user?.roleCode === 'COACH';
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [bookingTarget, setBookingTarget] = useState<CoursCollectif | null>(null);
 
   const { data: cours, isLoading, refetch } = useApi<CoursCollectif[]>(
     salleId ? `/salles/${salleId}/cours-collectifs` : null,
   );
-  const { data: coachs } = useApi<CoachOption[]>(salleId ? `/coachs/salle/${salleId}` : null);
+  // Un coach n'a pas le droit de lister les autres coachs (§2.2) — il
+  // n'en a de toute façon pas besoin, il ne peut planifier qu'en son
+  // propre nom (restriction vérifiée côté service).
+  const { data: coachs } = useApi<CoachOption[]>(salleId && !isCoach ? `/coachs/salle/${salleId}` : null);
 
   return (
     <div>
@@ -98,6 +102,7 @@ export default function BookingsPage() {
         <CreateCoursModal
           salleId={salleId}
           coachs={coachs ?? []}
+          ownCoach={isCoach && user?.coachId ? { id: user.coachId, name: `${user.firstName} ${user.lastName}` } : null}
           isOpen={isCreateOpen}
           onClose={() => setIsCreateOpen(false)}
           onCreated={() => {
@@ -125,18 +130,20 @@ export default function BookingsPage() {
 function CreateCoursModal({
   salleId,
   coachs,
+  ownCoach,
   isOpen,
   onClose,
   onCreated,
 }: {
   salleId: string;
   coachs: CoachOption[];
+  ownCoach: { id: string; name: string } | null;
   isOpen: boolean;
   onClose: () => void;
   onCreated: () => void;
 }) {
   const [name, setName] = useState('');
-  const [coachId, setCoachId] = useState('');
+  const [coachId, setCoachId] = useState(ownCoach?.id ?? '');
   const [capacity, setCapacity] = useState('15');
   const [startAt, setStartAt] = useState('');
   const [endAt, setEndAt] = useState('');
@@ -170,14 +177,18 @@ function CreateCoursModal({
           <Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Zumba, CrossFit..." />
         </Field>
         <Field label="Coach">
-          <Select required value={coachId} onChange={(e) => setCoachId(e.target.value)}>
-            <option value="">Sélectionner un coach</option>
-            {coachs.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.user.firstName} {c.user.lastName}
-              </option>
-            ))}
-          </Select>
+          {ownCoach ? (
+            <Input value={ownCoach.name} disabled />
+          ) : (
+            <Select required value={coachId} onChange={(e) => setCoachId(e.target.value)}>
+              <option value="">Sélectionner un coach</option>
+              {coachs.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.user.firstName} {c.user.lastName}
+                </option>
+              ))}
+            </Select>
+          )}
         </Field>
         <Field label="Capacité">
           <Input type="number" min="1" required value={capacity} onChange={(e) => setCapacity(e.target.value)} />

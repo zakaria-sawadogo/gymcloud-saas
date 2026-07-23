@@ -25,4 +25,8 @@ class CoachRepository {
 
   Future<void> markAttendance(String bookingId) => _api.patch('/bookings/$bookingId/attendance');
   Future<void> markAbsence(String bookingId) => _api.patch('/bookings/$bookingId/absence');
+
+  /// §7.7 — Valider ou refuser une séance individuelle demandée par un adhérent.
+  Future<void> approveSeance(String bookingId) => _api.patch('/bookings/$bookingId/approve-seance');
+  Future<void> rejectSeance(String bookingId) => _api.patch('/bookings/$bookingId/reject-seance');
 }

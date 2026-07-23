@@ -10,6 +10,7 @@ const STATUS_STYLES: Record<string, string> = {
   INACTIF: 'bg-ink-50 text-ink-400',
   VALIDE: 'bg-primary-50 text-primary-700',
   EN_ATTENTE: 'bg-accent-50 text-accent-700',
+  EN_ATTENTE_PAIEMENT: 'bg-accent-50 text-accent-700',
   REJETE: 'bg-red-50 text-red-700',
   REMBOURSE: 'bg-ink-100 text-ink-600',
   CONFIRMEE: 'bg-primary-50 text-primary-700',

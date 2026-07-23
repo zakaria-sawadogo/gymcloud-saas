@@ -238,7 +238,7 @@ export interface Payment {
 // ── Réservations ──────────────────────────────────────────────
 
 export type BookingType = 'SEANCE_INDIVIDUELLE' | 'COURS_COLLECTIF';
-export type BookingStatus = 'CONFIRMEE' | 'EN_ATTENTE' | 'ANNULEE' | 'TERMINEE' | 'ABSENCE';
+export type BookingStatus = 'CONFIRMEE' | 'EN_ATTENTE' | 'EN_ATTENTE_PAIEMENT' | 'ANNULEE' | 'TERMINEE' | 'ABSENCE';
 
 export interface CoursCollectif {
   id: string;

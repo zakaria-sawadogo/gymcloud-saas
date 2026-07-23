@@ -784,6 +784,7 @@ enum BookingType {
 enum BookingStatus {
   CONFIRMEE
   EN_ATTENTE
+  EN_ATTENTE_PAIEMENT // §7.7 — coach a validé une séance individuelle demandée par l'adhérent, paiement requis avant confirmation définitive
   ANNULEE
   TERMINEE
   ABSENCE
@@ -831,6 +832,8 @@ model Booking {
   cancelledAt DateTime?
   cancelledBy String?
   attendedAt  DateTime? // pointage de présence à la séance (§7.12)
+
+  payments Payment[] // §7.7 — paiement(s) de séance individuelle liés à cette réservation
 
   createdAt DateTime @default(now())
 
@@ -924,6 +927,11 @@ model Payment {
   // validé : approuver ce paiement crée/active alors l'AdherentAbonnement
   // pour cette formule. Un adhérent ne peut jamais s'auto-valider.
   pendingAbonnementCatalogueId String?
+
+  // §7.7 — Paiement d'une séance individuelle demandée par l'adhérent,
+  // une fois validée par le coach (n'est jamais nul pour ce cas précis).
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id])
 
   createdAt DateTime @default(now())
 

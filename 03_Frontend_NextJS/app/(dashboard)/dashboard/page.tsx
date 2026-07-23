@@ -7,6 +7,7 @@ import { GestionnaireDashboardView } from '@/components/dashboard/GestionnaireDa
 import { ProprietaireDashboardView } from '@/components/dashboard/ProprietaireDashboardView';
 import { SuperAdminDashboardView } from '@/components/dashboard/SuperAdminDashboardView';
 import { CoachPlanningView } from '@/components/dashboard/CoachPlanningView';
+import { AdherentDashboardView } from '@/components/dashboard/AdherentDashboardView';
 
 // Redirection par défaut pour les rôles internes sans vue "/" dédiée —
 // chacun atterrit directement sur la première page à laquelle il a
@@ -47,6 +48,8 @@ export default function DashboardHomePage() {
       return user.salle ? <GestionnaireDashboardView salleId={user.salle.id} /> : null;
     case 'COACH':
       return user.coachId ? <CoachPlanningView coachId={user.coachId} /> : null;
+    case 'ADHERENT':
+      return user.adherentId ? <AdherentDashboardView adherentId={user.adherentId} /> : null;
     default:
       return DEFAULT_REDIRECT_BY_ROLE[user.roleCode] ? null : (
         <p className="text-sm text-ink-600">

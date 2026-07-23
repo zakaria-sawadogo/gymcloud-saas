@@ -99,6 +99,17 @@ class ApiClient {
     }
   }
 
+  /// Téléchargement binaire (ex: carte de membre PDF) — contrairement à
+  /// `get`, qui suppose une réponse JSON.
+  Future<List<int>> getBytes(String path) async {
+    try {
+      final res = await _dio.get<List<int>>(path, options: Options(responseType: ResponseType.bytes));
+      return res.data ?? [];
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+  }
+
   Future<T> post<T>(String path, {Object? data, bool skipAuth = false}) async {
     try {
       final res = await _dio.post(path, data: data, options: Options(extra: {'skipAuth': skipAuth}));

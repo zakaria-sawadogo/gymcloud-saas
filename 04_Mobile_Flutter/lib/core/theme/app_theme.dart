@@ -94,6 +94,7 @@ Color statusColor(String status) {
       return AppColors.primary;
     case 'EN_GRACE':
     case 'EN_ATTENTE':
+    case 'EN_ATTENTE_PAIEMENT':
       return AppColors.accent;
     case 'EXPIRE':
     case 'REJETE':

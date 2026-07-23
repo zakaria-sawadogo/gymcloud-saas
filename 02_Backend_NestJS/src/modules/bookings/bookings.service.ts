@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -39,10 +40,24 @@ export class BookingsService {
   // Cours collectifs (§7.1, §7.2)
   // ─────────────────────────────────────────────────────────────
 
-  async createCoursCollectif(salleId: string, dto: CreateCoursCollectifDto, actorUserId: string) {
+  /**
+   * §7.2 — Créer un cours collectif. Un GESTIONNAIRE peut l'assigner à
+   * n'importe quel coach de la salle ; un COACH ne peut créer un cours
+   * qu'en son propre nom (dto.coachId doit correspondre à son propre
+   * profil), sans quoi n'importe quel coach pourrait planifier des
+   * cours au nom d'un collègue.
+   */
+  async createCoursCollectif(
+    salleId: string,
+    dto: CreateCoursCollectifDto,
+    actor: { userId: string; roleCode: string },
+  ) {
     const coach = await this.prisma.coachProfile.findUnique({ where: { id: dto.coachId } });
     if (!coach || coach.salleId !== salleId) {
       throw new NotFoundException('Coach introuvable pour cette salle');
+    }
+    if (actor.roleCode === 'COACH' && coach.userId !== actor.userId) {
+      throw new ForbiddenException('Un coach ne peut créer un cours collectif qu\'en son propre nom');
     }
 
     const cours = await this.prisma.coursCollectif.create({
@@ -60,7 +75,7 @@ export class BookingsService {
     });
 
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       salleId,
       action: 'cours_collectif.create',
       entityType: 'CoursCollectif',
@@ -70,14 +85,28 @@ export class BookingsService {
     return cours;
   }
 
-  async updateCoursCollectif(coursId: string, dto: UpdateCoursCollectifDto, actorUserId: string) {
+  async updateCoursCollectif(
+    coursId: string,
+    dto: UpdateCoursCollectifDto,
+    actor: { userId: string; roleCode: string },
+  ) {
+    if (actor.roleCode === 'COACH') {
+      const existing = await this.prisma.coursCollectif.findUniqueOrThrow({
+        where: { id: coursId },
+        include: { coach: true },
+      });
+      if (existing.coach.userId !== actor.userId) {
+        throw new ForbiddenException('Un coach ne peut modifier que ses propres cours');
+      }
+    }
+
     const data: any = { ...dto };
     if (dto.startAt) data.startAt = new Date(dto.startAt);
     if (dto.endAt) data.endAt = new Date(dto.endAt);
 
     const cours = await this.prisma.coursCollectif.update({ where: { id: coursId }, data });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       salleId: cours.salleId,
       action: 'cours_collectif.update',
       entityType: 'CoursCollectif',
@@ -175,7 +204,23 @@ export class BookingsService {
    * Si le coach n'a AUCUNE tarification configurée, la séance reste
    * incluse dans l'abonnement standard, comme avant (rétrocompatible).
    */
-  async bookSeanceIndividuelle(salleId: string, dto: BookSeanceIndividuelleDto, actorUserId: string) {
+  /**
+   * §7.6, §7.7 — Réserver une séance individuelle. Deux flux distincts
+   * selon qui initie la demande :
+   *  - Personnel (gestionnaire/coach) réservant pour un adhérent
+   *    présent : confirmé et facturé immédiatement, comme avant.
+   *  - Adhérent demandant lui-même depuis l'app mobile : la séance
+   *    individuelle n'étant pas incluse dans son abonnement, elle doit
+   *    d'abord être validée par le coach (qui peut refuser un créneau
+   *    qu'il ne peut finalement pas honorer), PUIS payée par
+   *    l'adhérent — voir `approveSeance` et `paySeance`.
+   */
+  async bookSeanceIndividuelle(
+    salleId: string,
+    dto: BookSeanceIndividuelleDto,
+    actorUserId: string,
+    isAdherentSelfRequest: boolean,
+  ) {
     const startAt = new Date(dto.startAt);
     const endAt = new Date(dto.endAt);
 
@@ -185,6 +230,32 @@ export class BookingsService {
 
     const coach = await this.prisma.coachProfile.findUniqueOrThrow({ where: { id: dto.coachId } });
     const hasPricing = coach.pricePerSession !== null || coach.priceMonthly !== null;
+
+    if (isAdherentSelfRequest) {
+      // Ne facture jamais à ce stade — attend la validation du coach,
+      // puis un paiement explicite de l'adhérent (§7.7).
+      const booking = await this.prisma.booking.create({
+        data: {
+          id: randomUUID(),
+          salleId,
+          adherentId: dto.adherentId,
+          coachId: dto.coachId,
+          type: 'SEANCE_INDIVIDUELLE',
+          status: 'EN_ATTENTE',
+          startAt,
+          endAt,
+        },
+      });
+      await this.audit.log({
+        userId: actorUserId,
+        salleId,
+        action: 'booking.seance_requested_by_adherent',
+        entityType: 'Booking',
+        entityId: booking.id,
+        metadata: { hasPricing },
+      });
+      return { booking, payment: null };
+    }
 
     if (hasPricing && !dto.billingMode) {
       throw new BadRequestException(
@@ -222,6 +293,110 @@ export class BookingsService {
     }
 
     return { booking, payment };
+  }
+
+  /** §7.7 — Le coach valide (ou refuse) une séance individuelle demandée par un adhérent. */
+  async approveSeance(bookingId: string, actor: { userId: string; isGlobalAccess: boolean }) {
+    const booking = await this.prisma.booking.findUniqueOrThrow({
+      where: { id: bookingId },
+      include: { coach: true },
+    });
+    if (booking.type !== 'SEANCE_INDIVIDUELLE' || booking.status !== 'EN_ATTENTE') {
+      throw new BadRequestException('Cette réservation n\'est pas en attente de validation');
+    }
+    if (!actor.isGlobalAccess) {
+      const coachProfile = await this.prisma.coachProfile.findUnique({ where: { userId: actor.userId } });
+      if (!coachProfile || coachProfile.id !== booking.coachId) {
+        throw new ForbiddenException('Vous ne pouvez valider que vos propres demandes de séance');
+      }
+    }
+
+    const coach = booking.coach!;
+    const hasPricing = coach.pricePerSession !== null || coach.priceMonthly !== null;
+    const newStatus = hasPricing ? 'EN_ATTENTE_PAIEMENT' : 'CONFIRMEE';
+
+    const updated = await this.prisma.booking.update({ where: { id: bookingId }, data: { status: newStatus } });
+    await this.audit.log({
+      userId: actor.userId,
+      salleId: booking.salleId,
+      action: 'booking.seance_approved_by_coach',
+      entityType: 'Booking',
+      entityId: bookingId,
+      metadata: { requiresPayment: hasPricing },
+    });
+    return updated;
+  }
+
+  /** §7.7 — Le coach refuse une séance individuelle demandée par un adhérent. */
+  async rejectSeance(bookingId: string, actor: { userId: string; isGlobalAccess: boolean }, reason?: string) {
+    const booking = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    if (booking.type !== 'SEANCE_INDIVIDUELLE' || booking.status !== 'EN_ATTENTE') {
+      throw new BadRequestException('Cette réservation n\'est pas en attente de validation');
+    }
+    if (!actor.isGlobalAccess) {
+      const coachProfile = await this.prisma.coachProfile.findUnique({ where: { userId: actor.userId } });
+      if (!coachProfile || coachProfile.id !== booking.coachId) {
+        throw new ForbiddenException('Vous ne pouvez refuser que vos propres demandes de séance');
+      }
+    }
+
+    const updated = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: 'ANNULEE', cancelledAt: new Date(), cancelledBy: actor.userId },
+    });
+    await this.audit.log({
+      userId: actor.userId,
+      salleId: booking.salleId,
+      action: 'booking.seance_rejected_by_coach',
+      entityType: 'Booking',
+      entityId: bookingId,
+      metadata: { reason },
+    });
+    return updated;
+  }
+
+  /** §7.7 — L'adhérent paie une séance individuelle déjà validée par le coach. */
+  async paySeance(
+    bookingId: string,
+    dto: { billingMode?: 'PAR_SEANCE' | 'MENSUEL'; paymentMethod: 'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'; paymentPhoneNumber?: string },
+    actorUserId: string,
+  ) {
+    const booking = await this.prisma.booking.findUniqueOrThrow({
+      where: { id: bookingId },
+      include: { coach: true, adherent: true },
+    });
+    if (booking.status !== 'EN_ATTENTE_PAIEMENT') {
+      throw new BadRequestException('Cette séance n\'est pas en attente de paiement');
+    }
+    if (booking.adherent.userId !== actorUserId) {
+      throw new ForbiddenException('Vous ne pouvez payer que vos propres séances');
+    }
+    if (!dto.billingMode) {
+      throw new BadRequestException('billingMode requis (PAR_SEANCE ou MENSUEL)');
+    }
+
+    const payment = await this.chargeSeanceIndividuelle(
+      booking.salleId,
+      { ...dto, adherentId: booking.adherentId } as BookSeanceIndividuelleDto,
+      booking.coach!,
+      booking.startAt,
+      actorUserId,
+    );
+
+    if (payment) {
+      await this.prisma.payment.update({ where: { id: payment.payment.id }, data: { bookingId } });
+    }
+    const updated = await this.prisma.booking.update({ where: { id: bookingId }, data: { status: 'CONFIRMEE' } });
+
+    await this.audit.log({
+      userId: actorUserId,
+      salleId: booking.salleId,
+      action: 'booking.seance_paid_by_adherent',
+      entityType: 'Booking',
+      entityId: bookingId,
+    });
+
+    return { booking: updated, payment };
   }
 
   /** Facture une séance individuelle selon le mode choisi — voir bookSeanceIndividuelle. */

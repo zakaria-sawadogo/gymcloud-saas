@@ -117,6 +117,25 @@ export class BookSeanceIndividuelleDto {
   paymentPhoneNumber?: string;
 }
 
+/** §7.7 — Paiement d'une séance individuelle déjà validée par le coach. */
+export class PaySeanceDto {
+  @ApiPropertyOptional({
+    enum: ['PAR_SEANCE', 'MENSUEL'],
+    description: 'PAR_SEANCE (cette séance uniquement) ou MENSUEL (forfait 30 jours avec ce coach)',
+  })
+  @IsIn(['PAR_SEANCE', 'MENSUEL'])
+  billingMode!: 'PAR_SEANCE' | 'MENSUEL';
+
+  @ApiProperty({ enum: ['ESPECES', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'] })
+  @IsIn(['ESPECES', 'ORANGE_MONEY', 'MOOV_MONEY', 'WAVE'])
+  paymentMethod!: 'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  paymentPhoneNumber?: string;
+}
+
 export class CancelBookingDto {
   @ApiPropertyOptional()
   @IsOptional()

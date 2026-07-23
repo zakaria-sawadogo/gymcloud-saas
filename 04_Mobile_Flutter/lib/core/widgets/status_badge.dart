@@ -8,6 +8,7 @@ const Map<String, String> _statusLabels = {
   'EXPIRE': 'Expiré',
   'VALIDE': 'Validé',
   'EN_ATTENTE': 'En attente',
+  'EN_ATTENTE_PAIEMENT': 'À payer',
   'REJETE': 'Rejeté',
   'CONFIRMEE': 'Confirmée',
   'ANNULEE': 'Annulée',

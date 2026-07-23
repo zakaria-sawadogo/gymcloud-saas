@@ -5,6 +5,7 @@ import {
   BookCoursCollectifDto,
   BookSeanceIndividuelleDto,
   CancelBookingDto,
+  PaySeanceDto,
 } from './dto/bookings.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
@@ -43,7 +44,32 @@ export class BookingsController {
     @Body() dto: BookSeanceIndividuelleDto,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.bookingsService.bookSeanceIndividuelle(salleId, dto, user.userId);
+    return this.bookingsService.bookSeanceIndividuelle(salleId, dto, user.userId, user.roleCode === 'ADHERENT');
+  }
+
+  @Patch(':id/approve-seance')
+  @RequirePermission('update', 'Booking')
+  @ApiOperation({ summary: 'Le coach valide une séance individuelle demandée par un adhérent (§7.7)' })
+  approveSeance(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.bookingsService.approveSeance(id, { userId: user.userId, isGlobalAccess: user.isGlobalAccess });
+  }
+
+  @Patch(':id/reject-seance')
+  @RequirePermission('update', 'Booking')
+  @ApiOperation({ summary: 'Le coach refuse une séance individuelle demandée par un adhérent (§7.7)' })
+  rejectSeance(
+    @Param('id') id: string,
+    @Body('reason') reason: string | undefined,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.bookingsService.rejectSeance(id, { userId: user.userId, isGlobalAccess: user.isGlobalAccess }, reason);
+  }
+
+  @Post(':id/pay-seance')
+  @RequirePermission('create', 'Payment')
+  @ApiOperation({ summary: 'L\'adhérent paie une séance individuelle déjà validée par le coach (§7.7)' })
+  paySeance(@Param('id') id: string, @Body() dto: PaySeanceDto, @CurrentUser() user: TenantContext) {
+    return this.bookingsService.paySeance(id, dto, user.userId);
   }
 
   @Patch(':id/cancel')
