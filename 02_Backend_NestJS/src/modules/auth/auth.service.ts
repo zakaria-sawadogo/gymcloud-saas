@@ -229,7 +229,15 @@ export class AuthService {
       adherentId: user.adherentProfile?.id ?? null,
       coachId: user.coachProfile?.id ?? null,
       gestionnaireId: user.gestionnaireProfile?.id ?? null,
-      salle: salle ? { id: salle.id, name: salle.name, logoUrl: salle.logoUrl, currency: salle.country.currency } : null,
+      salle: salle
+        ? {
+            id: salle.id,
+            name: salle.name,
+            logoUrl: salle.logoUrl,
+            currency: salle.country.currency,
+            publicSubdomain: salle.publicSubdomain,
+          }
+        : null,
     };
   }
 

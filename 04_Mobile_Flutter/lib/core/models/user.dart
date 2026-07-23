@@ -49,9 +49,16 @@ class SalleSummary {
   final String id;
   final String name;
   final String? logoUrl;
+  final String? currency;
+  final String? publicSubdomain;
 
-  SalleSummary({required this.id, required this.name, this.logoUrl});
+  SalleSummary({required this.id, required this.name, this.logoUrl, this.currency, this.publicSubdomain});
 
-  factory SalleSummary.fromJson(Map<String, dynamic> json) =>
-      SalleSummary(id: json['id'], name: json['name'], logoUrl: json['logoUrl']);
+  factory SalleSummary.fromJson(Map<String, dynamic> json) => SalleSummary(
+        id: json['id'],
+        name: json['name'],
+        logoUrl: json['logoUrl'],
+        currency: json['currency'],
+        publicSubdomain: json['publicSubdomain'],
+      );
 }

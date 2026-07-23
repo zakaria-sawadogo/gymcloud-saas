@@ -29,4 +29,11 @@ class AdherentRepository {
 
   Future<Map<String, dynamic>> cancelBooking(String bookingId) =>
       _api.patch<Map<String, dynamic>>('/bookings/$bookingId/cancel');
+
+  /// §6.14 — Auto-pointage : l'adhérent scanne lui-même le QR fixe
+  /// affiché à l'entrée de la salle, avec son propre téléphone.
+  Future<Map<String, dynamic>> selfCheckin(String checkinQrToken) => _api.post<Map<String, dynamic>>(
+        '/access-control/self-checkin',
+        data: {'checkinQrToken': checkinQrToken},
+      );
 }

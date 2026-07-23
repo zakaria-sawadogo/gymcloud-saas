@@ -20,7 +20,8 @@ dependencies:
 
   # QR Code
   qr_flutter: ^4.1.0               # affichage du QR code adhérent (§6, écran d'accès rapide)
-  mobile_scanner: ^6.0.2           # scan QR côté app Gestionnaire (contrôle d'accès mobile)
+  mobile_scanner: ^6.0.2           # scan QR côté app Gestionnaire (contrôle d'accès mobile) + auto-pointage adhérent
+  url_launcher: ^6.3.1             # ouvrir le site public de la salle dans le navigateur
 
   # UI & formatage
   intl: ^0.19.0                    # dates et montants localisés (fr_FR)
