@@ -252,6 +252,18 @@ export interface CoursCollectif {
   coach?: { user: { firstName: string; lastName: string } };
 }
 
+export interface CoachForBooking {
+  id: string;
+  firstName: string;
+  lastName: string;
+  bio?: string;
+  photoUrl?: string;
+  specialties: string[];
+  pricePerSession?: number | null;
+  priceMonthly?: number | null;
+  currency?: string | null;
+}
+
 export interface Booking {
   id: string;
   salleId: string;
