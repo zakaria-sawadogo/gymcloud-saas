@@ -3,10 +3,12 @@ import {
   IsUUID,
   IsInt,
   Min,
+  Max,
   IsDateString,
   IsOptional,
   IsBoolean,
   IsIn,
+  IsArray,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -28,7 +30,7 @@ export class CreateCoursCollectifDto {
   @Min(1)
   capacity!: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Date/heure de la première séance — fixe aussi l\'heure et la durée des séances suivantes si récurrent' })
   @IsDateString()
   startAt!: string;
 
@@ -41,10 +43,28 @@ export class CreateCoursCollectifDto {
   @IsBoolean()
   recurring?: boolean;
 
-  @ApiPropertyOptional({ description: 'Règle RRULE si récurrent' })
+  @ApiPropertyOptional({ description: 'Règle RRULE si récurrent (indicatif, non interprété — voir daysOfWeek)' })
   @IsOptional()
   @IsString()
   recurrenceRule?: string;
+
+  @ApiPropertyOptional({
+    description: 'Jours de la semaine où répéter (1=lundi ... 7=dimanche) — requis si recurring=true pour générer réellement les séances suivantes',
+    type: [Number],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(7, { each: true })
+  daysOfWeek?: number[];
+
+  @ApiPropertyOptional({ description: 'Nombre de semaines à générer à l\'avance (défaut 8, max 26)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(26)
+  recurrenceWeeks?: number;
 }
 
 export class UpdateCoursCollectifDto {

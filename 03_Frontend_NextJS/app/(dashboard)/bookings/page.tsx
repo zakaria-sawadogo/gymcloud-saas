@@ -18,6 +18,16 @@ interface CoachOption {
   user: { firstName: string; lastName: string };
 }
 
+const DAY_OPTIONS = [
+  { value: 1, label: 'Lun' },
+  { value: 2, label: 'Mar' },
+  { value: 3, label: 'Mer' },
+  { value: 4, label: 'Jeu' },
+  { value: 5, label: 'Ven' },
+  { value: 6, label: 'Sam' },
+  { value: 7, label: 'Dim' },
+];
+
 export default function BookingsPage() {
   const { user } = useAuth();
   const salleId = user?.salle?.id;
@@ -147,22 +157,38 @@ function CreateCoursModal({
   const [capacity, setCapacity] = useState('15');
   const [startAt, setStartAt] = useState('');
   const [endAt, setEndAt] = useState('');
+  const [recurring, setRecurring] = useState(false);
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
+  const [recurrenceWeeks, setRecurrenceWeeks] = useState('8');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const toggleDay = (day: number) => {
+    setDaysOfWeek((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()));
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
     try {
-      await apiClient.post(`/salles/${salleId}/cours-collectifs`, {
+      const res = await apiClient.post<{ occurrencesGenerated: number }>(`/salles/${salleId}/cours-collectifs`, {
         name,
         coachId,
         capacity: Number(capacity),
         startAt: new Date(startAt).toISOString(),
         endAt: new Date(endAt).toISOString(),
+        recurring,
+        daysOfWeek: recurring && daysOfWeek.length > 0 ? daysOfWeek : undefined,
+        recurrenceWeeks: recurring ? Number(recurrenceWeeks) : undefined,
       });
-      onCreated();
+      if (res.occurrencesGenerated > 1) {
+        setSuccessMessage(`${res.occurrencesGenerated} séances créées sur les prochaines semaines.`);
+        setTimeout(onCreated, 1200);
+      } else {
+        onCreated();
+      }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
     } finally {
@@ -200,6 +226,49 @@ function CreateCoursModal({
           <Input type="datetime-local" required value={endAt} onChange={(e) => setEndAt(e.target.value)} />
         </Field>
 
+        <label className="mb-3 flex items-center gap-2 text-sm text-ink-700">
+          <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
+          Cours récurrent (se répète chaque semaine)
+        </label>
+
+        {recurring && (
+          <>
+            <Field label="Jours de répétition">
+              <div className="flex flex-wrap gap-1.5">
+                {DAY_OPTIONS.map((d) => (
+                  <button
+                    key={d.value}
+                    type="button"
+                    onClick={() => toggleDay(d.value)}
+                    className={`rounded-lg px-2.5 py-1.5 text-xs font-medium ${
+                      daysOfWeek.includes(d.value)
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-ink-50 text-ink-600 hover:bg-ink-100'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-ink-400">
+                Le jour de la date de début est toujours inclus, même s&apos;il n&apos;est pas coché ci-dessus.
+              </p>
+            </Field>
+            <Field label="Nombre de semaines à générer">
+              <Input
+                type="number"
+                min="1"
+                max="26"
+                value={recurrenceWeeks}
+                onChange={(e) => setRecurrenceWeeks(e.target.value)}
+              />
+            </Field>
+          </>
+        )}
+
+        {successMessage && (
+          <p className="mb-4 rounded-lg bg-primary-50 px-3 py-2 text-sm text-primary-700">{successMessage}</p>
+        )}
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
         <Button type="submit" isLoading={isSubmitting} className="w-full">

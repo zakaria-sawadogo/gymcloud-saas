@@ -47,6 +47,19 @@ export class BookingsService {
    * profil), sans quoi n'importe quel coach pourrait planifier des
    * cours au nom d'un collègue.
    */
+  /**
+   * §7.1 — Créer un cours collectif. Un GESTIONNAIRE peut l'assigner à
+   * n'importe quel coach de la salle ; un COACH ne peut créer un cours
+   * qu'en son propre nom (dto.coachId doit correspondre à son propre
+   * profil), sans quoi n'importe quel coach pourrait planifier des
+   * cours au nom d'un collègue.
+   *
+   * Si `recurring` + `daysOfWeek` sont fournis, génère réellement une
+   * séance concrète pour chaque jour correspondant sur les prochaines
+   * semaines (par défaut 8) — jusqu'ici `recurring`/`recurrenceRule`
+   * n'étaient que des champs stockés sans aucun effet : une seule
+   * séance était créée, jamais répétée dans le planning.
+   */
   async createCoursCollectif(
     salleId: string,
     dto: CreateCoursCollectifDto,
@@ -60,29 +73,59 @@ export class BookingsService {
       throw new ForbiddenException('Un coach ne peut créer un cours collectif qu\'en son propre nom');
     }
 
-    const cours = await this.prisma.coursCollectif.create({
-      data: {
-        id: randomUUID(),
-        salleId,
-        coachId: dto.coachId,
-        name: dto.name,
-        capacity: dto.capacity,
-        startAt: new Date(dto.startAt),
-        endAt: new Date(dto.endAt),
-        recurring: dto.recurring ?? false,
-        recurrenceRule: dto.recurrenceRule,
-      },
-    });
+    const firstStart = new Date(dto.startAt);
+    const firstEnd = new Date(dto.endAt);
+    const durationMs = firstEnd.getTime() - firstStart.getTime();
+
+    const occurrenceDates: Date[] = [firstStart];
+    if (dto.recurring && dto.daysOfWeek && dto.daysOfWeek.length > 0) {
+      const weeks = dto.recurrenceWeeks ?? 8;
+      const horizon = new Date(firstStart);
+      horizon.setDate(horizon.getDate() + weeks * 7);
+
+      const cursor = new Date(firstStart);
+      cursor.setDate(cursor.getDate() + 1); // le premier jour est déjà couvert par firstStart
+      while (cursor <= horizon) {
+        // ISO : 1=lundi ... 7=dimanche (JS getDay() renvoie 0=dimanche ... 6=samedi)
+        const isoDay = cursor.getDay() === 0 ? 7 : cursor.getDay();
+        if (dto.daysOfWeek.includes(isoDay)) {
+          const occurrence = new Date(cursor);
+          occurrence.setHours(firstStart.getHours(), firstStart.getMinutes(), 0, 0);
+          occurrenceDates.push(occurrence);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+
+    const created = [];
+    for (const occurrenceStart of occurrenceDates) {
+      const occurrenceEnd = new Date(occurrenceStart.getTime() + durationMs);
+      const cours = await this.prisma.coursCollectif.create({
+        data: {
+          id: randomUUID(),
+          salleId,
+          coachId: dto.coachId,
+          name: dto.name,
+          capacity: dto.capacity,
+          startAt: occurrenceStart,
+          endAt: occurrenceEnd,
+          recurring: dto.recurring ?? false,
+          recurrenceRule: dto.recurrenceRule,
+        },
+      });
+      created.push(cours);
+    }
 
     await this.audit.log({
       userId: actor.userId,
       salleId,
       action: 'cours_collectif.create',
       entityType: 'CoursCollectif',
-      entityId: cours.id,
+      entityId: created[0].id,
+      metadata: { occurrencesGenerated: created.length },
     });
 
-    return cours;
+    return { cours: created[0], occurrencesGenerated: created.length, allOccurrences: created };
   }
 
   async updateCoursCollectif(
