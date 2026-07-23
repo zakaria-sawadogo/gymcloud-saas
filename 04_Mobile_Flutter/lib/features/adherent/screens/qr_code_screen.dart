@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../adherent_repository.dart';
+import '../../shared/logout_button.dart';
 
 /// Écran d'accès rapide (§1.3, §6.3) — affiche le QR code en plein
 /// écran, luminosité maximale implicite (fond blanc) pour un scan
@@ -43,7 +44,7 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: const Text('Mon QR code'), backgroundColor: Colors.white),
+      appBar: AppBar(title: const Text('Mon QR code'), backgroundColor: Colors.white, actions: const [LogoutButton()]),
       body: Center(
         child: _isLoading
             ? const CircularProgressIndicator()

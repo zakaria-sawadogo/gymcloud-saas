@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/models/adherent.dart';
 import '../adherent_repository.dart';
+import '../../shared/logout_button.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex) onNavigateToTab;
@@ -58,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = context.watch<AuthProvider>().user;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Bonjour, ${user?.firstName ?? ''}')),
+      appBar: AppBar(title: Text('Bonjour, ${user?.firstName ?? ''}'), actions: const [LogoutButton()]),
       body: RefreshIndicator(
         onRefresh: _load,
         child: _isLoading

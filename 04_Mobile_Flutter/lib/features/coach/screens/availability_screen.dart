@@ -4,6 +4,7 @@ import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/coach.dart';
 import '../coach_repository.dart';
+import '../../shared/logout_button.dart';
 
 /// Gestion des créneaux de disponibilité récurrents (§7.6) — vérifiés
 /// par le backend lors de toute réservation de séance individuelle.
@@ -123,7 +124,7 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mes disponibilités')),
+      appBar: AppBar(title: const Text('Mes disponibilités'), actions: const [LogoutButton()]),
       floatingActionButton: FloatingActionButton(onPressed: _openAddSheet, child: const Icon(Icons.add)),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

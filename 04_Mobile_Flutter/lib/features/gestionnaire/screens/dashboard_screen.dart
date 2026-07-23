@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/widgets/stat_card.dart';
 import '../gestionnaire_repository.dart';
+import '../../shared/logout_button.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -41,7 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
 
     return Scaffold(
-      appBar: AppBar(title: Text(salle?.name ?? 'Tableau de bord')),
+      appBar: AppBar(title: Text(salle?.name ?? 'Tableau de bord'), actions: const [LogoutButton()]),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

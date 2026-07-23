@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/auth/auth_provider.dart';
+import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import 'forgot_password_screen.dart';
 
 /// Écran de connexion, unique pour tous les profils (§2.3) — l'app
 /// est désormais commune à tous, seul l'écran affiché APRÈS connexion
@@ -99,6 +101,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                 )
                               : const Text('Se connecter'),
                         ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ForgotPasswordScreen(apiClient: context.read<ApiClient>()),
+                            ),
+                          );
+                        },
+                        child: const Text('Mot de passe oublié ?'),
                       ),
                     ],
                   ),

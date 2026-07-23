@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/status_badge.dart';
+import '../../shared/logout_button.dart';
 import '../../../core/models/adherent.dart';
 import '../adherent_repository.dart';
 
@@ -68,7 +69,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final past = _bookings.where((b) => !upcoming.contains(b)).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mes réservations')),
+      appBar: AppBar(title: const Text('Mes réservations'), actions: const [LogoutButton()]),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

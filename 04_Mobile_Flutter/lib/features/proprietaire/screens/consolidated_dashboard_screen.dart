@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/stat_card.dart';
 import '../proprietaire_repository.dart';
 import 'salle_detail_screen.dart';
+import '../../shared/logout_button.dart';
 
 /// Vue consolidée multi-salles (§2.3, §11) — équivalent mobile de
 /// ProprietaireDashboardView.tsx côté web. Un propriétaire n'a pas
@@ -55,7 +56,7 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
     final salles = (_data?['salles'] as List<dynamic>?) ?? [];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Vue consolidée')),
+      appBar: AppBar(title: const Text('Vue consolidée'), actions: const [LogoutButton()]),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

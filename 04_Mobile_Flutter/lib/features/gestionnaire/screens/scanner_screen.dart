@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../shared/logout_button.dart';
 import '../gestionnaire_repository.dart';
 
 /// Scanner QR mobile (§6.3) — équivalent terrain du champ de saisie
@@ -66,7 +67,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scanner QR'), backgroundColor: Colors.black, foregroundColor: Colors.white),
+      appBar: AppBar(title: const Text('Scanner QR'), backgroundColor: Colors.black, foregroundColor: Colors.white, actions: const [LogoutButton()]),
       backgroundColor: Colors.black,
       body: Stack(
         children: [

@@ -5,6 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/models/adherent.dart';
 import '../gestionnaire_repository.dart';
+import '../../shared/logout_button.dart';
 
 class AdherentsListScreen extends StatefulWidget {
   const AdherentsListScreen({super.key});
@@ -52,6 +53,7 @@ class _AdherentsListScreenState extends State<AdherentsListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Adhérents'),
+        actions: const [LogoutButton()],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(

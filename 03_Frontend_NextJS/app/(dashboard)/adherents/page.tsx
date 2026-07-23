@@ -185,7 +185,7 @@ function CreateAdherentModal({
   const [abonnementCatalogueId, setAbonnementCatalogueId] = useState('');
   const [method, setMethod] = useState<'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'>('ESPECES');
   const [mobileMoneyPhone, setMobileMoneyPhone] = useState('');
-  const [result, setResult] = useState<{ adherentId: string; paymentId: string } | null>(null);
+  const [result, setResult] = useState<{ adherentId: string; paymentId: string; tempPassword: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -197,7 +197,11 @@ function CreateAdherentModal({
     setError(null);
     setIsSubmitting(true);
     try {
-      const res = await apiClient.post<{ adherent: { id: string }; payment: { payment: { id: string } } }>(
+      const res = await apiClient.post<{
+        adherent: { id: string };
+        payment: { payment: { id: string } };
+        tempPassword: string;
+      }>(
         '/adherents/with-payment',
         {
           salleId,
@@ -208,7 +212,7 @@ function CreateAdherentModal({
           payment: { method, phoneNumber: isMobileMoney ? mobileMoneyPhone : undefined },
         },
       );
-      setResult({ adherentId: res.adherent.id, paymentId: res.payment.payment.id });
+      setResult({ adherentId: res.adherent.id, paymentId: res.payment.payment.id, tempPassword: res.tempPassword });
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
     } finally {
@@ -235,6 +239,13 @@ function CreateAdherentModal({
               ? 'Adhérent inscrit — paiement Mobile Money en attente de confirmation.'
               : 'Adhérent inscrit et paiement encaissé avec succès.'}
           </p>
+
+          <p className="mb-1 text-sm text-ink-600">
+            Mot de passe temporaire de l&apos;adhérent — à lui communiquer directement pour qu&apos;il se connecte à
+            l&apos;app mobile (à changer à sa première connexion) :
+          </p>
+          <p className="mb-4 rounded-lg bg-ink-50 px-3 py-2 font-mono text-sm text-ink-900">{result.tempPassword}</p>
+
           <div className="mb-4 space-y-2">
             <Button
               variant="secondary"
