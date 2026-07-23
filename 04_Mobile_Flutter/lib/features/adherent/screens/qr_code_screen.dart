@@ -61,7 +61,7 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de télécharger la carte pour le moment')),
+          SnackBar(content: Text('Erreur : $e'), duration: const Duration(seconds: 8)),
         );
       }
     } finally {

@@ -616,7 +616,14 @@ export class BookingsService {
   // Consultation (§7.10, §7.11)
   // ─────────────────────────────────────────────────────────────
 
-  async listByAdherent(adherentId: string) {
+  /** §7.10 — Réservations d'un adhérent. Un adhérent ne peut consulter que les siennes. */
+  async listByAdherent(adherentId: string, actor?: { userId: string; roleCode: string }) {
+    if (actor && actor.roleCode === 'ADHERENT') {
+      const adherent = await this.prisma.adherentProfile.findUnique({ where: { id: adherentId } });
+      if (!adherent || adherent.userId !== actor.userId) {
+        throw new ForbiddenException('Vous ne pouvez consulter que vos propres réservations');
+      }
+    }
     return this.prisma.booking.findMany({
       where: { adherentId },
       include: { coach: { include: { user: true } }, coursCollectif: true },

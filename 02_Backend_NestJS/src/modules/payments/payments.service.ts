@@ -3,11 +3,13 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { MarketingService } from '../marketing/marketing.service';
+import { TenantContext } from '../../common/middleware/tenant.middleware';
 import {
   CreateCashPaymentDto,
   InitiateMobileMoneyDto,
@@ -264,7 +266,19 @@ export class PaymentsService {
     });
   }
 
-  async listByAdherent(adherentId: string) {
+  /**
+   * Historique des paiements d'un adhérent. Un adhérent ne peut
+   * consulter que le sien — sans quoi n'importe quel adhérent pourrait
+   * voir l'historique de paiement d'un autre en devinant son
+   * identifiant (aucune restriction n'existait jusqu'ici).
+   */
+  async listByAdherent(adherentId: string, actor?: TenantContext) {
+    if (actor && actor.roleCode === 'ADHERENT') {
+      const adherent = await this.prisma.adherentProfile.findUnique({ where: { id: adherentId } });
+      if (!adherent || adherent.userId !== actor.userId) {
+        throw new ForbiddenException('Vous ne pouvez consulter que vos propres paiements');
+      }
+    }
     return this.prisma.payment.findMany({
       where: { adherentId },
       include: { receipt: true },

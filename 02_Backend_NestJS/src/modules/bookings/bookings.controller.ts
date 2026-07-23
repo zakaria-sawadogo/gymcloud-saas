@@ -102,8 +102,8 @@ export class BookingsController {
   @Get('adherent/:adherentId')
   @RequirePermission('read', 'Booking')
   @ApiOperation({ summary: 'Réservations d\'un adhérent (§7.10)' })
-  byAdherent(@Param('adherentId') adherentId: string) {
-    return this.bookingsService.listByAdherent(adherentId);
+  byAdherent(@Param('adherentId') adherentId: string, @CurrentUser() user: TenantContext) {
+    return this.bookingsService.listByAdherent(adherentId, { userId: user.userId, roleCode: user.roleCode });
   }
 
   @Get('coach/:coachId')

@@ -85,8 +85,8 @@ export class PaymentsController {
   @Get('adherent/:adherentId')
   @RequirePermission('read', 'Payment')
   @ApiOperation({ summary: 'Historique des paiements d\'un adhérent' })
-  byAdherent(@Param('adherentId') adherentId: string) {
-    return this.paymentsService.listByAdherent(adherentId);
+  byAdherent(@Param('adherentId') adherentId: string, @CurrentUser() user: TenantContext) {
+    return this.paymentsService.listByAdherent(adherentId, user);
   }
 
   @Get(':id/receipt')

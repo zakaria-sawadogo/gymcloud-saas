@@ -29,6 +29,12 @@ export class MembershipCardPdfService {
     if (actor && !actor.isGlobalAccess && actor.salleId && actor.salleId !== adherent.salleId) {
       throw new ForbiddenException('Cet adhérent n\'appartient pas à votre salle');
     }
+    // §5.1 — Un adhérent ne peut télécharger que sa propre carte,
+    // jamais celle d'un autre adhérent de la même salle (elle contient
+    // son jeton QR d'accès, sensible).
+    if (actor && actor.roleCode === 'ADHERENT' && actor.userId !== adherent.userId) {
+      throw new ForbiddenException('Vous ne pouvez télécharger que votre propre carte');
+    }
 
     const qrDataUrl = await QRCode.toDataURL(adherent.qrCodeToken, { margin: 1, width: 300 });
     const qrBuffer = Buffer.from(qrDataUrl.split(',')[1], 'base64');

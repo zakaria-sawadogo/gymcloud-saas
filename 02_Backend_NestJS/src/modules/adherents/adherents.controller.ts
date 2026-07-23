@@ -153,8 +153,8 @@ export class AdherentsController {
   @Get(':id')
   @RequirePermission('read', 'Adherent')
   @ApiOperation({ summary: 'Dossier complet d\'un adhérent, avec historique d\'abonnements' })
-  findOne(@Param('id') id: string) {
-    return this.adherentsService.findById(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.adherentsService.findById(id, { userId: user.userId, roleCode: user.roleCode });
   }
 
   @Get('salle/:salleId')
@@ -251,7 +251,7 @@ export class AdherentsController {
   @Get(':id/history')
   @RequirePermission('read', 'AdherentAbonnement')
   @ApiOperation({ summary: 'Historique complet des abonnements (§5.7)' })
-  history(@Param('id') id: string) {
-    return this.adherentsService.history(id);
+  history(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.adherentsService.history(id, { userId: user.userId, roleCode: user.roleCode });
   }
 }

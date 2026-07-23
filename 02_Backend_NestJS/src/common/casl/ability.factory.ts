@@ -93,10 +93,12 @@ export class AbilityFactory {
         break;
 
       case 'ADHERENT':
+        can('read', 'Adherent'); // sa propre fiche/carte — restriction stricte en service
         can('read', 'AdherentAbonnement');
         can('read', 'Booking'); // consulter cours/coachs disponibles avant de réserver (§7)
         can('create', 'Booking');
         can('create', 'Payment');
+        can('read', 'Payment'); // ses propres paiements — restriction stricte en service
         can('create', 'AccessLog'); // §6.14 — auto-pointage via le QR fixe de sa salle, restriction fine en service
         break;
 

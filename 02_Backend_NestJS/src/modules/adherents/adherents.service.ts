@@ -169,7 +169,13 @@ export class AdherentsService {
     return { adherent, user, tempPassword, subscription, payment: paymentResult };
   }
 
-  async findById(adherentId: string) {
+  /**
+   * Dossier complet d'un adhérent. Un adhérent ne peut consulter que
+   * le sien — jusqu'ici aucune restriction n'empêchait de consulter
+   * le dossier de n'importe quel autre adhérent en devinant son
+   * identifiant.
+   */
+  async findById(adherentId: string, actor?: { userId: string; roleCode: string }) {
     const adherent = await this.prisma.adherentProfile.findUnique({
       where: { id: adherentId },
       include: {
@@ -178,6 +184,9 @@ export class AdherentsService {
       },
     });
     if (!adherent) throw new NotFoundException('Adhérent introuvable');
+    if (actor && actor.roleCode === 'ADHERENT' && adherent.userId !== actor.userId) {
+      throw new ForbiddenException('Vous ne pouvez consulter que votre propre dossier');
+    }
     return adherent;
   }
 
@@ -658,7 +667,14 @@ export class AdherentsService {
     return `GC-REC-${yyyymm}-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
-  async history(adherentId: string) {
+  /** §5.7 — Historique des abonnements. Un adhérent ne peut consulter que le sien. */
+  async history(adherentId: string, actor?: { userId: string; roleCode: string }) {
+    if (actor && actor.roleCode === 'ADHERENT') {
+      const adherent = await this.prisma.adherentProfile.findUnique({ where: { id: adherentId } });
+      if (!adherent || adherent.userId !== actor.userId) {
+        throw new ForbiddenException('Vous ne pouvez consulter que votre propre historique');
+      }
+    }
     return this.prisma.adherentAbonnement.findMany({
       where: { adherentId },
       include: { abonnementCatalogue: true },
