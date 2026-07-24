@@ -268,7 +268,17 @@ export class BookingsService {
     const endAt = new Date(dto.endAt);
 
     await this.assertAdherentActive(dto.adherentId);
-    await this.assertCoachAvailable(dto.coachId, startAt, endAt);
+    // §7.6, §7.7 — Pour une auto-demande de l'adhérent, ne pas bloquer
+    // selon le planning de disponibilité déclaré par le coach : c'est
+    // au coach de valider ou refuser lui-même la demande (workflow
+    // d'approbation), pas au système de la filtrer en amont. Seule la
+    // réservation directe par le personnel (confirmation immédiate,
+    // sans validation humaine ensuite) reste soumise à cette
+    // vérification, pour éviter un rendez-vous accepté hors planning
+    // sans qu'un humain n'ait pu s'y opposer.
+    if (!isAdherentSelfRequest) {
+      await this.assertCoachAvailable(dto.coachId, startAt, endAt);
+    }
     await this.assertNoOverlap(dto.coachId, startAt, endAt);
 
     const coach = await this.prisma.coachProfile.findUniqueOrThrow({ where: { id: dto.coachId } });
