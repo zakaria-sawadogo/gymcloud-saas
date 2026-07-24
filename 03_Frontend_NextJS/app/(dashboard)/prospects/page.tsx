@@ -9,10 +9,10 @@ import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
-import { Field, Input } from '@/components/ui/Input';
+import { Field, Input, Select } from '@/components/ui/Input';
 import { Users, Phone, CheckCircle2, XCircle } from 'lucide-react';
 import { formatDateTime, formatCurrency } from '@/lib/utils';
-import type { Prospect } from '@/types';
+import type { Prospect, AbonnementCatalogue } from '@/types';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Tous' },
@@ -40,6 +40,7 @@ export default function ProspectsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [losingProspect, setLosingProspect] = useState<Prospect | null>(null);
+  const [convertingProspect, setConvertingProspect] = useState<Prospect | null>(null);
 
   const { data: prospects, isLoading, error, refetch } = useApi<Prospect[]>(
     salleId ? `/prospects/salle/${salleId}${statusFilter ? `?status=${statusFilter}` : ''}` : null,
@@ -50,18 +51,6 @@ export default function ProspectsPage() {
     setActioningId(id);
     try {
       await apiClient.patch(`/prospects/${id}/contacted`);
-      refetch();
-    } catch (err) {
-      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
-    } finally {
-      setActioningId(null);
-    }
-  };
-
-  const handleConverted = async (id: string) => {
-    setActioningId(id);
-    try {
-      await apiClient.patch(`/prospects/${id}/converted`);
       refetch();
     } catch (err) {
       alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -159,11 +148,10 @@ export default function ProspectsPage() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          isLoading={actioningId === p.id}
-                          onClick={() => handleConverted(p.id)}
+                          onClick={() => setConvertingProspect(p)}
                         >
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                          Converti
+                          Convertir
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => setLosingProspect(p)}>
                           <XCircle className="h-3.5 w-3.5" />
@@ -185,6 +173,16 @@ export default function ProspectsPage() {
           onClose={() => setLosingProspect(null)}
           onDone={() => {
             setLosingProspect(null);
+            refetch();
+          }}
+        />
+      )}
+      {convertingProspect && (
+        <ConvertProspectModal
+          prospect={convertingProspect}
+          onClose={() => setConvertingProspect(null)}
+          onDone={() => {
+            setConvertingProspect(null);
             refetch();
           }}
         />
@@ -231,6 +229,110 @@ function MarkLostModal({
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       <Button onClick={handleSubmit} isLoading={isSubmitting} className="w-full">
         Confirmer
+      </Button>
+    </Modal>
+  );
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  ESPECES: 'Espèces',
+  ORANGE_MONEY: 'Orange Money',
+  MOOV_MONEY: 'Moov Money',
+  WAVE: 'Wave',
+};
+
+/**
+ * §3.2, §5.6 — Convertir un prospect crée réellement l'adhérent et
+ * déclenche son premier paiement — avant cette évolution, "convertir"
+ * ne faisait que changer l'étiquette de suivi, obligeant à ressaisir
+ * l'inscription en double via "Nouvel adhérent".
+ */
+function ConvertProspectModal({
+  prospect,
+  onClose,
+  onDone,
+}: {
+  prospect: Prospect;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { user } = useAuth();
+  const salleId = user?.salle?.id;
+  const { data: catalogue } = useApi<AbonnementCatalogue[]>(salleId ? `/salles/${salleId}/abonnement-catalogue` : null);
+  const [catalogueId, setCatalogueId] = useState(prospect.desiredCatalogueId ?? '');
+  const [paymentMethod, setPaymentMethod] = useState('ESPECES');
+  const [phoneNumber, setPhoneNumber] = useState(prospect.phone);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [result, setResult] = useState<{ tempPassword: string } | null>(null);
+
+  const handleSubmit = async () => {
+    if (!catalogueId) {
+      setError('Choisissez une formule');
+      return;
+    }
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const res = await apiClient.patch<{ tempPassword: string }>(`/prospects/${prospect.id}/converted`, {
+        abonnementCatalogueId: catalogueId,
+        paymentMethod,
+        phoneNumber: paymentMethod !== 'ESPECES' ? phoneNumber : undefined,
+      });
+      setResult(res);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (result) {
+    return (
+      <Modal isOpen onClose={onDone} title="Adhérent créé">
+        <p className="mb-3 text-sm text-ink-600">
+          {prospect.firstName} {prospect.lastName} est maintenant adhérent, paiement encaissé.
+        </p>
+        <p className="mb-1 text-sm text-ink-600">
+          Mot de passe temporaire — à lui communiquer directement (à changer à sa première connexion) :
+        </p>
+        <p className="mb-4 rounded-lg bg-ink-50 px-3 py-2 font-mono text-sm text-ink-900">{result.tempPassword}</p>
+        <Button onClick={onDone} className="w-full">
+          Fermer
+        </Button>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Convertir — ${prospect.firstName} ${prospect.lastName}`}>
+      <Field label="Formule">
+        <Select value={catalogueId} onChange={(e) => setCatalogueId(e.target.value)}>
+          <option value="">Sélectionner une formule</option>
+          {(catalogue ?? []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name} — {formatCurrency(c.price, c.currency)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Moyen de paiement">
+        <Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+          {Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {paymentMethod !== 'ESPECES' && (
+        <Field label="Numéro Mobile Money">
+          <Input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
+        </Field>
+      )}
+      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      <Button onClick={handleSubmit} isLoading={isSubmitting} className="w-full">
+        Confirmer et encaisser
       </Button>
     </Modal>
   );

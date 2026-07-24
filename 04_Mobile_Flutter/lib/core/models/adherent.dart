@@ -78,6 +78,8 @@ class Booking {
   final DateTime endAt;
   final String? coursName;
   final String? coachName;
+  final String? adherentName;
+  final String? adherentPhone;
 
   Booking({
     required this.id,
@@ -87,6 +89,8 @@ class Booking {
     required this.endAt,
     this.coursName,
     this.coachName,
+    this.adherentName,
+    this.adherentPhone,
   });
 
   factory Booking.fromJson(Map<String, dynamic> json) => Booking(
@@ -99,6 +103,10 @@ class Booking {
         coachName: json['coach'] != null
             ? '${json['coach']['user']['firstName']} ${json['coach']['user']['lastName']}'
             : null,
+        adherentName: json['adherent']?['user'] != null
+            ? '${json['adherent']['user']['firstName']} ${json['adherent']['user']['lastName']}'
+            : null,
+        adherentPhone: json['adherent']?['user']?['phone'],
       );
 }
 

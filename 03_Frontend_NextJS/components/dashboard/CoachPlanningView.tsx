@@ -86,6 +86,7 @@ export function CoachPlanningView({ coachId }: { coachId: string }) {
                     {b.adherent ? `${b.adherent.user.firstName} ${b.adherent.user.lastName}` : 'Adhérent'}
                   </p>
                   <p className="text-xs text-ink-400">{formatDateTime(b.startAt)}</p>
+                  {b.adherent?.user.phone && <p className="text-xs text-ink-400">{b.adherent.user.phone}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button

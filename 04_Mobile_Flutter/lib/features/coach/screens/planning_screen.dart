@@ -134,9 +134,18 @@ class _PlanningScreenState extends State<PlanningScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      DateFormat('EEE dd MMM · HH:mm', 'fr_FR').format(b.startAt),
+                                      b.adherentName ?? 'Adhérent',
                                       style: const TextStyle(fontWeight: FontWeight.w600),
                                     ),
+                                    Text(
+                                      DateFormat('EEE dd MMM · HH:mm', 'fr_FR').format(b.startAt),
+                                      style: const TextStyle(color: AppColors.ink600, fontSize: 13),
+                                    ),
+                                    if (b.adherentPhone != null)
+                                      Text(
+                                        b.adherentPhone!,
+                                        style: const TextStyle(color: AppColors.ink400, fontSize: 12),
+                                      ),
                                   ],
                                 ),
                               ),

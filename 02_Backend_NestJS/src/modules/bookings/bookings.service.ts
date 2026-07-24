@@ -687,7 +687,10 @@ export class BookingsService {
   async listByCoach(coachId: string, from?: Date, to?: Date) {
     return this.prisma.booking.findMany({
       where: { coachId, startAt: { gte: from, lte: to } },
-      include: { adherent: { include: { user: true } }, coursCollectif: true },
+      include: {
+        adherent: { select: { id: true, memberCode: true, user: { select: { firstName: true, lastName: true, phone: true } } } },
+        coursCollectif: true,
+      },
       orderBy: { startAt: 'asc' },
     });
   }

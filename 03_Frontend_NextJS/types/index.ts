@@ -275,7 +275,7 @@ export interface Booking {
   startAt: string;
   endAt: string;
   adherent?: {
-    user: { firstName: string; lastName: string };
+    user: { firstName: string; lastName: string; phone?: string };
   };
   coursCollectif?: {
     name: string;
@@ -485,7 +485,8 @@ export interface Prospect {
   note?: string;
   contactedAt?: string;
   createdAt: string;
-  desiredCatalogue?: { name: string; price: number; currency: string };
+  desiredCatalogueId?: string;
+  desiredCatalogue?: { id: string; name: string; price: number; currency: string };
   trialCoursCollectif?: { name: string; startAt: string };
 }
 
