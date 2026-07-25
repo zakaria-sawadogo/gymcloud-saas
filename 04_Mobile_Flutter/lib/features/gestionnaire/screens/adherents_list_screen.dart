@@ -6,6 +6,7 @@ import '../../../core/widgets/status_badge.dart';
 import '../../../core/models/adherent.dart';
 import '../gestionnaire_repository.dart';
 import '../../shared/logout_button.dart';
+import 'create_adherent_screen.dart';
 
 class AdherentsListScreen extends StatefulWidget {
   const AdherentsListScreen({super.key});
@@ -51,6 +52,14 @@ class _AdherentsListScreenState extends State<AdherentsListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateAdherentScreen()));
+          _load();
+        },
+        icon: const Icon(Icons.person_add),
+        label: const Text('Nouvel adhérent'),
+      ),
       appBar: AppBar(
         title: const Text('Adhérents'),
         actions: const [LogoutButton()],

@@ -578,7 +578,9 @@ export class AdherentsService {
   async listPendingSubscriptionRequests(salleId: string) {
     return this.prisma.payment.findMany({
       where: { salleId, status: 'EN_ATTENTE', pendingAbonnementCatalogueId: { not: null } },
-      include: { adherent: { include: { user: true } } },
+      include: {
+        adherent: { select: { id: true, memberCode: true, user: { select: { firstName: true, lastName: true, phone: true } } } },
+      },
       orderBy: { createdAt: 'asc' },
     });
   }

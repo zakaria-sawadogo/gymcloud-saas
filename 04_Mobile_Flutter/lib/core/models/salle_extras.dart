@@ -96,3 +96,74 @@ class CoachForBooking {
         currency: json['currency'],
       );
 }
+
+/// §3.2 — Piste commerciale captée depuis le site public d'une salle.
+class Prospect {
+  final String id;
+  final String firstName;
+  final String lastName;
+  final String phone;
+  final String? email;
+  final String? message;
+  final String source;
+  final String status;
+  final String? note;
+  final String? desiredCatalogueId;
+  final String? desiredCatalogueName;
+
+  Prospect({
+    required this.id,
+    required this.firstName,
+    required this.lastName,
+    required this.phone,
+    this.email,
+    this.message,
+    required this.source,
+    required this.status,
+    this.note,
+    this.desiredCatalogueId,
+    this.desiredCatalogueName,
+  });
+
+  factory Prospect.fromJson(Map<String, dynamic> json) => Prospect(
+        id: json['id'],
+        firstName: json['firstName'],
+        lastName: json['lastName'],
+        phone: json['phone'],
+        email: json['email'],
+        message: json['message'],
+        source: json['source'],
+        status: json['status'],
+        note: json['note'],
+        desiredCatalogueId: json['desiredCatalogueId'],
+        desiredCatalogueName: json['desiredCatalogue']?['name'],
+      );
+}
+
+/// §5.6, §8.3 — Demande de réabonnement initiée par un adhérent depuis
+/// l'app mobile, en attente de validation du gestionnaire.
+class PendingPayment {
+  final String id;
+  final String adherentName;
+  final double amount;
+  final String currency;
+  final String method;
+
+  PendingPayment({
+    required this.id,
+    required this.adherentName,
+    required this.amount,
+    required this.currency,
+    required this.method,
+  });
+
+  factory PendingPayment.fromJson(Map<String, dynamic> json) => PendingPayment(
+        id: json['id'],
+        adherentName: json['adherent']?['user'] != null
+            ? '${json['adherent']['user']['firstName']} ${json['adherent']['user']['lastName']}'
+            : 'Adhérent',
+        amount: double.parse(json['amount'].toString()),
+        currency: json['currency'],
+        method: json['method'],
+      );
+}
