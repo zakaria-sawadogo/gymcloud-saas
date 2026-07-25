@@ -10,10 +10,10 @@ class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<DashboardScreen> createState() => DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class DashboardScreenState extends State<DashboardScreen> {
   late final GestionnaireRepository _repo;
   Map<String, dynamic>? _data;
   bool _isLoading = true;
@@ -24,6 +24,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _repo = GestionnaireRepository(context.read());
     _load();
   }
+
+  /// Rafraîchit les chiffres du jour — appelé automatiquement en
+  /// revenant sur cet onglet depuis "Adhérents" ou "Paiements", puisque
+  /// l'IndexedStack garde cet écran en mémoire sans jamais le
+  /// reconstruire tout seul (voir gestionnaire_app.dart).
+  Future<void> refresh() => _load();
 
   Future<void> _load() async {
     final salleId = context.read<AuthProvider>().user?.salle?.id;

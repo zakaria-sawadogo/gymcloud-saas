@@ -14,14 +14,27 @@ class GestionnaireApp extends StatefulWidget {
 
 class _GestionnaireAppState extends State<GestionnaireApp> {
   int _currentIndex = 0;
+  final _dashboardKey = GlobalKey<DashboardScreenState>();
 
-  final _screens = const [
-    DashboardScreen(),
-    ScannerScreen(),
-    AdherentsListScreen(),
-    PendingPaymentsScreen(),
-    ProspectsScreen(),
+  late final _screens = [
+    DashboardScreen(key: _dashboardKey),
+    const ScannerScreen(),
+    const AdherentsListScreen(),
+    const PendingPaymentsScreen(),
+    const ProspectsScreen(),
   ];
+
+  void _onTap(int index) {
+    setState(() => _currentIndex = index);
+    // §11.x — Les chiffres du jour (revenu, adhérents actifs...)
+    // doivent refléter ce qui vient d'être fait ailleurs (nouvel
+    // adhérent, paiement validé) ; l'IndexedStack garde cet écran en
+    // mémoire sans jamais le recharger tout seul, donc on force un
+    // rafraîchissement à chaque fois qu'on y revient.
+    if (index == 0) {
+      _dashboardKey.currentState?.refresh();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +43,7 @@ class _GestionnaireAppState extends State<GestionnaireApp> {
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
+        onTap: _onTap,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard), label: 'Tableau de bord'),
           BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner_outlined), activeIcon: Icon(Icons.qr_code_scanner), label: 'Scanner'),

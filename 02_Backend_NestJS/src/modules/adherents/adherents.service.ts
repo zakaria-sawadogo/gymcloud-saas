@@ -748,21 +748,43 @@ export class AdherentsService {
    * tout autre échec) — boucle de vérification explicite à la place,
    * jusqu'à trouver un code réellement libre.
    */
+  /**
+   * Génère le prochain code adhérent disponible pour cette salle.
+   *
+   * Avant cette correction : une boucle vérifiait les candidats un par
+   * un (jusqu'à 1000 requêtes séquentielles en pire cas, à l'intérieur
+   * même de la transaction de création) — en pratique lent dès que le
+   * compteur d'adhérents dérive de la réalité (adhérents supprimés,
+   * codes non contigus après des tests répétés...), chaque tentative
+   * ajoutant un aller-retour base de données de plus.
+   *
+   * Maintenant : une seule requête retrouve le plus grand suffixe
+   * numérique réellement utilisé pour cette salle, quel que soit le
+   * nombre d'adhérents existants ou d'éventuels trous dans la
+   * numérotation.
+   */
   private async generateMemberCode(
     salleId: string,
     tx: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<string> {
     const salle = await tx.salle.findUniqueOrThrow({ where: { id: salleId } });
     const prefix = salle.slug.slice(0, 4).toUpperCase();
-    const count = await tx.adherentProfile.count({ where: { salleId } });
 
-    for (let attempt = 0; attempt < 1000; attempt++) {
-      const candidate = `${prefix}-${String(count + 1 + attempt).padStart(5, '0')}`;
+    const lastCode = await tx.adherentProfile.findFirst({
+      where: { salleId, memberCode: { startsWith: `${prefix}-` } },
+      orderBy: { memberCode: 'desc' },
+      select: { memberCode: true },
+    });
+    const lastNumber = lastCode ? parseInt(lastCode.memberCode.split('-')[1] ?? '0', 10) || 0 : 0;
+
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const candidate = `${prefix}-${String(lastNumber + attempt).padStart(5, '0')}`;
       const existing = await tx.adherentProfile.findUnique({ where: { memberCode: candidate } });
       if (!existing) return candidate;
     }
-    // Filet de sécurité si 1000 codes consécutifs sont déjà pris (ne
-    // devrait jamais arriver en pratique) — suffixe aléatoire garanti unique.
+    // Filet de sécurité si une course concurrente a pris les 5
+    // prochains codes entre-temps (ne devrait jamais arriver en
+    // pratique) — suffixe aléatoire garanti unique.
     return `${prefix}-${randomBytes(4).toString('hex').toUpperCase()}`;
   }
 
