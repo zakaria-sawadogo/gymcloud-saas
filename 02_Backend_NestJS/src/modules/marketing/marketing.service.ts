@@ -174,8 +174,10 @@ export class MarketingService {
     if (campaign.channel === 'EMAIL') {
       const results = await Promise.all(
         recipients
-          .filter((r) => r.user.email)
-          .map((r) => this.emailService.send(r.user.email as string, campaign.name, campaign.content, campaign.salle.name)),
+          .filter((r: { user: { email: string | null } }) => r.user.email)
+          .map((r: { user: { email: string | null } }) =>
+            this.emailService.send(r.user.email as string, campaign.name, campaign.content, campaign.salle.name),
+          ),
       );
       emailsSent = results.filter(Boolean).length;
     }

@@ -182,6 +182,7 @@ function CreateAdherentModal({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [abonnementCatalogueId, setAbonnementCatalogueId] = useState('');
   const [method, setMethod] = useState<'ESPECES' | 'ORANGE_MONEY' | 'MOOV_MONEY' | 'WAVE'>('ESPECES');
   const [mobileMoneyPhone, setMobileMoneyPhone] = useState('');
@@ -208,6 +209,7 @@ function CreateAdherentModal({
           firstName,
           lastName,
           phone,
+          email: email || undefined,
           abonnementCatalogueId,
           payment: { method, phoneNumber: isMobileMoney ? mobileMoneyPhone : undefined },
         },
@@ -224,6 +226,7 @@ function CreateAdherentModal({
     setFirstName('');
     setLastName('');
     setPhone('');
+    setEmail('');
     setAbonnementCatalogueId('');
     setMobileMoneyPhone('');
     setResult(null);
@@ -283,6 +286,14 @@ function CreateAdherentModal({
           </Field>
           <Field label="Téléphone">
             <Input required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+226 70 00 00 00" />
+          </Field>
+          <Field label="E-mail (optionnel)">
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Pour recevoir la confirmation par e-mail"
+            />
           </Field>
 
           <p className="mb-3 mt-5 text-xs font-medium uppercase tracking-wide text-ink-400">Formule d'abonnement</p>

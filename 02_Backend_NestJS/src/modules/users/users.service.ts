@@ -11,7 +11,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { TenantContext } from '../../common/decorators/current-user.decorator';
 import { SallesService } from '../salles/salles.service';
 import { StorageService } from '../../common/storage/storage.service';
-import { EmailService } from '../notifications/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   CreateProprietaireDto,
   CreateGestionnaireDto,
@@ -36,7 +36,7 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly sallesService: SallesService,
     private readonly storage: StorageService,
-    private readonly emailService: EmailService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -117,8 +117,8 @@ export class UsersService {
     // pour que le SUPER_ADMIN puisse aussi le communiquer directement
     // si besoin (pas d'adresse e-mail fournie, panne d'envoi...).
     if (dto.email) {
-      await this.emailService.send(
-        dto.email,
+      await this.notifications.create(
+        user.id,
         'Bienvenue sur GymCloud — votre compte propriétaire',
         `Bonjour ${dto.firstName},\n\nVotre compte propriétaire GymCloud a été créé pour "${dto.salleName}".\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
       );
@@ -185,6 +185,14 @@ export class UsersService {
       entityId: profile.id,
     });
 
+    if (dto.email) {
+      await this.notifications.create(
+        user.id,
+        'Bienvenue sur GymCloud — votre compte gestionnaire',
+        `Bonjour ${dto.firstName},\n\nVotre compte gestionnaire GymCloud a été créé pour "${salle.name}".\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
+      );
+    }
+
     return { profile, user, tempPassword };
   }
 
@@ -246,6 +254,14 @@ export class UsersService {
       entityType: 'CoachProfile',
       entityId: profile.id,
     });
+
+    if (dto.email) {
+      await this.notifications.create(
+        user.id,
+        'Bienvenue sur GymCloud — votre compte coach',
+        `Bonjour ${dto.firstName},\n\nVotre compte coach GymCloud a été créé pour "${salle.name}".\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
+      );
+    }
 
     return { profile, user, tempPassword };
   }

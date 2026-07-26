@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { TenantContext } from '../../common/decorators/current-user.decorator';
+import { NotificationsService } from '../notifications/notifications.service';
 import { randomUUID } from 'crypto';
 
 /**
@@ -22,6 +23,7 @@ export class SaasBillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async createPlan(data: {
@@ -772,6 +774,25 @@ export class SaasBillingService {
       },
     });
 
+    // §9.8, §9.12 — Si une validation SUPER_ADMIN est nécessaire (paiement
+    // déclaré par le propriétaire lui-même), personne n'était alerté
+    // jusqu'ici : la demande restait invisible tant qu'un SUPER_ADMIN
+    // n'allait pas la chercher manuellement dans "Facturation SaaS".
+    if (requiresApprovalGate && isSelfService) {
+      const proprietaireUser = await this.prisma.proprietaire.findUnique({
+        where: { id: subscription.proprietaireId },
+        select: { user: { select: { firstName: true, lastName: true } } },
+      });
+      if (proprietaireUser) {
+        await this.notifications.notifySuperAdminsPlanChangePending(
+          `${proprietaireUser.user.firstName} ${proprietaireUser.user.lastName}`,
+          newPlan.name,
+          Math.abs(prorataDifference),
+          'XOF', // §9.3 — les plans SaaS eux-mêmes sont toujours tarifés en XOF
+        );
+      }
+    }
+
     return {
       subscription: updated,
       planChangeApplied,
@@ -1332,7 +1353,16 @@ export class SaasBillingService {
 
     await this.reactivateSubscriptionIfNeeded(invoice, actorUserId);
 
-    // TODO(module notifications): confirmer la validation au propriétaire.
+    const currentSubscription = await this.prisma.saasSubscription.findUnique({
+      where: { id: invoice.subscriptionId },
+      include: { saasPlan: { select: { name: true } }, proprietaire: { select: { userId: true } } },
+    });
+    if (currentSubscription) {
+      await this.notifications.notifyProprietairePlanChangeApproved(
+        currentSubscription.proprietaire.userId,
+        currentSubscription.saasPlan.name,
+      );
+    }
 
     return updated;
   }

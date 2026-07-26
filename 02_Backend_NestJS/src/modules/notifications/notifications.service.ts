@@ -103,6 +103,38 @@ export class NotificationsService {
   }
 
   /**
+   * §9.8, §9.12 — Alerte tous les SUPER_ADMIN qu'un propriétaire a
+   * déclaré un paiement pour un changement/réabonnement de plan SaaS,
+   * en attente de validation (un propriétaire ne peut jamais
+   * s'auto-valider — voir SaasBillingService.changePlan).
+   */
+  async notifySuperAdminsPlanChangePending(proprietaireName: string, planName: string, amount: number, currency: string) {
+    const superAdmins = await this.prisma.user.findMany({
+      where: { role: { code: 'SUPER_ADMIN' } },
+      select: { id: true },
+    });
+    if (superAdmins.length === 0) return;
+
+    await this.createForUsers(
+      superAdmins.map((u: { id: string }) => u.id),
+      'Changement de plan SaaS à valider',
+      `${proprietaireName} a déclaré un paiement de ${amount} ${currency} pour passer au plan "${planName}" — à confirmer dans "Facturation SaaS".`,
+    );
+  }
+
+  /**
+   * §9.8, §9.12 — Alerte le propriétaire qu'un SUPER_ADMIN a validé son
+   * changement/réabonnement de plan SaaS déclaré.
+   */
+  async notifyProprietairePlanChangeApproved(proprietaireUserId: string, planName: string) {
+    await this.create(
+      proprietaireUserId,
+      'Changement de plan confirmé',
+      `Votre paiement a été validé — votre abonnement GymCloud est maintenant sur le plan "${planName}".`,
+    );
+  }
+
+  /**
    * §6.14 — Alerte le gestionnaire et le propriétaire d'une salle
    * qu'un adhérent a tenté de pointer son entrée (auto-pointage) mais
    * a été refusé — abonnement expiré ou compte suspendu. Permet un

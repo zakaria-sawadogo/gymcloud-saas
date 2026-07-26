@@ -26,6 +26,7 @@ class _CreateAdherentScreenState extends State<CreateAdherentScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
   final _mobileMoneyPhoneController = TextEditingController();
   List<AbonnementCatalogue> _catalogue = [];
   AbonnementCatalogue? _selected;
@@ -69,6 +70,7 @@ class _CreateAdherentScreenState extends State<CreateAdherentScreen> {
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
         phone: _phoneController.text.trim(),
+        email: _emailController.text.trim().isNotEmpty ? _emailController.text.trim() : null,
         abonnementCatalogueId: _selected!.id,
         paymentMethod: _paymentMethod,
         paymentPhoneNumber: _paymentMethod != 'ESPECES' ? _mobileMoneyPhoneController.text.trim() : null,
@@ -86,6 +88,7 @@ class _CreateAdherentScreenState extends State<CreateAdherentScreen> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _phoneController.dispose();
+    _emailController.dispose();
     _mobileMoneyPhoneController.dispose();
     super.dispose();
   }
@@ -159,6 +162,12 @@ class _CreateAdherentScreenState extends State<CreateAdherentScreen> {
           controller: _phoneController,
           keyboardType: TextInputType.phone,
           decoration: const InputDecoration(labelText: 'Téléphone'),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'E-mail (optionnel)', hintText: 'Pour recevoir la confirmation'),
         ),
         const SizedBox(height: 20),
         const Text('Formule', style: TextStyle(fontWeight: FontWeight.w600)),

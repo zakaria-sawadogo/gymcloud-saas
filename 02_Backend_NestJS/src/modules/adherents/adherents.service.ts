@@ -168,6 +168,17 @@ export class AdherentsService {
             actorUserId,
           );
 
+    // §4.5 — Sans adresse e-mail (champ optionnel), le mot de passe
+    // temporaire reste communiqué directement par le gestionnaire au
+    // guichet — voir tempPassword retourné ci-dessous.
+    if (user.email) {
+      await this.notifications.create(
+        user.id,
+        'Bienvenue sur GymCloud',
+        `Bonjour ${dto.firstName},\n\nVotre compte adhérent a été créé.\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
+      );
+    }
+
     return { adherent, user, tempPassword, subscription, payment: paymentResult };
   }
 
@@ -181,7 +192,7 @@ export class AdherentsService {
     const adherent = await this.prisma.adherentProfile.findUnique({
       where: { id: adherentId },
       include: {
-        user: true,
+        user: { select: { id: true, firstName: true, lastName: true, phone: true, email: true, status: true } },
         subscriptions: { include: { abonnementCatalogue: true }, orderBy: { startDate: 'desc' } },
       },
     });
@@ -641,7 +652,17 @@ export class AdherentsService {
       metadata: { paymentId },
     });
 
-    // TODO(module notifications): confirmer l'activation à l'adhérent.
+    const adherentUser = await this.prisma.adherentProfile.findUnique({
+      where: { id: payment.adherentId! },
+      select: { userId: true },
+    });
+    if (adherentUser) {
+      await this.notifications.create(
+        adherentUser.userId,
+        'Réabonnement confirmé',
+        `Votre paiement a été validé et votre abonnement est maintenant actif jusqu'au ${subscription.endDate.toLocaleDateString('fr-FR')}.`,
+      );
+    }
 
     return { payment: updated, subscription, receipt };
   }
@@ -670,7 +691,17 @@ export class AdherentsService {
       metadata: { reason },
     });
 
-    // TODO(module notifications): informer l'adhérent du rejet et du motif.
+    const adherentUser = await this.prisma.adherentProfile.findUnique({
+      where: { id: payment.adherentId! },
+      select: { userId: true },
+    });
+    if (adherentUser) {
+      await this.notifications.create(
+        adherentUser.userId,
+        'Demande de réabonnement refusée',
+        `Votre demande de réabonnement n'a pas pu être validée${reason ? ` : ${reason}` : ''}. Contactez votre salle pour régulariser.`,
+      );
+    }
 
     return updated;
   }
