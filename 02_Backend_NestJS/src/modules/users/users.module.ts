@@ -6,9 +6,10 @@ import { CoachsController } from './coachs.controller';
 import { InternalUsersController } from './internal-users.controller';
 import { SallesModule } from '../salles/salles.module';
 import { StorageModule } from '../../common/storage/storage.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [SallesModule, StorageModule],
+  imports: [SallesModule, StorageModule, NotificationsModule],
   controllers: [ProprietairesController, GestionnairesController, CoachsController, InternalUsersController],
   providers: [UsersService],
   exports: [UsersService], // consommé par le futur module Adhérents (auto-complétion propriétaire)

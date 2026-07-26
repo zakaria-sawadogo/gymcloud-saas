@@ -11,6 +11,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import { TenantContext } from '../../common/decorators/current-user.decorator';
 import { SallesService } from '../salles/salles.service';
 import { StorageService } from '../../common/storage/storage.service';
+import { EmailService } from '../notifications/email.service';
 import {
   CreateProprietaireDto,
   CreateGestionnaireDto,
@@ -35,6 +36,7 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly sallesService: SallesService,
     private readonly storage: StorageService,
+    private readonly emailService: EmailService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -107,9 +109,21 @@ export class UsersService {
       metadata: { salleId: salle.id },
     });
 
-    // TODO(module notifications): envoyer tempPassword par SMS/WhatsApp,
-    // jamais par retour d'API en production — exposé ici uniquement
-    // pour faciliter les tests durant le développement.
+    // §2.4, §2.8 — Le propriétaire est rarement physiquement présent
+    // avec le SUPER_ADMIN qui crée son compte (contrairement à un
+    // adhérent inscrit au guichet) : sans e-mail, il n'aurait aucun
+    // moyen de connaître son mot de passe. L'e-mail est un
+    // complément — tempPassword continue d'être renvoyé ci-dessous
+    // pour que le SUPER_ADMIN puisse aussi le communiquer directement
+    // si besoin (pas d'adresse e-mail fournie, panne d'envoi...).
+    if (dto.email) {
+      await this.emailService.send(
+        dto.email,
+        'Bienvenue sur GymCloud — votre compte propriétaire',
+        `Bonjour ${dto.firstName},\n\nVotre compte propriétaire GymCloud a été créé pour "${dto.salleName}".\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
+      );
+    }
+
     return { proprietaire, salle, user, tempPassword };
   }
 
