@@ -76,6 +76,8 @@ services:
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-changeme_dev_only}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-notifications@gymcloud.sahelsystem.com}
       NODE_ENV: production
       PORT: 3000
     ports:
