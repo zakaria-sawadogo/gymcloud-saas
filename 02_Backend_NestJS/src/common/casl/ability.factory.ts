@@ -19,6 +19,7 @@ export type Subjects =
   | 'Prospect'
   | 'SaasSubscriptionRequest'
   | 'Country'
+  | 'PlatformSettings'
   | 'all';
 
 export type AppAbility = MongoAbility<[Actions, Subjects]>;

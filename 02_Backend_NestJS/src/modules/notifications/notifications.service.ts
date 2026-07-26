@@ -1,25 +1,42 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from './email.service';
 import { randomUUID } from 'crypto';
 
 export type NotificationChannel = 'PUSH' | 'SMS' | 'EMAIL' | 'WHATSAPP' | 'IN_APP';
 
 /**
- * §6.5, §6.14 — Notifications internes. Seul le canal IN_APP est
- * réellement acheminé pour l'instant (consultable dans l'app/le web) :
- * aucune passerelle SMS/WhatsApp n'est branchée, et PUSH nécessiterait
- * une configuration Firebase dédiée non mise en place — les valeurs
- * SMS/WHATSAPP/PUSH restent définies dans le schéma pour une évolution
- * future, mais ne déclenchent aucun envoi réel aujourd'hui.
+ * §6.5, §6.14, §14.x — Notifications internes. Chaque notification
+ * est toujours consultable in-app (cloche web, badge mobile), ET
+ * envoyée par e-mail en parallèle si l'utilisateur en a un enregistré
+ * — aucune passerelle SMS/WhatsApp n'est branchée, et PUSH
+ * nécessiterait une configuration Firebase dédiée non mise en place ;
+ * les valeurs SMS/WHATSAPP/PUSH restent définies dans le schéma pour
+ * une évolution future, mais ne déclenchent aucun envoi réel
+ * aujourd'hui — seul IN_APP + e-mail le sont.
  */
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   async create(userId: string, title: string, body: string, channel: NotificationChannel = 'IN_APP') {
-    return this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: { id: randomUUID(), userId, channel, title, body },
     });
+
+    // L'e-mail est un complément à la notification in-app, jamais un
+    // remplacement — une panne d'envoi (ou une adresse absente) ne
+    // doit jamais faire échouer la création de la notification
+    // elle-même, déjà actée ci-dessus.
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (user?.email) {
+      await this.emailService.send(user.email, title, body);
+    }
+
+    return notification;
   }
 
   async createForUsers(userIds: string[], title: string, body: string) {

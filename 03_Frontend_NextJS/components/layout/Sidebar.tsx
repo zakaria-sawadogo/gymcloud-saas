@@ -18,6 +18,7 @@ import {
   Globe,
   BarChart3,
   LogOut,
+  Mail,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
@@ -43,6 +44,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Facturation SaaS', href: '/facturation-saas', icon: CreditCard },
     { label: 'Personnel interne', href: '/personnel-interne', icon: ShieldCheck },
     { label: 'Pays', href: '/pays', icon: Globe },
+    { label: 'Contacts', href: '/contacts', icon: Mail },
     { label: 'Statistiques', href: '/statistiques', icon: BarChart3 },
   ],
   PROPRIETAIRE: [

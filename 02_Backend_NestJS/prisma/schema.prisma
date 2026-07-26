@@ -1173,3 +1173,20 @@ model SaasSubscriptionRequest {
   @@map("saas_subscription_requests")
 }
 
+/// §14.x — Coordonnées de contact de la plateforme GymCloud elle-même
+/// (support, adresse d'envoi des e-mails de notification...), éditables
+/// par le SUPER_ADMIN depuis son tableau de bord. Table singleton : une
+/// seule ligne existe jamais, retrouvée par un identifiant fixe
+/// ("platform") plutôt qu'un UUID généré, pour un accès direct sans
+/// requête de recherche préalable.
+model PlatformSettings {
+  id              String   @id @default("platform")
+  supportEmail    String?
+  supportPhone    String?
+  whatsappNumber  String?
+  updatedByUserId String?
+  updatedAt       DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
