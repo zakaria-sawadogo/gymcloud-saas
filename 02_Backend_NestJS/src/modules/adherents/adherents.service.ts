@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PaymentTypeDto } from '../payments/dto/payments.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 import { TenantContext } from '../../common/decorators/current-user.decorator';
 import {
   CreateAdherentDto,
@@ -33,6 +34,7 @@ export class AdherentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly paymentsService: PaymentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -569,7 +571,17 @@ export class AdherentsService {
       metadata: { abonnementCatalogueId: catalogue.id, amount: Number(catalogue.price) },
     });
 
-    // TODO(module notifications): alerter le gestionnaire d'une nouvelle demande.
+    const requester = await this.prisma.adherentProfile.findUnique({
+      where: { id: adherent.id },
+      select: { user: { select: { firstName: true, lastName: true } } },
+    });
+    await this.notifications.notifyNewSubscriptionRequest(
+      adherent.salleId,
+      `${requester?.user.firstName ?? ''} ${requester?.user.lastName ?? ''}`.trim(),
+      Number(catalogue.price),
+      catalogue.currency,
+      dto.paymentMethod,
+    );
 
     return payment;
   }

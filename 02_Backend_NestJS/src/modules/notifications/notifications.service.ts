@@ -54,6 +54,38 @@ export class NotificationsService {
   }
 
   /**
+   * §5.6, §8.3 — Alerte le gestionnaire et le propriétaire qu'un
+   * adhérent a soumis une demande de réabonnement depuis l'app
+   * mobile — un paiement (espèces ou Mobile Money) reste "En attente"
+   * tant que ce n'est pas confirmé côté salle ; sans cette alerte,
+   * rien n'indiquait qu'une confirmation était nécessaire.
+   */
+  async notifyNewSubscriptionRequest(
+    salleId: string,
+    adherentName: string,
+    amount: number,
+    currency: string,
+    method: string,
+  ) {
+    const [gestionnaires, salle] = await Promise.all([
+      this.prisma.gestionnaireProfile.findMany({ where: { salleId }, select: { userId: true } }),
+      this.prisma.salle.findUnique({ where: { id: salleId }, select: { proprietaire: { select: { userId: true } } } }),
+    ]);
+
+    const recipientUserIds = [
+      ...gestionnaires.map((g: { userId: string }) => g.userId),
+      ...(salle?.proprietaire ? [salle.proprietaire.userId] : []),
+    ];
+    if (recipientUserIds.length === 0) return;
+
+    await this.createForUsers(
+      recipientUserIds,
+      'Nouvelle demande de réabonnement',
+      `${adherentName} demande un réabonnement (${amount} ${currency} par ${method}) — à confirmer dans "Paiements en attente".`,
+    );
+  }
+
+  /**
    * §6.14 — Alerte le gestionnaire et le propriétaire d'une salle
    * qu'un adhérent a tenté de pointer son entrée (auto-pointage) mais
    * a été refusé — abonnement expiré ou compte suspendu. Permet un
