@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { EmailService } from '../notifications/email.service';
 import {
   CreateMessageTemplateDto,
   CreateCampaignDto,
@@ -22,6 +23,7 @@ export class MarketingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly emailService: EmailService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -56,26 +58,28 @@ export class MarketingService {
    * pour l'envoi effectif.
    */
   async resolveSegment(salleId: string, criteria: SegmentCriteriaDto) {
+    const userSelect = { select: { firstName: true, lastName: true, email: true, phone: true } };
+
     switch (criteria.type) {
       case 'TOUS':
-        return this.prisma.adherentProfile.findMany({ where: { salleId }, include: { user: true } });
+        return this.prisma.adherentProfile.findMany({ where: { salleId }, include: { user: userSelect } });
 
       case 'ACTIFS':
         return this.prisma.adherentProfile.findMany({
           where: { salleId, status: 'ACTIF' },
-          include: { user: true },
+          include: { user: userSelect },
         });
 
       case 'EXPIRES':
         return this.prisma.adherentProfile.findMany({
           where: { salleId, status: 'EXPIRE' },
-          include: { user: true },
+          include: { user: userSelect },
         });
 
       case 'EN_GRACE':
         return this.prisma.adherentProfile.findMany({
           where: { salleId, status: 'EN_GRACE' },
-          include: { user: true },
+          include: { user: userSelect },
         });
 
       case 'INACTIFS': {
@@ -94,7 +98,7 @@ export class MarketingService {
 
         const candidates = await this.prisma.adherentProfile.findMany({
           where: { salleId, status: 'ACTIF' },
-          include: { user: true },
+          include: { user: userSelect },
         });
         return candidates.filter((a: { id: string }) => !activeIds.has(a.id));
       }
@@ -142,9 +146,20 @@ export class MarketingService {
     return { count: recipients.length };
   }
 
+  /**
+   * §10.1 à §10.9 — Envoi d'une campagne. Seul le canal EMAIL est
+   * réellement acheminé (via Resend, module Notifications) : aucune
+   * passerelle SMS/WhatsApp/Push n'est branchée à ce jour. Pour ces
+   * canaux, la campagne reste enregistrée (segmentation, compteur de
+   * destinataires) mais rien n'est réellement envoyé — pour éviter
+   * de laisser croire qu'un message a été livré alors qu'il ne l'a
+   * pas été, `emailsSent` distingue explicitement le nombre réel
+   * d'e-mails partis du simple nombre de destinataires ciblés.
+   */
   async send(campaignId: string, actorUserId: string) {
     const campaign = await this.prisma.marketingCampaign.findUniqueOrThrow({
       where: { id: campaignId },
+      include: { salle: { select: { name: true } } },
     });
     if (campaign.status === 'ENVOYEE') {
       throw new BadRequestException('Cette campagne a déjà été envoyée');
@@ -155,10 +170,19 @@ export class MarketingService {
       campaign.targetSegment as unknown as SegmentCriteriaDto,
     );
 
-    // TODO(module notifications): envoi effectif via le canal choisi
-    // (SMS/Email/WhatsApp/Push) pour chaque destinataire de `recipients`.
-    // Ce service se contente d'orchestrer la segmentation et le
-    // journal ; l'acheminement réel est délégué au module Notifications.
+    let emailsSent = 0;
+    if (campaign.channel === 'EMAIL') {
+      const results = await Promise.all(
+        recipients
+          .filter((r: { user: { email?: string } }) => r.user.email)
+          .map((r: { user: { email?: string } }) =>
+            this.emailService.send(r.user.email!, campaign.name, campaign.content, campaign.salle.name),
+          ),
+      );
+      emailsSent = results.filter(Boolean).length;
+    }
+    // SMS/WHATSAPP/PUSH : aucune passerelle branchée — la campagne est
+    // journalisée (segmentation, compteur) mais rien n'est envoyé.
 
     const updated = await this.prisma.marketingCampaign.update({
       where: { id: campaignId },
@@ -175,10 +199,10 @@ export class MarketingService {
       action: 'marketing_campaign.send',
       entityType: 'MarketingCampaign',
       entityId: campaignId,
-      metadata: { recipientCount: recipients.length },
+      metadata: { recipientCount: recipients.length, emailsSent, channel: campaign.channel },
     });
 
-    return updated;
+    return { ...updated, emailsSent };
   }
 
   async listCampaigns(salleId: string) {

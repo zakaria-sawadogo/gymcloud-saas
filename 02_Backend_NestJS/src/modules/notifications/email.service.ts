@@ -32,7 +32,7 @@ export class EmailService {
     }
   }
 
-  async send(to: string, subject: string, body: string): Promise<boolean> {
+  async send(to: string, subject: string, body: string, fromName = 'GymCloud'): Promise<boolean> {
     if (!this.apiKey) return false;
     try {
       const res = await fetch('https://api.resend.com/emails', {
@@ -42,7 +42,7 @@ export class EmailService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: `GymCloud <${this.fromAddress}>`,
+          from: `${fromName} <${this.fromAddress}>`,
           to: [to],
           subject,
           html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
