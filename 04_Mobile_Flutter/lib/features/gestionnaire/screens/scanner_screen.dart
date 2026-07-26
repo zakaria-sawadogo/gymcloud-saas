@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
@@ -19,7 +20,7 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen> {
-  final MobileScannerController _controller = MobileScannerController();
+  final MobileScannerController _controller = MobileScannerController(formats: [BarcodeFormat.qrCode]);
   late final GestionnaireRepository _repo;
   bool _isProcessing = false;
   _ScanResult? _lastResult;
@@ -53,6 +54,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
           isError: false,
           direction: result['direction'] ?? '',
           message: result['direction'] == 'ENTREE' ? 'Entrée enregistrée' : 'Sortie enregistrée',
+          adherentName: result['adherentName'],
+          subscriptionEndDate: result['subscriptionEndDate'] != null
+              ? DateFormat('dd/MM/yyyy', 'fr_FR').format(DateTime.parse(result['subscriptionEndDate']))
+              : null,
         );
       });
     } on ApiException catch (e) {
@@ -71,7 +76,27 @@ class _ScannerScreenState extends State<ScannerScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          MobileScanner(controller: _controller, onDetect: _handleDetection),
+          MobileScanner(
+            controller: _controller,
+            onDetect: _handleDetection,
+            errorBuilder: (context, error) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.white, size: 40),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Erreur caméra : ${error.errorCode}\n${error.errorDetails?.message ?? ''}',
+                      style: const TextStyle(color: Colors.white),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           _ScannerOverlay(),
           if (_lastResult != null)
             Positioned(
@@ -90,7 +115,15 @@ class _ScanResult {
   final bool isError;
   final String direction;
   final String message;
-  _ScanResult({required this.isError, required this.direction, required this.message});
+  final String? adherentName;
+  final String? subscriptionEndDate;
+  _ScanResult({
+    required this.isError,
+    required this.direction,
+    required this.message,
+    this.adherentName,
+    this.subscriptionEndDate,
+  });
 }
 
 class _ScannerOverlay extends StatelessWidget {
@@ -120,15 +153,29 @@ class _ResultBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             result.isError ? Icons.error_outline : (result.direction == 'ENTREE' ? Icons.login : Icons.logout),
             color: Colors.white,
           ),
           const SizedBox(width: 10),
-          Flexible(
-            child: Text(result.message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (result.adherentName != null)
+                  Text(
+                    result.adherentName!,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                Text(result.message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                if (result.subscriptionEndDate != null)
+                  Text(
+                    'Abonnement jusqu\'au ${result.subscriptionEndDate}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+              ],
+            ),
           ),
         ],
       ),

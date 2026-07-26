@@ -20,7 +20,7 @@ dependencies:
 
   # QR Code
   qr_flutter: ^4.1.0               # affichage du QR code adhérent (§6, écran d'accès rapide)
-  mobile_scanner: ^6.0.2           # scan QR côté app Gestionnaire (contrôle d'accès mobile) + auto-pointage adhérent
+  mobile_scanner: ^7.0.0           # scan QR côté app Gestionnaire (contrôle d'accès mobile) + auto-pointage adhérent — 7.x requis pour Android 16 (6.0.11 plante sur Galaxy S23/Android 16)
   url_launcher: ^6.3.1             # ouvrir le site public de la salle dans le navigateur
   path_provider: ^2.1.5            # dossier temporaire pour enregistrer la carte de membre (PDF) avant partage
   share_plus: ^10.1.4              # partager/enregistrer la carte de membre téléchargée

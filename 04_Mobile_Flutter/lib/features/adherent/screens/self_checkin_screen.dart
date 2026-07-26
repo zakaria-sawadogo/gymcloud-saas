@@ -18,7 +18,7 @@ class SelfCheckinScreen extends StatefulWidget {
 }
 
 class _SelfCheckinScreenState extends State<SelfCheckinScreen> {
-  final MobileScannerController _controller = MobileScannerController();
+  final MobileScannerController _controller = MobileScannerController(formats: [BarcodeFormat.qrCode]);
   late final AdherentRepository _repo;
   bool _isProcessing = false;
   _CheckinResult? _lastResult;
@@ -71,7 +71,27 @@ class _SelfCheckinScreenState extends State<SelfCheckinScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          MobileScanner(controller: _controller, onDetect: _handleDetection),
+          MobileScanner(
+            controller: _controller,
+            onDetect: _handleDetection,
+            errorBuilder: (context, error) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.white, size: 40),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Erreur caméra : ${error.errorCode}\n${error.errorDetails?.message ?? ''}',
+                      style: const TextStyle(color: Colors.white),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           Center(
             child: Container(
               width: 240,

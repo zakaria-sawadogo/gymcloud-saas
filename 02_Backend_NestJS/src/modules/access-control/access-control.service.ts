@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nest
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const AUTO_CLOSE_AFTER_HOURS = 6; // durée max d'une session avant fermeture automatique (§6.8)
 
@@ -21,6 +22,7 @@ export class AccessControlService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -87,7 +89,10 @@ export class AccessControlService {
       throw new NotFoundException('QR code de salle invalide ou inconnu');
     }
 
-    const adherent = await this.prisma.adherentProfile.findUnique({ where: { userId: callerUserId } });
+    const adherent = await this.prisma.adherentProfile.findUnique({
+      where: { userId: callerUserId },
+      include: { user: { select: { firstName: true, lastName: true } } },
+    });
     if (!adherent) {
       throw new ForbiddenException('Seul un adhérent peut pointer son propre accès de cette façon');
     }
@@ -103,7 +108,20 @@ export class AccessControlService {
     if (openSession) {
       return this.checkOut(openSession.id);
     }
-    return this.checkIn(adherent.id, salle.id, 'AUTO_ADHERENT');
+
+    try {
+      return await this.checkIn(adherent.id, salle.id, 'AUTO_ADHERENT');
+    } catch (error) {
+      // §6.14 — L'adhérent voit lui-même le refus immédiatement ; en
+      // plus de ça, on alerte le gestionnaire et le propriétaire pour
+      // un suivi commercial rapide (relance de réabonnement), sans
+      // attendre que l'adhérent ne se manifeste de son côté.
+      if (error instanceof ForbiddenException) {
+        const adherentName = `${adherent.user.firstName} ${adherent.user.lastName}`;
+        await this.notifications.notifyAccessDenied(salle.id, adherentName, error.message);
+      }
+      throw error;
+    }
   }
 
   private async checkIn(
@@ -115,6 +133,7 @@ export class AccessControlService {
     const adherent = await this.prisma.adherentProfile.findUniqueOrThrow({
       where: { id: adherentId },
       include: {
+        user: { select: { firstName: true, lastName: true } },
         subscriptions: {
           where: { status: { in: ['ACTIF', 'EN_GRACE'] } },
           orderBy: { endDate: 'desc' },
@@ -122,6 +141,7 @@ export class AccessControlService {
         },
       },
     });
+    const adherentName = `${adherent.user.firstName} ${adherent.user.lastName}`;
 
     // Vérification en temps réel du statut (§6.5) — bloque avant toute écriture
     if (adherent.status === 'SUSPENDU') {
@@ -142,15 +162,26 @@ export class AccessControlService {
       },
     });
 
-    return { ...log, direction: 'ENTREE' as const, adherentStatus: adherent.status };
+    return {
+      ...log,
+      direction: 'ENTREE' as const,
+      adherentStatus: adherent.status,
+      adherentName,
+      subscriptionEndDate: adherent.subscriptions[0]?.endDate ?? null,
+    };
   }
 
   private async checkOut(accessLogId: string, actorUserId?: string) {
     const log = await this.prisma.accessLog.update({
       where: { id: accessLogId },
       data: { checkOutAt: new Date() },
+      include: { adherent: { select: { user: { select: { firstName: true, lastName: true } } } } },
     });
-    return { ...log, direction: 'SORTIE' as const };
+    return {
+      ...log,
+      direction: 'SORTIE' as const,
+      adherentName: `${log.adherent.user.firstName} ${log.adherent.user.lastName}`,
+    };
   }
 
   // ─────────────────────────────────────────────────────────────

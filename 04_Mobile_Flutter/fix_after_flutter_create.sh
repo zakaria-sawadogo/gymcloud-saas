@@ -35,8 +35,8 @@ fi
 
 PODFILE="ios/Podfile"
 if [ -f "$PODFILE" ]; then
-  if grep -q "^# platform :ios, '13.0'" "$PODFILE"; then
-    sed -i.bak "s#^# platform :ios, '13.0'#platform :ios, '15.5'#" "$PODFILE"
+  if grep -q "platform :ios, '13.0'" "$PODFILE"; then
+    sed -i.bak "s/platform :ios, '13.0'/platform :ios, '15.5'/" "$PODFILE"
     rm -f "$PODFILE.bak"
     echo "✔ Podfile : cible iOS relevée à 15.5"
   elif grep -q "^platform :ios" "$PODFILE"; then

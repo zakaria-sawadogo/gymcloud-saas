@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { NotificationBell } from '@/components/layout/NotificationBell';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -28,7 +29,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen bg-ink-50">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-8">{children}</main>
+      <main className="relative flex-1 overflow-y-auto p-8">
+        <div className="absolute right-8 top-8 z-40">
+          <NotificationBell />
+        </div>
+        {children}
+      </main>
     </div>
   );
 }
