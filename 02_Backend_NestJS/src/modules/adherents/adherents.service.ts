@@ -61,6 +61,12 @@ export class AdherentsService {
     if (existing) {
       throw new ConflictException('Un utilisateur existe déjà avec ce numéro de téléphone');
     }
+    if (dto.email) {
+      const existingEmail = await this.prisma.user.findUnique({ where: { email: dto.email } });
+      if (existingEmail) {
+        throw new ConflictException('Un utilisateur existe déjà avec cette adresse e-mail');
+      }
+    }
 
     const salle = await this.prisma.salle.findUnique({ where: { id: dto.salleId } });
     if (!salle) throw new NotFoundException('Salle introuvable');

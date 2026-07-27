@@ -476,6 +476,12 @@ export class UsersService {
     if (existing) {
       throw new ConflictException('Un utilisateur existe déjà avec ce numéro de téléphone');
     }
+    if (input.email) {
+      const existingEmail = await this.prisma.user.findUnique({ where: { email: input.email } });
+      if (existingEmail) {
+        throw new ConflictException('Un utilisateur existe déjà avec cette adresse e-mail');
+      }
+    }
 
     const role = input.roleId
       ? await this.prisma.role.findUniqueOrThrow({ where: { id: input.roleId } })
