@@ -40,11 +40,18 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     final adherentId = context.read<AuthProvider>().user?.adherentId;
     if (adherentId == null) return;
     setState(() => _isLoading = true);
-    final payments = await _repo.getPayments(adherentId);
-    setState(() {
-      _payments = payments;
-      _isLoading = false;
-    });
+    try {
+      final payments = await _repo.getPayments(adherentId);
+      setState(() => _payments = payments);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossible de charger les paiements : $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
