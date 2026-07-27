@@ -559,6 +559,97 @@ export function LandingPage() {
           </div>
         </section>
 
+        {/* PRICING */}
+        <section id="tarifs" style={{ background: 'var(--paper-dim)' }}>
+          <div className={c('wrap')}>
+            <div className={c('section-head', 'reveal')}>
+              <span className={c('kicker')}>Tarifs</span>
+              <h2>Un plan pour chaque étape de votre croissance</h2>
+              <p>Changez de formule à tout moment — le prorata est calculé automatiquement, sans surprise sur la facture.</p>
+            </div>
+
+            <div className={c('pricing-grid', 'reveal')}>
+              {plans.map((plan) => (
+                <div key={plan.id} className={c('plan', ...(plan.code === 'PROFESSIONAL' ? ['featured'] : []))}>
+                  {plan.code === 'PROFESSIONAL' && <span className={c('plan-tag')}>Le plus choisi</span>}
+                  <div className={c('plan-name')}>{plan.name}</div>
+                  <div className={c('plan-desc')}>{plan.description}</div>
+                  <div className={c('plan-price')}>
+                    <span className={c('amount')}>{Math.round(plan.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')}</span>
+                    <span className={c('unit')}>XOF / mois</span>
+                  </div>
+                  <ul className={c('plan-feats')}>
+                    {buildPlanFeatures(plan).map((feat) => (
+                      <li key={feat}>
+                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                          <path d="M2.5 8l3.5 3.5L12.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        {feat}
+                      </li>
+                    ))}
+                  </ul>
+                  <a href="#contact" className={c('plan-cta')}>
+                    {plan.trialDays > 0 ? "Démarrer l'essai gratuit" : 'Parler à un conseiller'}
+                  </a>
+                </div>
+              ))}
+              {plans.length === 0 && (
+                <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--ink-400, #71767A)' }}>
+                  Chargement des tarifs...
+                </p>
+              )}
+            </div>
+            <p className={c('pricing-note')}>
+              Tarifs indicatifs en XOF, hors taxes locales éventuelles. Salle supplémentaire au-delà du quota inclus : facturation à l'usage.
+            </p>
+
+            {addons.length > 0 && (
+              <div
+                className={c('reveal')}
+                style={{ marginTop: '56px', paddingTop: '40px', borderTop: '1px solid var(--line, #E5E7E8)' }}
+              >
+                <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                  <span className={c('kicker')}>Add-ons</span>
+                  <h3 style={{ margin: '8px 0 6px' }}>Des extras à la carte, jamais imposés</h3>
+                  <p style={{ opacity: 0.75, maxWidth: '520px', margin: '0 auto' }}>
+                    Activables à tout moment depuis votre espace, en plus de votre plan.
+                  </p>
+                </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '16px',
+                    maxWidth: '860px',
+                    margin: '0 auto',
+                  }}
+                >
+                  {addons.map((addon) => (
+                    <div
+                      key={addon.id}
+                      style={{
+                        background: 'var(--paper, #fff)',
+                        border: '1px solid var(--line, #E5E7E8)',
+                        borderRadius: '12px',
+                        padding: '18px',
+                      }}
+                    >
+                      <p style={{ fontWeight: 600, marginBottom: '4px' }}>{addon.name}</p>
+                      {addon.description && (
+                        <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '10px' }}>{addon.description}</p>
+                      )}
+                      <p style={{ fontWeight: 600 }}>
+                        +{Math.round(addon.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF
+                        <span style={{ fontWeight: 400, opacity: 0.7 }}> / mois</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* MODULES */}
         <section id="modules" style={{ background: 'var(--paper-dim)' }}>
           <div className={c('wrap')}>
@@ -654,97 +745,6 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* PRICING */}
-        <section id="tarifs" style={{ background: 'var(--paper-dim)' }}>
-          <div className={c('wrap')}>
-            <div className={c('section-head', 'reveal')}>
-              <span className={c('kicker')}>Tarifs</span>
-              <h2>Un plan pour chaque étape de votre croissance</h2>
-              <p>Changez de formule à tout moment — le prorata est calculé automatiquement, sans surprise sur la facture.</p>
-            </div>
-
-            <div className={c('pricing-grid', 'reveal')}>
-              {plans.map((plan) => (
-                <div key={plan.id} className={c('plan', ...(plan.code === 'PROFESSIONAL' ? ['featured'] : []))}>
-                  {plan.code === 'PROFESSIONAL' && <span className={c('plan-tag')}>Le plus choisi</span>}
-                  <div className={c('plan-name')}>{plan.name}</div>
-                  <div className={c('plan-desc')}>{plan.description}</div>
-                  <div className={c('plan-price')}>
-                    <span className={c('amount')}>{Math.round(plan.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')}</span>
-                    <span className={c('unit')}>XOF / mois</span>
-                  </div>
-                  <ul className={c('plan-feats')}>
-                    {buildPlanFeatures(plan).map((feat) => (
-                      <li key={feat}>
-                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                          <path d="M2.5 8l3.5 3.5L12.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        {feat}
-                      </li>
-                    ))}
-                  </ul>
-                  <a href="#contact" className={c('plan-cta')}>
-                    {plan.trialDays > 0 ? "Démarrer l'essai gratuit" : 'Parler à un conseiller'}
-                  </a>
-                </div>
-              ))}
-              {plans.length === 0 && (
-                <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--ink-400, #71767A)' }}>
-                  Chargement des tarifs...
-                </p>
-              )}
-            </div>
-            <p className={c('pricing-note')}>
-              Tarifs indicatifs en XOF, hors taxes locales éventuelles. Salle supplémentaire au-delà du quota inclus : facturation à l'usage.
-            </p>
-
-            {addons.length > 0 && (
-              <div
-                className={c('reveal')}
-                style={{ marginTop: '56px', paddingTop: '40px', borderTop: '1px solid var(--line, #E5E7E8)' }}
-              >
-                <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-                  <span className={c('kicker')}>Add-ons</span>
-                  <h3 style={{ margin: '8px 0 6px' }}>Des extras à la carte, jamais imposés</h3>
-                  <p style={{ opacity: 0.75, maxWidth: '520px', margin: '0 auto' }}>
-                    Activables à tout moment depuis votre espace, en plus de votre plan.
-                  </p>
-                </div>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: '16px',
-                    maxWidth: '860px',
-                    margin: '0 auto',
-                  }}
-                >
-                  {addons.map((addon) => (
-                    <div
-                      key={addon.id}
-                      style={{
-                        background: 'var(--paper, #fff)',
-                        border: '1px solid var(--line, #E5E7E8)',
-                        borderRadius: '12px',
-                        padding: '18px',
-                      }}
-                    >
-                      <p style={{ fontWeight: 600, marginBottom: '4px' }}>{addon.name}</p>
-                      {addon.description && (
-                        <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '10px' }}>{addon.description}</p>
-                      )}
-                      <p style={{ fontWeight: 600 }}>
-                        +{Math.round(addon.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF
-                        <span style={{ fontWeight: 400, opacity: 0.7 }}> / mois</span>
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
         {/* FAQ */}
         <section id="faq">
           <div className={c('wrap')} style={{ maxWidth: '820px' }}>
@@ -831,10 +831,11 @@ export function LandingPage() {
                                 gap: '12px',
                                 padding: '14px 16px',
                                 borderRadius: '10px',
-                                border: `1.5px solid ${isChecked ? 'var(--emerald, #0F6E56)' : 'var(--line-dark, rgba(20,67,47,0.12))'}`,
-                                background: isChecked ? 'rgba(15,110,86,0.05)' : 'transparent',
+                                border: `2px solid ${isChecked ? 'var(--emerald, #0F6E56)' : 'var(--line-dark, rgba(20,67,47,0.12))'}`,
+                                background: isChecked ? 'rgba(15,110,86,0.08)' : 'transparent',
+                                boxShadow: isChecked ? '0 2px 10px rgba(15,110,86,0.15)' : 'none',
                                 cursor: 'pointer',
-                                transition: 'border-color .15s, background .15s',
+                                transition: 'border-color .15s, background .15s, box-shadow .15s',
                               }}
                             >
                               <input
