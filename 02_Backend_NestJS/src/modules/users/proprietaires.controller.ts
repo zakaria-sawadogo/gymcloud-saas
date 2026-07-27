@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateProprietaireDto } from './dto/users.dto';
@@ -39,5 +39,15 @@ export class ProprietairesController {
   async reactivate(@Param('id') id: string, @CurrentUser() user: TenantContext) {
     const proprietaire = await this.usersService.findProprietaireById(id);
     return this.usersService.reactivateUser(proprietaire.userId, user.userId);
+  }
+
+  @Delete(':id')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({
+    summary:
+      'Supprime définitivement un propriétaire et tout ce qui lui appartient (salles, adhérents, paiements, personnel...) — irréversible, réservé SUPER_ADMIN (§9.4).',
+  })
+  remove(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.deleteProprietaire(id, user.userId);
   }
 }

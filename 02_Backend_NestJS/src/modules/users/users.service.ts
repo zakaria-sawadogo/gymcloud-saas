@@ -145,6 +145,87 @@ export class UsersService {
     return proprietaire;
   }
 
+  /**
+   * §9.4 — Suppression complète et irréversible d'un propriétaire :
+   * toutes ses salles et tout ce qu'elles contiennent (adhérents,
+   * paiements, réservations, personnel, contenu...), sa souscription
+   * SaaS, puis son propre compte. Réservé SUPER_ADMIN.
+   *
+   * Reproduit fidèlement, mais de façon réutilisable et transactionnelle
+   * (tout ou rien), l'enchaînement de suppressions manuelles fait à la
+   * main plusieurs fois en base pendant le développement — voir la
+   * dépendance salles → subscriptionId qui exige de supprimer les
+   * salles AVANT la souscription SaaS, pas après.
+   */
+  async deleteProprietaire(proprietaireId: string, actorUserId: string) {
+    const proprietaire = await this.findProprietaireById(proprietaireId);
+
+    const salles = await this.prisma.salle.findMany({ where: { proprietaireId }, select: { id: true } });
+    const salleIds = salles.map((s: { id: string }) => s.id);
+
+    const [gestionnaires, coachs, adherents] = await Promise.all([
+      this.prisma.gestionnaireProfile.findMany({ where: { salleId: { in: salleIds } }, select: { userId: true } }),
+      this.prisma.coachProfile.findMany({ where: { salleId: { in: salleIds } }, select: { userId: true } }),
+      this.prisma.adherentProfile.findMany({ where: { salleId: { in: salleIds } }, select: { userId: true } }),
+    ]);
+    const staffUserIds = [
+      ...gestionnaires.map((g: { userId: string }) => g.userId),
+      ...coachs.map((c: { userId: string }) => c.userId),
+      ...adherents.map((a: { userId: string }) => a.userId),
+    ];
+    const allUserIds = [...staffUserIds, proprietaire.userId];
+
+    await this.prisma.$transaction([
+      this.prisma.receipt.deleteMany({ where: { payment: { salleId: { in: salleIds } } } }),
+      this.prisma.waitingListEntry.deleteMany({ where: { coursCollectif: { salleId: { in: salleIds } } } }),
+      this.prisma.booking.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.payment.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.coachMonthlyPass.deleteMany({ where: { coach: { salleId: { in: salleIds } } } }),
+      this.prisma.coachAvailability.deleteMany({ where: { coach: { salleId: { in: salleIds } } } }),
+      this.prisma.adherentAbonnement.deleteMany({ where: { adherent: { salleId: { in: salleIds } } } }),
+      this.prisma.accessLog.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.coursCollectif.deleteMany({ where: { salleId: { in: salleIds } } }),
+
+      this.prisma.adherentProfile.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.coachProfile.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.gestionnaireProfile.deleteMany({ where: { salleId: { in: salleIds } } }),
+
+      this.prisma.prospect.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.coupon.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.marketingCampaign.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.messageTemplate.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.salleDocument.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.salleGalleryImage.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.sallePost.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.salleTestimonial.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.abonnementCatalogue.deleteMany({ where: { salleId: { in: salleIds } } }),
+
+      this.prisma.auditLog.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.notification.deleteMany({ where: { userId: { in: allUserIds } } }),
+
+      // Salles supprimées AVANT la souscription SaaS (dépendance directe salles.subscriptionId)
+      this.prisma.salle.deleteMany({ where: { id: { in: salleIds } } }),
+
+      this.prisma.saasSubscriptionHistory.deleteMany({ where: { subscription: { proprietaireId } } }),
+      this.prisma.saasInvoice.deleteMany({ where: { subscription: { proprietaireId } } }),
+      this.prisma.saasSubscriptionAddon.deleteMany({ where: { subscription: { proprietaireId } } }),
+      this.prisma.saasSubscription.deleteMany({ where: { proprietaireId } }),
+
+      this.prisma.proprietaire.delete({ where: { id: proprietaireId } }),
+      this.prisma.user.deleteMany({ where: { id: { in: allUserIds } } }),
+    ]);
+
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'proprietaire.delete',
+      entityType: 'Proprietaire',
+      entityId: proprietaireId,
+      metadata: { salleIds, deletedUserCount: allUserIds.length },
+    });
+
+    return { success: true };
+  }
+
   // ─────────────────────────────────────────────────────────────
   // Gestionnaires (§4.4) — SUPER_ADMIN ou PROPRIETAIRE (§2.8)
   // ─────────────────────────────────────────────────────────────

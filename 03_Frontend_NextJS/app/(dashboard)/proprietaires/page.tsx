@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Plus, UserCog, Ban, RotateCcw, Search, CreditCard } from 'lucide-react';
+import { Plus, UserCog, Ban, RotateCcw, Search, CreditCard, Trash2 } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -22,6 +22,7 @@ export default function ProprietairesPage() {
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [managingSubscriptionFor, setManagingSubscriptionFor] = useState<string | null>(null);
+  const [deletingProprietaire, setDeletingProprietaire] = useState<Proprietaire | null>(null);
   const { data: proprietaires, isLoading, error, refetch } = useApi<Proprietaire[]>('/proprietaires');
 
   const filtered = (proprietaires ?? []).filter((p) => {
@@ -145,6 +146,9 @@ export default function ProprietairesPage() {
                           </>
                         )}
                       </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setDeletingProprietaire(p)}>
+                        <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -167,6 +171,17 @@ export default function ProprietairesPage() {
         <ManageSubscriptionModal
           proprietaireId={managingSubscriptionFor}
           onClose={() => setManagingSubscriptionFor(null)}
+        />
+      )}
+
+      {deletingProprietaire && (
+        <DeleteProprietaireModal
+          proprietaire={deletingProprietaire}
+          onClose={() => setDeletingProprietaire(null)}
+          onDeleted={() => {
+            setDeletingProprietaire(null);
+            refetch();
+          }}
         />
       )}
     </div>
@@ -236,5 +251,66 @@ function ManageSubscriptionModal({
         }}
       />
     </>
+  );
+}
+
+/**
+ * §9.4 — Suppression irréversible d'un propriétaire et de tout ce qui
+ * lui appartient. La confirmation par saisie du nom (plutôt qu'un
+ * simple clic) est volontaire : c'est une action destructrice qui ne
+ * peut pas être annulée.
+ */
+function DeleteProprietaireModal({
+  proprietaire,
+  onClose,
+  onDeleted,
+}: {
+  proprietaire: Proprietaire;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirmText, setConfirmText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const expectedText = `${proprietaire.user.firstName} ${proprietaire.user.lastName}`;
+  const canDelete = confirmText.trim() === expectedText;
+
+  const handleDelete = async () => {
+    if (!canDelete) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await apiClient.delete(`/proprietaires/${proprietaire.id}`);
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Supprimer ce propriétaire">
+      <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+        <p className="mb-1 font-semibold">Action irréversible.</p>
+        <p>
+          Ceci supprimera définitivement {expectedText}
+          {proprietaire.companyName ? ` ("${proprietaire.companyName}")` : ''}, toutes ses salles, adhérents, paiements,
+          réservations, personnel et son abonnement SaaS. Rien ne peut être récupéré après.
+        </p>
+      </div>
+      <Field label={`Pour confirmer, tapez le nom complet : ${expectedText}`}>
+        <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={expectedText} />
+      </Field>
+      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      <div className="flex gap-2">
+        <Button variant="ghost" onClick={onClose} className="flex-1">
+          Annuler
+        </Button>
+        <Button variant="danger" disabled={!canDelete} isLoading={isSubmitting} onClick={handleDelete} className="flex-1">
+          Supprimer définitivement
+        </Button>
+      </div>
+    </Modal>
   );
 }
