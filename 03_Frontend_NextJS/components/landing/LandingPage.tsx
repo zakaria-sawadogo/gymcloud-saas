@@ -745,37 +745,6 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* FAQ */}
-        <section id="faq">
-          <div className={c('wrap')} style={{ maxWidth: '820px' }}>
-            <div className={c('section-head', 'reveal')}>
-              <span className={c('kicker')}>Questions fréquentes</span>
-              <h2>Avant de vous décider</h2>
-            </div>
-
-            <div className={c('faq', 'reveal')}>
-              {FAQ_ITEMS.map((item, i) => (
-                <details
-                  key={item.q}
-                  className={c('faq-item')}
-                  open={openFaqIndex === i}
-                  onToggle={(e) => {
-                    if ((e.target as HTMLDetailsElement).open) setOpenFaqIndex(i);
-                  }}
-                >
-                  <summary className={c('faq-q')}>
-                    {item.q}
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                      <path d="M9 3v12M3 9h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                    </svg>
-                  </summary>
-                  <p className={c('faq-a')}>{item.a}</p>
-                </details>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* CTA FINAL */}
         <section id="contact">
           <div className={c('wrap')}>
@@ -908,6 +877,37 @@ export function LandingPage() {
               <a href="#tarifs" className={c('btn-ghost')} style={{ marginTop: '18px', display: 'inline-flex' }}>
                 Revoir les tarifs
               </a>
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section id="faq">
+          <div className={c('wrap')} style={{ maxWidth: '820px' }}>
+            <div className={c('section-head', 'reveal')}>
+              <span className={c('kicker')}>Questions fréquentes</span>
+              <h2>Avant de vous décider</h2>
+            </div>
+
+            <div className={c('faq', 'reveal')}>
+              {FAQ_ITEMS.map((item, i) => (
+                <details
+                  key={item.q}
+                  className={c('faq-item')}
+                  open={openFaqIndex === i}
+                  onToggle={(e) => {
+                    if ((e.target as HTMLDetailsElement).open) setOpenFaqIndex(i);
+                  }}
+                >
+                  <summary className={c('faq-q')}>
+                    {item.q}
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path d="M9 3v12M3 9h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                  </summary>
+                  <p className={c('faq-a')}>{item.a}</p>
+                </details>
+              ))}
             </div>
           </div>
         </section>
