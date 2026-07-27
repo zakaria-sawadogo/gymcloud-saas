@@ -146,7 +146,10 @@ export function LandingPage() {
   useEffect(() => {
     fetch(`${API_URL}/public/addons`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data: PublicAddon[]) => setAddons(data))
+      .then((data: PublicAddon[]) => {
+        setAddons(data);
+        setSelectedAddonCodes(data.map((a) => a.code)); // pré-cochés par défaut
+      })
       .catch(() => {
         /* silencieux — la section reste simplement vide si l'API n'est pas joignable */
       });
@@ -812,27 +815,78 @@ export function LandingPage() {
                     ))}
                   </select>
                   {addons.length > 0 && (
-                    <div className={c('demo-form-addons')}>
-                      <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '6px' }}>
-                        Add-ons qui vous intéressent (optionnel) :
+                    <div style={{ marginTop: '4px' }}>
+                      <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '10px' }}>
+                        Add-ons qui vous intéressent (optionnel, pré-cochés) :
                       </p>
-                      {addons.map((a) => (
-                        <label
-                          key={a.id}
-                          style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginBottom: '4px' }}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {addons.map((a) => {
+                          const isChecked = selectedAddonCodes.includes(a.code);
+                          return (
+                            <label
+                              key={a.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '12px',
+                                padding: '14px 16px',
+                                borderRadius: '10px',
+                                border: `1.5px solid ${isChecked ? 'var(--emerald, #0F6E56)' : 'var(--line-dark, rgba(20,67,47,0.12))'}`,
+                                background: isChecked ? 'rgba(15,110,86,0.05)' : 'transparent',
+                                cursor: 'pointer',
+                                transition: 'border-color .15s, background .15s',
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) =>
+                                  setSelectedAddonCodes((prev) =>
+                                    e.target.checked ? [...prev, a.code] : prev.filter((c) => c !== a.code),
+                                  )
+                                }
+                                style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: '#0F6E56', flexShrink: 0 }}
+                              />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px' }}>
+                                  <span style={{ fontWeight: 600, fontSize: '14px' }}>{a.name}</span>
+                                  <span style={{ fontWeight: 600, fontSize: '13px', whiteSpace: 'nowrap' }}>
+                                    {Math.round(a.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF/mois
+                                  </span>
+                                </div>
+                                {a.description && (
+                                  <p style={{ fontSize: '12.5px', opacity: 0.65, marginTop: '2px' }}>{a.description}</p>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {selectedAddonCodes.length > 0 && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            marginTop: '10px',
+                            paddingTop: '10px',
+                            borderTop: '1px solid var(--line-dark, rgba(20,67,47,0.12))',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                          }}
                         >
-                          <input
-                            type="checkbox"
-                            checked={selectedAddonCodes.includes(a.code)}
-                            onChange={(e) =>
-                              setSelectedAddonCodes((prev) =>
-                                e.target.checked ? [...prev, a.code] : prev.filter((c) => c !== a.code),
-                              )
-                            }
-                          />
-                          {a.name} — {Math.round(a.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF/mois
-                        </label>
-                      ))}
+                          <span>Total add-ons sélectionnés</span>
+                          <span>
+                            {Math.round(
+                              addons
+                                .filter((a) => selectedAddonCodes.includes(a.code))
+                                .reduce((sum, a) => sum + a.price, 0),
+                            )
+                              .toLocaleString('fr-FR')
+                              .replace(/\u202f/g, ' ')}{' '}
+                            XOF/mois
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                   <textarea ref={messageRef} placeholder="Un message ? (optionnel)" rows={2} />
