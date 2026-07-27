@@ -56,14 +56,14 @@ export class PublicService {
         subscription: {
           select: {
             saasPlan: { select: { modules: true } },
-            subscriptionAddons: { select: { addon: { select: { code: true } } } },
+            addons: { select: { addon: { select: { code: true } } } },
           },
         },
       },
     });
     const hasSitePublicModule = salle?.subscription.saasPlan.modules.includes('site_public') ?? false;
     const hasSiteSalleAddon =
-      salle?.subscription.subscriptionAddons.some(
+      salle?.subscription.addons.some(
         (sa: { addon: { code: string } }) => sa.addon.code === 'SITE_SALLE',
       ) ?? false;
     // §9.3 — Accessible si le plan inclut le module historique "site_public"
