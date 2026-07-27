@@ -879,7 +879,7 @@ export function LandingPage() {
                             {Math.round(
                               addons
                                 .filter((a) => selectedAddonCodes.includes(a.code))
-                                .reduce((sum, a) => sum + a.price, 0),
+                                .reduce((sum, a) => sum + Number(a.price), 0),
                             )
                               .toLocaleString('fr-FR')
                               .replace(/\u202f/g, ' ')}{' '}
