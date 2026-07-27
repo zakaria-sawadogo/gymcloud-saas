@@ -93,6 +93,8 @@ export default function MonAbonnementPage() {
         </Button>
       </Card>
 
+      <AddonsPanel subscriptionId={subscription.id} />
+
       <Card className="p-0">
         <div className="p-5 pb-0">
           <CardHeader>
@@ -316,5 +318,94 @@ function PayMobileMoneyModal({
         </>
       )}
     </Modal>
+  );
+}
+
+interface SubscriptionAddon {
+  addonId: string;
+  addon: { id: string; name: string; description: string | null; price: number };
+}
+
+/**
+ * §9.3 — Add-ons disponibles pour cette souscription. Jamais activés
+ * automatiquement : chaque bascule appelle explicitement l'API pour
+ * attacher/détacher, et le nouveau tarif est facturé séparément au
+ * prorata (voir SaasBillingService.attachAddon), jamais reporté
+ * silencieusement sur la prochaine facture.
+ */
+function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
+  const { data: allAddons, isLoading: isLoadingAddons } = useApi<
+    { id: string; name: string; description: string | null; price: number }[]
+  >('/saas/plans/addons');
+  const {
+    data: activeAddons,
+    isLoading: isLoadingActive,
+    error: activeError,
+    refetch: refetchActive,
+  } = useApi<SubscriptionAddon[]>(`/saas/plans/${subscriptionId}/addons`);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  if (isLoadingAddons || isLoadingActive) {
+    return <Card className="mb-6 h-32 animate-pulse" />;
+  }
+  if (activeError) {
+    return (
+      <Card className="mb-6">
+        <p className="text-sm text-red-600">Impossible de charger vos add-ons : {activeError}</p>
+      </Card>
+    );
+  }
+  if (!allAddons || allAddons.length === 0) return null;
+
+  const activeIds = new Set((activeAddons ?? []).map((a) => a.addonId));
+
+  const toggle = async (addonId: string, isActive: boolean) => {
+    setTogglingId(addonId);
+    try {
+      if (isActive) {
+        await apiClient.delete(`/saas/plans/${subscriptionId}/addons/${addonId}`);
+      } else {
+        await apiClient.post(`/saas/plans/${subscriptionId}/addons/${addonId}`);
+      }
+      refetchActive();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle>Add-ons disponibles</CardTitle>
+      </CardHeader>
+      <p className="mb-4 text-sm text-ink-500">
+        Jamais inclus automatiquement — activez ceux dont vous avez besoin, facturés séparément au prorata sur une
+        facture à part.
+      </p>
+      <div className="divide-y divide-ink-100">
+        {allAddons.map((addon) => {
+          const isActive = activeIds.has(addon.id);
+          return (
+            <div key={addon.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+              <div>
+                <p className="font-medium text-ink-900">{addon.name}</p>
+                {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
+                <p className="text-sm text-ink-600">{formatCurrency(addon.price)} / mois</p>
+              </div>
+              <Button
+                size="sm"
+                variant={isActive ? 'secondary' : 'primary'}
+                isLoading={togglingId === addon.id}
+                onClick={() => toggle(addon.id, isActive)}
+              >
+                {isActive ? 'Désactiver' : 'Activer'}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
