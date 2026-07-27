@@ -120,19 +120,64 @@ export class SaasBillingService {
    * SUPER_ADMIN qui l'active explicitement. Idempotent — activer un
    * add-on déjà actif ne fait rien de plus.
    */
+  /**
+   * §9.3, §9.8 — Un add-on activé en cours d'abonnement est facturé à
+   * part, au prorata des jours restants sur la période en cours —
+   * jamais reporté silencieusement sur la prochaine facture complète,
+   * pour que le propriétaire voie immédiatement ce qu'il doit pour ce
+   * qu'il vient d'activer.
+   */
   async attachAddon(subscriptionId: string, addonId: string, actorUserId: string, actor?: TenantContext) {
     await this.assertOwnsSubscription(subscriptionId, actor);
-    await this.prisma.saasSubscriptionAddon.upsert({
+
+    const existing = await this.prisma.saasSubscriptionAddon.findUnique({
       where: { subscriptionId_addonId: { subscriptionId, addonId } },
-      update: {},
-      create: { subscriptionId, addonId },
     });
+    if (existing) return this.listSubscriptionAddons(subscriptionId); // déjà actif — rien à refacturer
+
+    const [subscription, addon] = await Promise.all([
+      this.prisma.saasSubscription.findUniqueOrThrow({ where: { id: subscriptionId } }),
+      this.prisma.saasAddon.findUniqueOrThrow({ where: { id: addonId } }),
+    ]);
+
+    await this.prisma.saasSubscriptionAddon.create({ data: { subscriptionId, addonId } });
+
+    const now = new Date();
+    const remainingDays = Math.max(
+      0,
+      Math.ceil((subscription.currentPeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
+    );
+    // Les add-ons sont toujours tarifés au mois (§9.3), quel que soit
+    // le cycle mensuel/annuel de l'abonnement lui-même.
+    const dailyRate = Number(addon.price) / 30;
+    const prorataAmount = Math.round(dailyRate * remainingDays * 100) / 100;
+
+    if (prorataAmount > 0) {
+      await this.prisma.saasInvoice.create({
+        data: {
+          id: randomUUID(),
+          subscriptionId,
+          invoiceNumber: this.generateInvoiceNumber(),
+          periodStart: now,
+          periodEnd: subscription.currentPeriodEnd,
+          baseAmount: 0,
+          extraSallesCount: 0,
+          extraSallesAmount: 0,
+          addonsAmount: prorataAmount,
+          taxAmount: 0,
+          totalAmount: prorataAmount,
+          currency: 'XOF',
+          status: 'EMISE',
+        },
+      });
+    }
+
     await this.audit.log({
       userId: actorUserId,
       action: 'saas_subscription.addon_attached',
       entityType: 'SaasSubscription',
       entityId: subscriptionId,
-      metadata: { addonId },
+      metadata: { addonId, prorataAmount, remainingDays },
     });
     return this.listSubscriptionAddons(subscriptionId);
   }

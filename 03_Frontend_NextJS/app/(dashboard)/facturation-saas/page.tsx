@@ -303,16 +303,28 @@ interface SubscriptionAddon {
  * facture déjà émise.
  */
 function MyAddonsSection() {
-  const { data: subscription } = useApi<{ id: string }>('/saas/invoices/me/subscription');
-  const { data: allAddons } = useApi<{ id: string; name: string; description: string | null; price: number }[]>(
-    '/saas/plans/addons',
+  const { data: subscription, isLoading: isLoadingSub, error: subError } = useApi<{ id: string }>(
+    '/saas/invoices/me/subscription',
   );
+  const { data: allAddons, isLoading: isLoadingAddons } = useApi<
+    { id: string; name: string; description: string | null; price: number }[]
+  >('/saas/plans/addons');
   const {
     data: activeAddons,
     refetch: refetchActive,
   } = useApi<SubscriptionAddon[]>(subscription ? `/saas/plans/${subscription.id}/addons` : null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  if (isLoadingSub || isLoadingAddons) {
+    return <Card className="mb-6 h-32 animate-pulse" />;
+  }
+  if (subError) {
+    return (
+      <Card className="mb-6">
+        <p className="text-sm text-red-600">Impossible de charger vos add-ons : {subError}</p>
+      </Card>
+    );
+  }
   if (!subscription || !allAddons) return null;
 
   const activeIds = new Set((activeAddons ?? []).map((a) => a.addonId));

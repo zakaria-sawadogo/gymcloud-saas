@@ -53,10 +53,23 @@ export class PublicService {
         website: true,
         socialLinks: true,
         openingHours: true,
-        subscription: { select: { saasPlan: { select: { modules: true } } } },
+        subscription: {
+          select: {
+            saasPlan: { select: { modules: true } },
+            subscriptionAddons: { select: { addon: { select: { code: true } } } },
+          },
+        },
       },
     });
-    if (!salle || !salle.subscription.saasPlan.modules.includes('site_public')) {
+    const hasSitePublicModule = salle?.subscription.saasPlan.modules.includes('site_public') ?? false;
+    const hasSiteSalleAddon =
+      salle?.subscription.subscriptionAddons.some(
+        (sa: { addon: { code: string } }) => sa.addon.code === 'SITE_SALLE',
+      ) ?? false;
+    // §9.3 — Accessible si le plan inclut le module historique "site_public"
+    // OU si l'add-on "SITE_SALLE" a été explicitement activé — sans ça,
+    // aucun accès au site public, quel que soit le plan souscrit.
+    if (!salle || (!hasSitePublicModule && !hasSiteSalleAddon)) {
       throw new NotFoundException('Salle introuvable');
     }
     const { subscription, ...publicFields } = salle;
