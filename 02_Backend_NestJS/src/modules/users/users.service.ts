@@ -12,6 +12,7 @@ import { TenantContext } from '../../common/decorators/current-user.decorator';
 import { SallesService } from '../salles/salles.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SaasBillingService } from '../saas-billing/saas-billing.service';
 import {
   CreateProprietaireDto,
   CreateGestionnaireDto,
@@ -37,6 +38,7 @@ export class UsersService {
     private readonly sallesService: SallesService,
     private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
+    private readonly saasBillingService: SaasBillingService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -99,6 +101,22 @@ export class UsersService {
       await this.prisma.proprietaire.delete({ where: { id: proprietaire.id } });
       await this.prisma.user.delete({ where: { id: user.id } });
       throw error;
+    }
+
+    // §9.3 — Reprend les add-ons souhaités lors d'une demande depuis le
+    // site vitrine (jamais activés automatiquement autrement) — leur
+    // coût sera reflété dès la prochaine facture de la souscription
+    // qui vient d'être créée pour cette salle.
+    if (dto.addonCodes && dto.addonCodes.length > 0 && salle.subscriptionId) {
+      const matchingAddons = await this.prisma.saasAddon.findMany({
+        where: { code: { in: dto.addonCodes } },
+        select: { id: true },
+      });
+      await Promise.all(
+        matchingAddons.map((a: { id: string }) =>
+          this.saasBillingService.attachAddon(salle.subscriptionId!, a.id, actor.userId, actor),
+        ),
+      );
     }
 
     await this.audit.log({

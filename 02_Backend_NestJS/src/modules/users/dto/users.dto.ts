@@ -73,6 +73,12 @@ export class CreateProprietaireDto {
   @ApiProperty({ description: 'Plan SaaS souscrit dès la création — aucun propriétaire sans souscription active' })
   @IsUUID()
   saasPlanId!: string;
+
+  @ApiPropertyOptional({ description: 'Codes des add-ons à activer immédiatement (ex: depuis une demande du site vitrine)', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  addonCodes?: string[];
 }
 
 export class CreateGestionnaireDto {

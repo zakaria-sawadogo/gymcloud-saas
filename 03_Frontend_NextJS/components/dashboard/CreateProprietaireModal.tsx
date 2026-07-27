@@ -16,6 +16,7 @@ export interface CreateProprietaireInitialData {
   companyName?: string;
   salleCity?: string;
   saasPlanId?: string;
+  desiredAddonCodes?: string[];
 }
 
 /**
@@ -39,6 +40,9 @@ export function CreateProprietaireModal({
 }) {
   const { data: countries } = useApi<Country[]>(isOpen ? '/countries' : null);
   const { data: plans } = useApi<SaasPlan[]>(isOpen ? '/saas/plans' : null);
+  const { data: addons } = useApi<{ id: string; code: string; name: string; price: number }[]>(
+    isOpen ? '/saas/plans/addons' : null,
+  );
 
   // Propriétaire
   const [firstName, setFirstName] = useState('');
@@ -56,6 +60,7 @@ export function CreateProprietaireModal({
   const [salleCity, setSalleCity] = useState('');
   const [salleCountryId, setSalleCountryId] = useState('');
   const [saasPlanId, setSaasPlanId] = useState('');
+  const [addonCodes, setAddonCodes] = useState<string[]>([]);
 
   const [result, setResult] = useState<{ tempPassword: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +78,7 @@ export function CreateProprietaireModal({
       setSallePhone(initialData.phone ?? '');
       setSalleCity(initialData.salleCity ?? '');
       setSaasPlanId(initialData.saasPlanId ?? '');
+      setAddonCodes(initialData.desiredAddonCodes ?? []);
     }
   }, [isOpen, initialData]);
 
@@ -95,6 +101,7 @@ export function CreateProprietaireModal({
         salleCity,
         salleCountryId,
         saasPlanId,
+        addonCodes: addonCodes.length > 0 ? addonCodes : undefined,
       });
       setResult(res);
     } catch (err) {
@@ -118,6 +125,7 @@ export function CreateProprietaireModal({
     setSalleCity('');
     setSalleCountryId('');
     setSaasPlanId('');
+    setAddonCodes([]);
     setResult(null);
     onCreated();
   };
@@ -206,6 +214,30 @@ export function CreateProprietaireModal({
               ))}
             </Select>
           </Field>
+
+          {addons && addons.length > 0 && (
+            <>
+              <p className="mb-3 mt-5 text-xs font-medium uppercase tracking-wide text-ink-400">
+                Add-ons (optionnel) — jamais activés automatiquement
+              </p>
+              <div className="mb-4 space-y-2">
+                {addons.map((addon) => (
+                  <label key={addon.id} className="flex items-center gap-2 text-sm text-ink-700">
+                    <input
+                      type="checkbox"
+                      checked={addonCodes.includes(addon.code)}
+                      onChange={(e) =>
+                        setAddonCodes((prev) =>
+                          e.target.checked ? [...prev, addon.code] : prev.filter((c) => c !== addon.code),
+                        )
+                      }
+                    />
+                    {addon.name} — {addon.price.toLocaleString('fr-FR')} XOF/mois
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
 
           {error && <p className="mb-4 mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

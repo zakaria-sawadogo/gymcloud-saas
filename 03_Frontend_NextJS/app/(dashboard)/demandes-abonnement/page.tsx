@@ -195,6 +195,7 @@ export default function DemandesAbonnementPage() {
             companyName: creatingFromRequest.companyName,
             salleCity: creatingFromRequest.city,
             saasPlanId: creatingFromRequest.desiredPlan?.id,
+            desiredAddonCodes: creatingFromRequest.desiredAddonCodes,
           }}
           onCreated={async () => {
             // Le propriétaire vient d'être créé avec succès (modal fermé
