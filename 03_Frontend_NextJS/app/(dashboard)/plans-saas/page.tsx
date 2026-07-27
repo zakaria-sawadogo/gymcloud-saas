@@ -389,18 +389,26 @@ interface SaasAddon {
 function AddonsSection() {
   const { data: addons, isLoading, refetch } = useApi<SaasAddon[]>('/saas/plans/addons');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState('');
+  const [descriptionInput, setDescriptionInput] = useState('');
   const [priceInput, setPriceInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const startEditing = (addon: SaasAddon) => {
     setEditingId(addon.id);
+    setNameInput(addon.name);
+    setDescriptionInput(addon.description ?? '');
     setPriceInput(String(addon.price));
   };
 
   const handleSave = async (addonId: string) => {
     setIsSubmitting(true);
     try {
-      await apiClient.patch(`/saas/plans/addons/${addonId}`, { price: Number(priceInput) });
+      await apiClient.patch(`/saas/plans/addons/${addonId}`, {
+        name: nameInput,
+        description: descriptionInput || undefined,
+        price: Number(priceInput),
+      });
       setEditingId(null);
       refetch();
     } catch (err) {
@@ -416,26 +424,24 @@ function AddonsSection() {
     <div className="mt-10">
       <h2 className="font-display mb-1 text-lg font-semibold text-ink-900">Add-ons (fonctionnalités optionnelles)</h2>
       <p className="mb-4 text-sm text-ink-500">
-        Jamais inclus automatiquement dans un plan — le propriétaire les active (et paie le supplément) lui-même.
+        Jamais inclus automatiquement dans un plan — le propriétaire les active (et paie le supplément) lui-même. Visibles sur le
+        site vitrine.
       </p>
       <Card>
         <div className="divide-y divide-ink-100">
-          {(addons ?? []).map((addon) => (
-            <div key={addon.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-              <div>
-                <p className="font-medium text-ink-900">{addon.name}</p>
-                {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
-              </div>
-              {editingId === addon.id ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min="0"
-                    value={priceInput}
-                    onChange={(e) => setPriceInput(e.target.value)}
-                    className="w-32"
-                  />
-                  <span className="text-sm text-ink-500">XOF/mois</span>
+          {(addons ?? []).map((addon) =>
+            editingId === addon.id ? (
+              <div key={addon.id} className="py-4 first:pt-0 last:pb-0">
+                <Field label="Nom">
+                  <Input value={nameInput} onChange={(e) => setNameInput(e.target.value)} />
+                </Field>
+                <Field label="Description">
+                  <Input value={descriptionInput} onChange={(e) => setDescriptionInput(e.target.value)} />
+                </Field>
+                <Field label="Prix mensuel (XOF)">
+                  <Input type="number" min="0" value={priceInput} onChange={(e) => setPriceInput(e.target.value)} className="w-40" />
+                </Field>
+                <div className="flex gap-2">
                   <Button size="sm" isLoading={isSubmitting} onClick={() => handleSave(addon.id)}>
                     Enregistrer
                   </Button>
@@ -443,7 +449,13 @@ function AddonsSection() {
                     Annuler
                   </Button>
                 </div>
-              ) : (
+              </div>
+            ) : (
+              <div key={addon.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                <div>
+                  <p className="font-medium text-ink-900">{addon.name}</p>
+                  {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
+                </div>
                 <div className="flex items-center gap-3">
                   <span className="font-medium text-ink-900">{formatCurrency(addon.price)} / mois</span>
                   <button
@@ -453,9 +465,9 @@ function AddonsSection() {
                     <Pencil className="h-4 w-4" />
                   </button>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            ),
+          )}
         </div>
       </Card>
     </div>
