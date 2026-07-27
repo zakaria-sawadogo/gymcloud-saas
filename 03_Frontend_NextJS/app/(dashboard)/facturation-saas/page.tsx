@@ -102,6 +102,11 @@ export default function FacturationSaasPage() {
         </Card>
       )}
 
+      <div className="mb-4 rounded-lg bg-amber-50 px-4 py-2 text-xs text-amber-800">
+        DIAGNOSTIC TEMPORAIRE — rôle détecté : &quot;{String(user?.roleCode)}&quot; — user chargé :{' '}
+        {user ? 'oui' : 'non'}
+      </div>
+
       {user?.roleCode === 'PROPRIETAIRE' && <MyAddonsSection />}
 
       <PendingValidationSection />
