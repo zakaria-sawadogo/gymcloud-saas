@@ -20,6 +20,7 @@ interface Campaign {
   channel: string;
   status: string;
   recipientCount: number;
+  emailsSentCount: number;
   sentAt?: string;
   targetSegment: { type: string; inactiveDays?: number };
 }
@@ -89,7 +90,8 @@ function CampaignsTab({ salleId }: { salleId: string }) {
                 <th className="px-5 py-3">Nom</th>
                 <th className="px-5 py-3">Canal</th>
                 <th className="px-5 py-3">Cible</th>
-                <th className="px-5 py-3">Destinataires</th>
+                <th className="px-5 py-3">Destinataires ciblés</th>
+                <th className="px-5 py-3">E-mails envoyés</th>
                 <th className="px-5 py-3">Statut</th>
               </tr>
             </thead>
@@ -103,6 +105,15 @@ function CampaignsTab({ salleId }: { salleId: string }) {
                     {c.targetSegment.inactiveDays && ` (${c.targetSegment.inactiveDays}j)`}
                   </td>
                   <td className="px-5 py-3 text-ink-600">{c.recipientCount || '—'}</td>
+                  <td className="px-5 py-3 text-ink-600">
+                    {c.channel === 'EMAIL' && c.status === 'ENVOYEE' ? (
+                      <span className={c.emailsSentCount < c.recipientCount ? 'text-amber-600' : ''}>
+                        {c.emailsSentCount} / {c.recipientCount}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     <StatusBadge status={c.status} />
                   </td>

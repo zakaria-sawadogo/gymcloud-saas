@@ -190,6 +190,7 @@ export class MarketingService {
         status: 'ENVOYEE',
         sentAt: new Date(),
         recipientCount: recipients.length,
+        emailsSentCount: emailsSent,
       },
     });
 

@@ -132,7 +132,7 @@ class Payment {
   factory Payment.fromJson(Map<String, dynamic> json) => Payment(
         id: json['id'],
         type: json['type'],
-        amount: (json['amount'] as num).toDouble(),
+        amount: double.parse(json['amount'].toString()),
         currency: json['currency'],
         method: json['method'],
         status: json['status'],

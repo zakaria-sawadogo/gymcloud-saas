@@ -995,7 +995,8 @@ model MarketingCampaign {
   status        CampaignStatus  @default(BROUILLON)
   scheduledAt   DateTime?
   sentAt        DateTime?
-  recipientCount Int            @default(0)
+  recipientCount Int            @default(0) // taille du segment ciblé au moment de l'envoi
+  emailsSentCount Int           @default(0) // nombre réel d'e-mails livrés (peut être < recipientCount si des destinataires n'ont pas d'adresse, ou si le canal n'est pas EMAIL)
 
   createdAt DateTime @default(now())
 
