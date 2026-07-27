@@ -172,10 +172,11 @@ export class AdherentsService {
     // temporaire reste communiqué directement par le gestionnaire au
     // guichet — voir tempPassword retourné ci-dessous.
     if (user.email) {
+      const salle = await this.prisma.salle.findUnique({ where: { id: dto.salleId }, select: { name: true } });
       await this.notifications.create(
         user.id,
         'Bienvenue sur GymCloud',
-        `Bonjour ${dto.firstName},\n\nVotre compte adhérent a été créé.\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
+        `Bonjour ${dto.firstName},\n\nVotre compte adhérent a été créé pour "${salle?.name ?? 'votre salle'}".\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
       );
     }
 

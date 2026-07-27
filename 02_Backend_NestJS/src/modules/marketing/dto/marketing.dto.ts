@@ -7,7 +7,9 @@ import {
   Min,
   IsInt,
   IsDateString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 const CHANNELS = ['SMS', 'EMAIL', 'WHATSAPP', 'PUSH'] as const;
@@ -53,6 +55,8 @@ export class CreateCampaignDto {
   content!: string;
 
   @ApiProperty({ type: SegmentCriteriaDto })
+  @ValidateNested()
+  @Type(() => SegmentCriteriaDto)
   targetSegment!: SegmentCriteriaDto;
 
   @ApiPropertyOptional({ description: 'Si omis, la campagne est envoyée immédiatement' })
