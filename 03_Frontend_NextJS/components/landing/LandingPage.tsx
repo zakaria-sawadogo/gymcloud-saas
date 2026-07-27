@@ -568,85 +568,83 @@ export function LandingPage() {
               <p>Changez de formule à tout moment — le prorata est calculé automatiquement, sans surprise sur la facture.</p>
             </div>
 
-            <div className={c('pricing-grid', 'reveal')}>
-              {plans.map((plan) => (
-                <div key={plan.id} className={c('plan', ...(plan.code === 'PROFESSIONAL' ? ['featured'] : []))}>
-                  {plan.code === 'PROFESSIONAL' && <span className={c('plan-tag')}>Le plus choisi</span>}
-                  <div className={c('plan-name')}>{plan.name}</div>
-                  <div className={c('plan-desc')}>{plan.description}</div>
-                  <div className={c('plan-price')}>
-                    <span className={c('amount')}>{Math.round(plan.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')}</span>
-                    <span className={c('unit')}>XOF / mois</span>
+            <div
+              className={c('reveal')}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: addons.length > 0 ? 'minmax(0, 1fr) 260px' : '1fr',
+                gap: '32px',
+                alignItems: 'start',
+              }}
+            >
+              <div className={c('pricing-grid')} style={{ margin: 0 }}>
+                {plans.map((plan) => (
+                  <div key={plan.id} className={c('plan', ...(plan.code === 'PROFESSIONAL' ? ['featured'] : []))}>
+                    {plan.code === 'PROFESSIONAL' && <span className={c('plan-tag')}>Le plus choisi</span>}
+                    <div className={c('plan-name')}>{plan.name}</div>
+                    <div className={c('plan-desc')}>{plan.description}</div>
+                    <div className={c('plan-price')}>
+                      <span className={c('amount')}>{Math.round(plan.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')}</span>
+                      <span className={c('unit')}>XOF / mois</span>
+                    </div>
+                    <ul className={c('plan-feats')}>
+                      {buildPlanFeatures(plan).map((feat) => (
+                        <li key={feat}>
+                          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                            <path d="M2.5 8l3.5 3.5L12.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          {feat}
+                        </li>
+                      ))}
+                    </ul>
+                    <a href="#contact" className={c('plan-cta')}>
+                      {plan.trialDays > 0 ? "Démarrer l'essai gratuit" : 'Parler à un conseiller'}
+                    </a>
                   </div>
-                  <ul className={c('plan-feats')}>
-                    {buildPlanFeatures(plan).map((feat) => (
-                      <li key={feat}>
-                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                          <path d="M2.5 8l3.5 3.5L12.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        {feat}
-                      </li>
+                ))}
+                {plans.length === 0 && (
+                  <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--ink-400, #71767A)' }}>
+                    Chargement des tarifs...
+                  </p>
+                )}
+              </div>
+
+              {addons.length > 0 && (
+                <div>
+                  <p style={{ fontSize: '12px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', opacity: 0.6, marginBottom: '4px' }}>
+                    Add-ons
+                  </p>
+                  <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '14px' }}>
+                    Extras à la carte, jamais imposés — activables à tout moment.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {addons.map((addon) => (
+                      <div
+                        key={addon.id}
+                        style={{
+                          background: 'var(--paper, #fff)',
+                          border: '1px solid var(--line-dark, rgba(20,67,47,0.12))',
+                          borderRadius: '10px',
+                          padding: '12px 14px',
+                        }}
+                      >
+                        <p style={{ fontWeight: 600, fontSize: '13.5px', marginBottom: '3px' }}>{addon.name}</p>
+                        {addon.description && (
+                          <p style={{ fontSize: '12px', opacity: 0.65, marginBottom: '6px', lineHeight: 1.4 }}>{addon.description}</p>
+                        )}
+                        <p style={{ fontWeight: 600, fontSize: '13px' }}>
+                          +{Math.round(addon.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF
+                          <span style={{ fontWeight: 400, opacity: 0.7 }}> /mois</span>
+                        </p>
+                      </div>
                     ))}
-                  </ul>
-                  <a href="#contact" className={c('plan-cta')}>
-                    {plan.trialDays > 0 ? "Démarrer l'essai gratuit" : 'Parler à un conseiller'}
-                  </a>
+                  </div>
                 </div>
-              ))}
-              {plans.length === 0 && (
-                <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--ink-400, #71767A)' }}>
-                  Chargement des tarifs...
-                </p>
               )}
             </div>
             <p className={c('pricing-note')}>
               Tarifs indicatifs en XOF, hors taxes locales éventuelles. Salle supplémentaire au-delà du quota inclus : facturation à l'usage.
             </p>
-
-            {addons.length > 0 && (
-              <div
-                className={c('reveal')}
-                style={{ marginTop: '56px', paddingTop: '40px', borderTop: '1px solid var(--line, #E5E7E8)' }}
-              >
-                <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-                  <span className={c('kicker')}>Add-ons</span>
-                  <h3 style={{ margin: '8px 0 6px' }}>Des extras à la carte, jamais imposés</h3>
-                  <p style={{ opacity: 0.75, maxWidth: '520px', margin: '0 auto' }}>
-                    Activables à tout moment depuis votre espace, en plus de votre plan.
-                  </p>
-                </div>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                    gap: '16px',
-                    maxWidth: '860px',
-                    margin: '0 auto',
-                  }}
-                >
-                  {addons.map((addon) => (
-                    <div
-                      key={addon.id}
-                      style={{
-                        background: 'var(--paper, #fff)',
-                        border: '1px solid var(--line, #E5E7E8)',
-                        borderRadius: '12px',
-                        padding: '18px',
-                      }}
-                    >
-                      <p style={{ fontWeight: 600, marginBottom: '4px' }}>{addon.name}</p>
-                      {addon.description && (
-                        <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '10px' }}>{addon.description}</p>
-                      )}
-                      <p style={{ fontWeight: 600 }}>
-                        +{Math.round(addon.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF
-                        <span style={{ fontWeight: 400, opacity: 0.7 }}> / mois</span>
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </section>
 
