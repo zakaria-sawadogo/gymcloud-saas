@@ -23,6 +23,12 @@ export class PublicPlatformController {
     return this.publicService.getPublicPlans();
   }
 
+  @Get('addons')
+  @ApiOperation({ summary: 'Add-ons SaaS publics (tarifs) — pour le site vitrine' })
+  getAddons() {
+    return this.publicService.getPublicAddons();
+  }
+
   @Get('contact')
   @ApiOperation({ summary: 'Coordonnées de contact affichées sur le site vitrine (pied de page)' })
   getContact() {

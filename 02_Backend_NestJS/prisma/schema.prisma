@@ -1163,6 +1163,7 @@ model SaasSubscriptionRequest {
 
   desiredPlanId String?
   desiredPlan   SaasPlan? @relation(fields: [desiredPlanId], references: [id])
+  desiredAddonCodes String[] @default([]) // codes d'add-ons souhaités (ex: "SITE_SALLE") — le SUPER_ADMIN les active manuellement à la création du compte
 
   status            SaasSubscriptionRequestStatus @default(NOUVELLE)
   processedByUserId String?

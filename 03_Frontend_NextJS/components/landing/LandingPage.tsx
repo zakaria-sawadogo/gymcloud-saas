@@ -29,6 +29,14 @@ interface PublicPlan {
   modules: string[];
 }
 
+interface PublicAddon {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  price: number;
+}
+
 const MODULE_LABELS: Record<string, string> = {
   qr_code: "Contrôle d'accès QR",
   reservations: 'Réservations',
@@ -93,6 +101,8 @@ export function LandingPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [addons, setAddons] = useState<PublicAddon[]>([]);
+  const [selectedAddonCodes, setSelectedAddonCodes] = useState<string[]>([]);
   const [contact, setContact] = useState<{ supportEmail: string; supportPhone: string }>({
     supportEmail: 'gymcloudsys@gmail.com',
     supportPhone: '+226 68 46 11 19',
@@ -128,6 +138,17 @@ export function LandingPage() {
       .then((data: PublicPlan[]) => setPlans(data))
       .catch(() => {
         /* silencieux — le champ reste optionnel si l'API n'est pas joignable */
+      });
+  }, []);
+
+  // Add-ons publics — affichés dans la section tarifs et sélectionnables
+  // dans le formulaire de demande, au même titre que le plan.
+  useEffect(() => {
+    fetch(`${API_URL}/public/addons`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: PublicAddon[]) => setAddons(data))
+      .catch(() => {
+        /* silencieux — la section reste simplement vide si l'API n'est pas joignable */
       });
   }, []);
 
@@ -177,6 +198,7 @@ export function LandingPage() {
       companyName: companyNameRef.current?.value.trim() || undefined,
       city: cityRef.current?.value.trim() || undefined,
       desiredPlanId: planIdRef.current?.value || undefined,
+      desiredAddonCodes: selectedAddonCodes.length > 0 ? selectedAddonCodes : undefined,
       message: messageRef.current?.value.trim() || undefined,
     };
 
@@ -672,6 +694,51 @@ export function LandingPage() {
             <p className={c('pricing-note')}>
               Tarifs indicatifs en XOF, hors taxes locales éventuelles. Salle supplémentaire au-delà du quota inclus : facturation à l'usage.
             </p>
+
+            {addons.length > 0 && (
+              <div
+                className={c('reveal')}
+                style={{ marginTop: '56px', paddingTop: '40px', borderTop: '1px solid var(--line, #E5E7E8)' }}
+              >
+                <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                  <span className={c('kicker')}>Add-ons</span>
+                  <h3 style={{ margin: '8px 0 6px' }}>Des extras à la carte, jamais imposés</h3>
+                  <p style={{ opacity: 0.75, maxWidth: '520px', margin: '0 auto' }}>
+                    Activables à tout moment depuis votre espace, en plus de votre plan.
+                  </p>
+                </div>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '16px',
+                    maxWidth: '860px',
+                    margin: '0 auto',
+                  }}
+                >
+                  {addons.map((addon) => (
+                    <div
+                      key={addon.id}
+                      style={{
+                        background: 'var(--paper, #fff)',
+                        border: '1px solid var(--line, #E5E7E8)',
+                        borderRadius: '12px',
+                        padding: '18px',
+                      }}
+                    >
+                      <p style={{ fontWeight: 600, marginBottom: '4px' }}>{addon.name}</p>
+                      {addon.description && (
+                        <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '10px' }}>{addon.description}</p>
+                      )}
+                      <p style={{ fontWeight: 600 }}>
+                        +{Math.round(addon.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF
+                        <span style={{ fontWeight: 400, opacity: 0.7 }}> / mois</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -744,6 +811,30 @@ export function LandingPage() {
                       </option>
                     ))}
                   </select>
+                  {addons.length > 0 && (
+                    <div className={c('demo-form-addons')}>
+                      <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '6px' }}>
+                        Add-ons qui vous intéressent (optionnel) :
+                      </p>
+                      {addons.map((a) => (
+                        <label
+                          key={a.id}
+                          style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginBottom: '4px' }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedAddonCodes.includes(a.code)}
+                            onChange={(e) =>
+                              setSelectedAddonCodes((prev) =>
+                                e.target.checked ? [...prev, a.code] : prev.filter((c) => c !== a.code),
+                              )
+                            }
+                          />
+                          {a.name} — {Math.round(a.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF/mois
+                        </label>
+                      ))}
+                    </div>
+                  )}
                   <textarea ref={messageRef} placeholder="Un message ? (optionnel)" rows={2} />
 
                   {formStatus === 'error' && <div className={c('demo-form-error')}>{formMessage}</div>}

@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsUUID, MaxLength } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsUUID, IsArray, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RegisterProspectDto {
@@ -103,6 +103,12 @@ export class RequestSubscriptionDto {
   @IsOptional()
   @IsUUID()
   desiredPlanId?: string;
+
+  @ApiPropertyOptional({ description: 'Codes des add-ons qui intéressent le prospect (ex: ["SITE_SALLE"])', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  desiredAddonCodes?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

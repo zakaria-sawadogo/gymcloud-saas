@@ -510,4 +510,5 @@ export interface SaasSubscriptionRequest {
   processedAt?: string;
   createdAt: string;
   desiredPlan?: { id: string; name: string; priceMonthly: number };
+  desiredAddonCodes?: string[];
 }

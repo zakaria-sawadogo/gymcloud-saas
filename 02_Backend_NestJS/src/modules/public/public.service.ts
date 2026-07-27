@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RegisterProspectDto, RequestTrialSessionDto, RequestSubscriptionDto } from './dto/public.dto';
 
 /**
@@ -19,7 +20,10 @@ import { RegisterProspectDto, RequestTrialSessionDto, RequestSubscriptionDto } f
  */
 @Injectable()
 export class PublicService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /**
    * Salle par sous-domaine public — 404 si inexistante, désactivée,
@@ -228,6 +232,15 @@ export class PublicService {
     };
   }
 
+  /**
+   * §9.3, §14.x — Add-ons visibles sur le site vitrine (page tarifs) :
+   * uniquement ceux actifs (le SUPER_ADMIN peut désactiver un add-on
+   * sans le supprimer, ce qui le retire alors de cette liste publique).
+   */
+  async getPublicAddons() {
+    return this.prisma.saasAddon.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
+  }
+
   async getPublicPlans() {
     return this.prisma.saasPlan.findMany({
       where: { status: 'ACTIF' },
@@ -266,10 +279,23 @@ export class PublicService {
         city: dto.city,
         message: dto.message,
         desiredPlanId: dto.desiredPlanId,
+        desiredAddonCodes: dto.desiredAddonCodes ?? [],
       },
     });
 
-    // TODO(module notifications): alerter le SUPER_ADMIN d'une nouvelle demande.
+    const superAdmins = await this.prisma.user.findMany({
+      where: { role: { code: 'SUPER_ADMIN' } },
+      select: { id: true },
+    });
+    await Promise.all(
+      superAdmins.map((u: { id: string }) =>
+        this.notifications.create(
+          u.id,
+          'Nouvelle demande d\'abonnement',
+          `${dto.firstName} ${dto.lastName} (${dto.phone}) a demandé un abonnement${dto.companyName ? ` pour "${dto.companyName}"` : ''} — à traiter dans "Demandes d'abonnement".`,
+        ),
+      ),
+    );
 
     return {
       id: request.id,

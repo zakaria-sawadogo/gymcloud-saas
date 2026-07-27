@@ -134,6 +134,9 @@ export default function DemandesAbonnementPage() {
                   </td>
                   <td className="px-5 py-3 text-ink-600">
                     {r.desiredPlan ? `${r.desiredPlan.name} — ${formatCurrency(r.desiredPlan.priceMonthly)}/mois` : '—'}
+                    {r.desiredAddonCodes && r.desiredAddonCodes.length > 0 && (
+                      <div className="mt-0.5 text-xs text-primary-600">+ {r.desiredAddonCodes.join(', ')}</div>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-ink-600">{formatDateTime(r.createdAt)}</td>
                   <td className="px-5 py-3">
