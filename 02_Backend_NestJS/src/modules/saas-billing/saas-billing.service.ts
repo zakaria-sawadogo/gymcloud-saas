@@ -80,6 +80,105 @@ export class SaasBillingService {
     return plan;
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // Add-ons (§9.3) — fonctionnalités optionnelles, jamais incluses
+  // automatiquement : le propriétaire doit explicitement les activer.
+  // Prix modifiable exclusivement par le SUPER_ADMIN (§9.3 : « Aucun
+  // montant ne doit être codé en dur dans l'application »).
+  // ─────────────────────────────────────────────────────────────
+
+  async listAddons() {
+    return this.prisma.saasAddon.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  /**
+   * §9.3, §9.8 — Somme des add-ons réellement activés sur cette
+   * souscription, recalculée à chaque facturation (jamais figée) :
+   * si le SUPER_ADMIN change le prix d'un add-on, la prochaine
+   * facture reflète le nouveau tarif automatiquement.
+   */
+  private async computeAddonsAmount(subscriptionId: string): Promise<number> {
+    const attached = await this.prisma.saasSubscriptionAddon.findMany({
+      where: { subscriptionId },
+      include: { addon: { select: { price: true, active: true } } },
+    });
+    return attached
+      .filter((a: { addon: { active: boolean } }) => a.addon.active)
+      .reduce((sum: number, a: { addon: { price: unknown } }) => sum + Number(a.addon.price), 0);
+  }
+
+  async listSubscriptionAddons(subscriptionId: string) {
+    return this.prisma.saasSubscriptionAddon.findMany({
+      where: { subscriptionId },
+      include: { addon: true },
+    });
+  }
+
+  /**
+   * §9.3, §2.8 — Un add-on n'est jamais inclus automatiquement : c'est
+   * le propriétaire (sur SA PROPRE souscription uniquement) ou le
+   * SUPER_ADMIN qui l'active explicitement. Idempotent — activer un
+   * add-on déjà actif ne fait rien de plus.
+   */
+  async attachAddon(subscriptionId: string, addonId: string, actorUserId: string, actor?: TenantContext) {
+    await this.assertOwnsSubscription(subscriptionId, actor);
+    await this.prisma.saasSubscriptionAddon.upsert({
+      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      update: {},
+      create: { subscriptionId, addonId },
+    });
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'saas_subscription.addon_attached',
+      entityType: 'SaasSubscription',
+      entityId: subscriptionId,
+      metadata: { addonId },
+    });
+    return this.listSubscriptionAddons(subscriptionId);
+  }
+
+  async detachAddon(subscriptionId: string, addonId: string, actorUserId: string, actor?: TenantContext) {
+    await this.assertOwnsSubscription(subscriptionId, actor);
+    await this.prisma.saasSubscriptionAddon
+      .delete({ where: { subscriptionId_addonId: { subscriptionId, addonId } } })
+      .catch(() => null); // déjà détaché — pas une erreur
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'saas_subscription.addon_detached',
+      entityType: 'SaasSubscription',
+      entityId: subscriptionId,
+      metadata: { addonId },
+    });
+    return this.listSubscriptionAddons(subscriptionId);
+  }
+
+  private async assertOwnsSubscription(subscriptionId: string, actor?: TenantContext) {
+    if (!actor || actor.isGlobalAccess) return;
+    const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
+      where: { id: subscriptionId },
+      select: { proprietaireId: true },
+    });
+    if (subscription.proprietaireId !== actor.proprietaireId) {
+      throw new ForbiddenException('Vous ne pouvez modifier que votre propre abonnement SaaS');
+    }
+  }
+
+  async updateAddon(
+    addonId: string,
+    data: Partial<{ name: string; description: string; price: number; active: boolean }>,
+    actorUserId: string,
+  ) {
+    const addon = await this.prisma.saasAddon.update({ where: { id: addonId }, data });
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'saas_addon.update',
+      entityType: 'SaasAddon',
+      entityId: addon.id,
+      metadata: data,
+    });
+    return addon;
+  }
+
   /**
    * Par défaut, ne retourne que les plans ACTIF (pertinent pour le
    * choix d'un plan à la création d'une salle — un plan suspendu ou
@@ -351,13 +450,15 @@ export class SaasBillingService {
       subscription.billingCycle === 'ANNUEL'
         ? subscription.saasPlan.priceAnnual
         : subscription.saasPlan.priceMonthly;
-    const { discountedAmount: baseAmount } = this.applyDiscounts(
+    const { discountedAmount: baseAmount, totalDiscountApplied: discountAmount } = this.applyDiscounts(
       Number(rawAmount),
       subscription.billingCycle,
       subscription.saasPlan.annualDiscountPct,
       subscription.promotionalDiscountPct,
     );
     const taxAmount = (baseAmount * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
+    const addonsAmount = await this.computeAddonsAmount(subscription.id);
+    const addonsTax = (addonsAmount * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
 
     return this.prisma.saasInvoice.create({
       data: {
@@ -367,11 +468,12 @@ export class SaasBillingService {
         periodStart,
         periodEnd,
         baseAmount,
+        discountAmount,
         extraSallesCount: 0,
         extraSallesAmount: 0,
-        addonsAmount: 0,
-        taxAmount,
-        totalAmount: Number(baseAmount) + taxAmount,
+        addonsAmount,
+        taxAmount: taxAmount + addonsTax,
+        totalAmount: Number(baseAmount) + addonsAmount + taxAmount + addonsTax,
         currency: 'XOF', // TODO: dériver de Country.currency selon proprietaire.countryId
         status: 'EMISE',
       },
@@ -428,13 +530,15 @@ export class SaasBillingService {
       subscription.billingCycle === 'ANNUEL'
         ? subscription.saasPlan.priceAnnual
         : subscription.saasPlan.priceMonthly;
-    const { discountedAmount: baseAmount } = this.applyDiscounts(
+    const { discountedAmount: baseAmount, totalDiscountApplied: discountAmount } = this.applyDiscounts(
       Number(rawAmount),
       subscription.billingCycle,
       subscription.saasPlan.annualDiscountPct,
       subscription.promotionalDiscountPct,
     );
     const taxAmount = ((baseAmount + extraSallesAmount) * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
+    const addonsAmount = await this.computeAddonsAmount(subscription.id);
+    const addonsTax = (addonsAmount * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
 
     return this.prisma.saasInvoice.create({
       data: {
@@ -444,11 +548,12 @@ export class SaasBillingService {
         periodStart,
         periodEnd,
         baseAmount,
+        discountAmount,
         extraSallesCount,
         extraSallesAmount,
-        addonsAmount: 0,
-        taxAmount,
-        totalAmount: baseAmount + extraSallesAmount + taxAmount,
+        addonsAmount,
+        taxAmount: taxAmount + addonsTax,
+        totalAmount: baseAmount + extraSallesAmount + addonsAmount + taxAmount + addonsTax,
         currency: 'XOF', // TODO: dériver de Country.currency selon proprietaire.countryId
         status: 'EMISE',
       },

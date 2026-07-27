@@ -163,6 +163,8 @@ export default function PlansSaasPage() {
         </div>
       )}
 
+      <AddonsSection />
+
       <PlanFormModal
         isOpen={isFormOpen || !!editingPlan}
         existing={editingPlan}
@@ -364,5 +366,98 @@ function PlanFormModal({
         </Button>
       </form>
     </Modal>
+  );
+}
+
+interface SaasAddon {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  price: number;
+  active: boolean;
+}
+
+/**
+ * §9.3 — Fonctionnalités optionnelles (site salle, application web
+ * adhérent, notifications WhatsApp...), jamais incluses automatiquement
+ * dans un plan : le propriétaire doit explicitement les activer. Seul
+ * le prix est éditable ici — la création/suppression d'add-ons reste
+ * une opération technique (seed), le SUPER_ADMIN ne fait qu'ajuster
+ * les tarifs de ceux qui existent déjà.
+ */
+function AddonsSection() {
+  const { data: addons, isLoading, refetch } = useApi<SaasAddon[]>('/saas/plans/addons');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [priceInput, setPriceInput] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const startEditing = (addon: SaasAddon) => {
+    setEditingId(addon.id);
+    setPriceInput(String(addon.price));
+  };
+
+  const handleSave = async (addonId: string) => {
+    setIsSubmitting(true);
+    try {
+      await apiClient.patch(`/saas/plans/addons/${addonId}`, { price: Number(priceInput) });
+      setEditingId(null);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) return null;
+
+  return (
+    <div className="mt-10">
+      <h2 className="font-display mb-1 text-lg font-semibold text-ink-900">Add-ons (fonctionnalités optionnelles)</h2>
+      <p className="mb-4 text-sm text-ink-500">
+        Jamais inclus automatiquement dans un plan — le propriétaire les active (et paie le supplément) lui-même.
+      </p>
+      <Card>
+        <div className="divide-y divide-ink-100">
+          {(addons ?? []).map((addon) => (
+            <div key={addon.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+              <div>
+                <p className="font-medium text-ink-900">{addon.name}</p>
+                {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
+              </div>
+              {editingId === addon.id ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={priceInput}
+                    onChange={(e) => setPriceInput(e.target.value)}
+                    className="w-32"
+                  />
+                  <span className="text-sm text-ink-500">XOF/mois</span>
+                  <Button size="sm" isLoading={isSubmitting} onClick={() => handleSave(addon.id)}>
+                    Enregistrer
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                    Annuler
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-ink-900">{formatCurrency(addon.price)} / mois</span>
+                  <button
+                    onClick={() => startEditing(addon)}
+                    className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-50 hover:text-ink-700"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }

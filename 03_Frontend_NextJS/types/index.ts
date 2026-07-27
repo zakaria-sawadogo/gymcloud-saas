@@ -419,8 +419,10 @@ export interface SaasInvoice {
   periodStart: string;
   periodEnd: string;
   baseAmount: number;
+  discountAmount: number;
   extraSallesCount: number;
   extraSallesAmount: number;
+  addonsAmount: number;
   totalAmount: number;
   currency: string;
   status: 'EMISE' | 'PAYEE' | 'EN_RETARD' | 'ANNULEE';

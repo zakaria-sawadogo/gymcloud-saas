@@ -197,6 +197,48 @@ async function main() {
     },
   });
 
+  console.log('Seed — add-ons SaaS par défaut...');
+
+  // §9.3 — Fonctionnalités optionnelles, jamais incluses automatiquement
+  // dans un plan : le propriétaire doit explicitement les activer (et
+  // payer le supplément) pour en bénéficier. Prix d'exemple pour le
+  // développement, ajustables par le SUPER_ADMIN via l'admin.
+  await prisma.saasAddon.upsert({
+    where: { code: 'SITE_SALLE' },
+    update: {},
+    create: {
+      id: randomUUID(),
+      code: 'SITE_SALLE',
+      name: 'Site public dédié à la salle',
+      description: 'Page vitrine publique de la salle (catalogue, galerie, avis, essai gratuit).',
+      price: 15000,
+    },
+  });
+
+  await prisma.saasAddon.upsert({
+    where: { code: 'APPLICATION_WEB' },
+    update: {},
+    create: {
+      id: randomUUID(),
+      code: 'APPLICATION_WEB',
+      name: 'Application web adhérent',
+      description: 'Accès web (en plus du mobile) pour les adhérents : réservations, QR, paiements.',
+      price: 15000,
+    },
+  });
+
+  await prisma.saasAddon.upsert({
+    where: { code: 'NOTIFICATION_WHATSAPP' },
+    update: {},
+    create: {
+      id: randomUUID(),
+      code: 'NOTIFICATION_WHATSAPP',
+      name: 'Notifications WhatsApp',
+      description: 'Envoi des notifications (réabonnement, accès refusé...) via WhatsApp en plus de l\'e-mail.',
+      price: 15000,
+    },
+  });
+
   console.log('Seed — premier compte SUPER_ADMIN...');
 
   // Problème de démarrage classique : impossible de créer un

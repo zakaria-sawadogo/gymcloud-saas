@@ -23,6 +23,12 @@ export class PublicPlatformController {
     return this.publicService.getPublicPlans();
   }
 
+  @Get('contact')
+  @ApiOperation({ summary: 'Coordonnées de contact affichées sur le site vitrine (pied de page)' })
+  getContact() {
+    return this.publicService.getContact();
+  }
+
   @Post('subscription-requests')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({

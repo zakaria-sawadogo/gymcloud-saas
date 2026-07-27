@@ -86,39 +86,63 @@ export class InvoicePdfService {
     doc.fontSize(11).fillColor('#14181B').text('Plan souscrit', 350, 140);
     doc.fontSize(10).fillColor('#494F54').text(invoice.subscription.saasPlan.name, 350, 158);
 
-    // Tableau des lignes
-    let y = 250;
-    doc.fontSize(10).fillColor('#71767A');
-    doc.text('Description', 50, y);
-    doc.text('Montant', 450, y, { width: 95, align: 'right' });
-    y += 18;
-    doc.moveTo(50, y).lineTo(545, y).strokeColor('#E5E7E8').stroke();
+    // Tableau des lignes — en-tête avec fond distinctif
+    const tableTop = 250;
+    const tableLeft = 50;
+    const tableWidth = 495;
+    let y = tableTop;
+
+    doc.rect(tableLeft, y, tableWidth, 24).fill('#F5F6F6');
+    doc.fontSize(9).fillColor('#71767A');
+    doc.text('DESCRIPTION', tableLeft + 12, y + 8);
+    doc.text('MONTANT', tableLeft, y + 8, { width: tableWidth - 12, align: 'right' });
+    y += 24;
+
+    const priceCatalogue =
+      invoice.subscription.billingCycle === 'ANNUEL'
+        ? Number(invoice.subscription.saasPlan.priceAnnual)
+        : Number(invoice.subscription.saasPlan.priceMonthly);
+    const hasDiscount = Number(invoice.discountAmount) > 0;
+    const taxRatePct = Number(invoice.subscription.saasPlan.taxRatePct ?? 0);
+
+    const addRow = (label: string, amount: string, options?: { muted?: boolean; negative?: boolean }) => {
+      y += 10;
+      doc.fontSize(10).fillColor(options?.negative ? '#B54708' : options?.muted ? '#71767A' : '#14181B');
+      doc.text(label, tableLeft + 12, y);
+      doc.text(amount, tableLeft, y, { width: tableWidth - 12, align: 'right' });
+      y += 16;
+    };
+
+    addRow(
+      `Abonnement ${invoice.subscription.saasPlan.name} (${invoice.subscription.billingCycle === 'ANNUEL' ? 'annuel' : 'mensuel'})`,
+      money(priceCatalogue),
+    );
+    if (hasDiscount) {
+      addRow('Réduction appliquée', `- ${money(Number(invoice.discountAmount))}`, { negative: true });
+    }
+    if (invoice.extraSallesCount > 0) {
+      addRow(`Salles supplémentaires (×${invoice.extraSallesCount})`, money(Number(invoice.extraSallesAmount)));
+    }
+    if (Number(invoice.addonsAmount) > 0) {
+      addRow('Add-ons', money(Number(invoice.addonsAmount)));
+    }
+
+    y += 8;
+    doc.moveTo(tableLeft, y).lineTo(tableLeft + tableWidth, y).strokeColor('#E5E7E8').stroke();
     y += 12;
 
-    doc.fillColor('#14181B');
-    doc.text(`Abonnement ${invoice.subscription.saasPlan.name}`, 50, y);
-    doc.text(money(Number(invoice.baseAmount)), 450, y, { width: 95, align: 'right' });
-    y += 20;
-
-    if (invoice.extraSallesCount > 0) {
-      doc.text(`Salles supplémentaires (×${invoice.extraSallesCount})`, 50, y);
-      doc.text(money(Number(invoice.extraSallesAmount)), 450, y, { width: 95, align: 'right' });
-      y += 20;
-    }
-
+    const sousTotal = Number(invoice.baseAmount) + Number(invoice.extraSallesAmount) + Number(invoice.addonsAmount);
+    addRow('Sous-total HT', money(sousTotal), { muted: true });
     if (Number(invoice.taxAmount) > 0) {
-      doc.text('Taxes', 50, y);
-      doc.text(money(Number(invoice.taxAmount)), 450, y, { width: 95, align: 'right' });
-      y += 20;
+      addRow(`TVA (${taxRatePct}%)`, money(Number(invoice.taxAmount)), { muted: true });
     }
 
-    y += 10;
-    doc.moveTo(50, y).lineTo(545, y).strokeColor('#E5E7E8').stroke();
-    y += 15;
-
-    doc.fontSize(12).fillColor('#0F6E56');
-    doc.text('Total', 50, y);
-    doc.text(money(Number(invoice.totalAmount)), 450, y, { width: 95, align: 'right' });
+    y += 8;
+    doc.rect(tableLeft, y, tableWidth, 32).fill('#0F6E56');
+    doc.fontSize(12).fillColor('#FFFFFF');
+    doc.text('TOTAL TTC', tableLeft + 12, y + 10);
+    doc.text(money(Number(invoice.totalAmount)), tableLeft, y + 10, { width: tableWidth - 12, align: 'right' });
+    y += 32;
 
     // Statut de paiement
     y += 40;

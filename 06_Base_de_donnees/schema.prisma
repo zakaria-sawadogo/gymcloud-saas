@@ -330,7 +330,8 @@ model SaasInvoice {
   periodStart       DateTime
   periodEnd         DateTime
 
-  baseAmount        Decimal           @db.Decimal(12, 2)
+  baseAmount        Decimal           @db.Decimal(12, 2) // déjà net de réduction — voir discountAmount pour le montant économisé
+  discountAmount    Decimal           @default(0) @db.Decimal(12, 2) // réduction annuelle/promotionnelle appliquée, affichée séparément sur la facture
   extraSallesCount  Int               @default(0)
   extraSallesAmount Decimal           @default(0) @db.Decimal(12, 2)
   addonsAmount      Decimal           @default(0) @db.Decimal(12, 2)

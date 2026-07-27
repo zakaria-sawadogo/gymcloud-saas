@@ -93,6 +93,10 @@ export function LandingPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [contact, setContact] = useState<{ supportEmail: string; supportPhone: string }>({
+    supportEmail: 'gymcloudsys@gmail.com',
+    supportPhone: '+226 68 46 11 19',
+  });
   const [formStatus, setFormStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [formMessage, setFormMessage] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -124,6 +128,18 @@ export function LandingPage() {
       .then((data: PublicPlan[]) => setPlans(data))
       .catch(() => {
         /* silencieux — le champ reste optionnel si l'API n'est pas joignable */
+      });
+  }, []);
+
+  // Coordonnées de contact — modifiables par le SUPER_ADMIN depuis son
+  // tableau de bord (page "Contacts") ; les valeurs par défaut ci-dessus
+  // restent affichées si l'API n'est pas joignable.
+  useEffect(() => {
+    fetch(`${API_URL}/public/contact`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: { supportEmail: string; supportPhone: string }) => setContact(data))
+      .catch(() => {
+        /* silencieux — les valeurs par défaut restent affichées */
       });
   }, []);
 
@@ -773,7 +789,8 @@ export function LandingPage() {
             <div className={c('foot-col')}>
               <h4>Ressources</h4>
               <a href="#faq">Questions fréquentes</a>
-              <a href="mailto:contact@gymcloud.africa">Contact</a>
+              <a href={`mailto:${contact.supportEmail}`}>Contact</a>
+              <a href={`tel:${contact.supportPhone.replace(/\s/g, '')}`}>{contact.supportPhone}</a>
             </div>
             <div className={c('foot-col')}>
               <h4>Légal</h4>

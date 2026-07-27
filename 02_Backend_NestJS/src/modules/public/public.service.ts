@@ -214,6 +214,20 @@ export class PublicService {
   // (§2.4) une fois le contact établi.
 
   /** Plans publics (nom, tarifs, quotas) — pour le sélecteur du formulaire du site vitrine. */
+  /**
+   * §14.x — Coordonnées de contact affichées sur le site vitrine
+   * (pied de page). Valeurs par défaut si le SUPER_ADMIN n'a encore
+   * rien personnalisé depuis son tableau de bord ("Contacts").
+   */
+  async getContact() {
+    const settings = await this.prisma.platformSettings.findUnique({ where: { id: 'platform' } });
+    return {
+      supportEmail: settings?.supportEmail ?? 'gymcloudsys@gmail.com',
+      supportPhone: settings?.supportPhone ?? '+226 68 46 11 19',
+      whatsappNumber: settings?.whatsappNumber ?? null,
+    };
+  }
+
   async getPublicPlans() {
     return this.prisma.saasPlan.findMany({
       where: { status: 'ACTIF' },

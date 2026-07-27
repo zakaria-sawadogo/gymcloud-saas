@@ -149,7 +149,7 @@ function CreateCampaignModal({
   onCreated: () => void;
 }) {
   const [name, setName] = useState('');
-  const [channel, setChannel] = useState('SMS');
+  const [channel, setChannel] = useState('EMAIL');
   const [content, setContent] = useState('');
   const [segmentType, setSegmentType] = useState('ACTIFS');
   const [inactiveDays, setInactiveDays] = useState('30');
@@ -204,7 +204,6 @@ function CreateCampaignModal({
 
         <Field label="Canal">
           <Select value={channel} onChange={(e) => setChannel(e.target.value)}>
-            <option value="SMS">SMS</option>
             <option value="EMAIL">Email</option>
             <option value="WHATSAPP">WhatsApp</option>
             <option value="PUSH">Notification push</option>

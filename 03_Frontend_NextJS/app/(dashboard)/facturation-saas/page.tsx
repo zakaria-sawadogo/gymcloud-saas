@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useAuth } from '@/lib/auth-context';
 import type { SaasInvoice } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
@@ -62,6 +63,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
  * adhérent → salle, pas un simple bouton "marquer payée" sans trace.
  */
 export default function FacturationSaasPage() {
+  const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState('');
   const [invoiceToPay, setInvoiceToPay] = useState<SaasInvoice | null>(null);
 
@@ -99,6 +101,8 @@ export default function FacturationSaasPage() {
           </p>
         </Card>
       )}
+
+      {user?.roleCode === 'PROPRIETAIRE' && <MyAddonsSection />}
 
       <PendingValidationSection />
 
@@ -142,6 +146,16 @@ export default function FacturationSaasPage() {
                     {inv.extraSallesCount > 0 && (
                       <span className="ml-1 text-xs text-ink-400">
                         (dont {inv.extraSallesCount} salle{inv.extraSallesCount > 1 ? 's' : ''} suppl.)
+                      </span>
+                    )}
+                    {Number(inv.addonsAmount) > 0 && (
+                      <span className="ml-1 text-xs text-ink-400">
+                        (dont {formatCurrency(inv.addonsAmount, inv.currency)} add-ons)
+                      </span>
+                    )}
+                    {Number(inv.discountAmount) > 0 && (
+                      <span className="ml-1 text-xs text-primary-600">
+                        (- {formatCurrency(inv.discountAmount, inv.currency)} réduction)
                       </span>
                     )}
                   </td>
@@ -276,6 +290,81 @@ const DECLARED_METHOD_LABELS: Record<string, string> = {
  * réellement la réception des fonds avant d'approuver — et
  * d'appliquer, le cas échéant, le changement de plan qui en dépend.
  */
+interface SubscriptionAddon {
+  addonId: string;
+  addon: { id: string; name: string; description: string | null; price: number };
+}
+
+/**
+ * §9.3 — Add-ons disponibles pour la souscription du propriétaire
+ * connecté. Jamais activés automatiquement : chaque bascule appelle
+ * explicitement l'API pour attacher/détacher. Le nouveau tarif se
+ * répercute sur la prochaine facture, jamais rétroactivement sur une
+ * facture déjà émise.
+ */
+function MyAddonsSection() {
+  const { data: subscription } = useApi<{ id: string }>('/saas/invoices/me/subscription');
+  const { data: allAddons } = useApi<{ id: string; name: string; description: string | null; price: number }[]>(
+    '/saas/plans/addons',
+  );
+  const {
+    data: activeAddons,
+    refetch: refetchActive,
+  } = useApi<SubscriptionAddon[]>(subscription ? `/saas/plans/${subscription.id}/addons` : null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  if (!subscription || !allAddons) return null;
+
+  const activeIds = new Set((activeAddons ?? []).map((a) => a.addonId));
+
+  const toggle = async (addonId: string, isActive: boolean) => {
+    setTogglingId(addonId);
+    try {
+      if (isActive) {
+        await apiClient.delete(`/saas/plans/${subscription.id}/addons/${addonId}`);
+      } else {
+        await apiClient.post(`/saas/plans/${subscription.id}/addons/${addonId}`);
+      }
+      refetchActive();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  return (
+    <Card className="mb-6">
+      <h2 className="font-display mb-1 text-base font-semibold text-ink-900">Add-ons disponibles</h2>
+      <p className="mb-4 text-sm text-ink-500">
+        Jamais inclus automatiquement — activez ceux dont vous avez besoin, répercutés sur votre prochaine facture.
+      </p>
+      <div className="divide-y divide-ink-100">
+        {allAddons.map((addon) => {
+          const isActive = activeIds.has(addon.id);
+          return (
+            <div key={addon.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+              <div>
+                <p className="font-medium text-ink-900">{addon.name}</p>
+                {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
+                <p className="text-sm text-ink-600">{formatCurrency(addon.price)} / mois</p>
+              </div>
+              <Button
+                size="sm"
+                variant={isActive ? 'secondary' : 'primary'}
+                isLoading={togglingId === addon.id}
+                onClick={() => toggle(addon.id, isActive)}
+              >
+                {isActive ? 'Désactiver' : 'Activer'}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 function PendingValidationSection() {
   const { data: pending, isLoading, refetch } = useApi<SaasInvoice[]>('/saas/invoices/pending-validation');
   const [actioningId, setActioningId] = useState<string | null>(null);

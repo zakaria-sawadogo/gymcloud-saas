@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -124,5 +124,57 @@ export class SaasPlansController {
   })
   getHistory(@Param('subscriptionId') subscriptionId: string, @CurrentUser() user: TenantContext) {
     return this.saasBillingService.getSubscriptionHistory(subscriptionId, user);
+  }
+
+  @Get('addons')
+  @ApiOperation({
+    summary:
+      'Add-ons SaaS disponibles (§9.3) — fonctionnalités optionnelles jamais incluses automatiquement dans un plan.',
+  })
+  listAddons() {
+    return this.saasBillingService.listAddons();
+  }
+
+  @Patch('addons/:id')
+  @RequirePermission('manage', 'SaasPlan')
+  @ApiOperation({ summary: 'Modifier un add-on SaaS (prix, description...) — SUPER_ADMIN uniquement' })
+  updateAddon(
+    @Param('id') id: string,
+    @Body() body: { name?: string; description?: string; price?: number; active?: boolean },
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.saasBillingService.updateAddon(id, body, user.userId);
+  }
+
+  @Get(':subscriptionId/addons')
+  @RequirePermission('read', 'SaasSubscription')
+  @ApiOperation({ summary: 'Add-ons activés sur cette souscription' })
+  listSubscriptionAddons(@Param('subscriptionId') subscriptionId: string) {
+    return this.saasBillingService.listSubscriptionAddons(subscriptionId);
+  }
+
+  @Post(':subscriptionId/addons/:addonId')
+  @RequirePermission('update', 'SaasSubscription')
+  @ApiOperation({
+    summary:
+      "Activer un add-on sur cette souscription (§9.3) — jamais automatique, le propriétaire ou le SUPER_ADMIN doit explicitement l'activer. Répercuté sur la prochaine facture.",
+  })
+  attachAddon(
+    @Param('subscriptionId') subscriptionId: string,
+    @Param('addonId') addonId: string,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.saasBillingService.attachAddon(subscriptionId, addonId, user.userId, user);
+  }
+
+  @Delete(':subscriptionId/addons/:addonId')
+  @RequirePermission('update', 'SaasSubscription')
+  @ApiOperation({ summary: 'Désactiver un add-on sur cette souscription' })
+  detachAddon(
+    @Param('subscriptionId') subscriptionId: string,
+    @Param('addonId') addonId: string,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.saasBillingService.detachAddon(subscriptionId, addonId, user.userId, user);
   }
 }

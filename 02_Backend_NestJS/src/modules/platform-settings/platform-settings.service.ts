@@ -19,7 +19,7 @@ export class PlatformSettingsService {
     if (existing) return existing;
 
     return this.prisma.platformSettings.create({
-      data: { id: SETTINGS_ID, supportEmail: 'gymcloudsys@gmail.com' },
+      data: { id: SETTINGS_ID, supportEmail: 'gymcloudsys@gmail.com', supportPhone: '+226 68 46 11 19' },
     });
   }
 
