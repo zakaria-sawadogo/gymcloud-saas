@@ -249,6 +249,25 @@ export class SallesService {
    * l'application mobile envoie ensuite à
    * POST /access-control/self-checkin une fois scannée.
    */
+  /**
+   * §9.3, §14.x — L'add-on "Application mobile" (APPLICATION_WEB)
+   * n'est jamais inclus automatiquement dans un plan : sans lui,
+   * gestionnaire, coach et adhérent de cette salle ne peuvent pas
+   * utiliser l'app mobile — uniquement le web. Vérifié à chaque
+   * lancement de l'app mobile, pas seulement à la connexion (un
+   * add-on désactivé en cours de session doit couper l'accès aussi).
+   */
+  async hasApplicationAccess(salleId: string): Promise<boolean> {
+    const salle = await this.prisma.salle.findUnique({
+      where: { id: salleId },
+      select: { subscription: { select: { addons: { select: { addon: { select: { code: true } } } } } } },
+    });
+    return (
+      salle?.subscription.addons.some((sa: { addon: { code: string } }) => sa.addon.code === 'APPLICATION_WEB') ??
+      false
+    );
+  }
+
   async getCheckinQrCode(salleId: string) {
     const salle = await this.prisma.salle.findUniqueOrThrow({ where: { id: salleId } });
     const qrDataUrl = await QRCode.toDataURL(salle.checkinQrToken, { margin: 1, width: 400 });

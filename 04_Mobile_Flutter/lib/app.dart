@@ -10,6 +10,7 @@ import 'features/adherent/adherent_app.dart';
 import 'features/coach/coach_app.dart';
 import 'features/gestionnaire/gestionnaire_app.dart';
 import 'features/proprietaire/proprietaire_app.dart';
+import 'features/shared/app_access_repository.dart';
 
 /// Point de composition unique de l'app — une seule application pour
 /// tous les profils (§2.3) : après connexion, l'écran affiché dépend
@@ -50,8 +51,33 @@ class GymCloudApp extends StatelessWidget {
 /// réel de l'utilisateur connecté (§2.3, §2.8) — SUPER_ADMIN et le
 /// personnel interne GymCloud n'ont pas d'écran mobile dédié (gérés
 /// depuis le web), comme sur le frontend web.
-class _RootRouter extends StatelessWidget {
+class _RootRouter extends StatefulWidget {
   const _RootRouter();
+
+  @override
+  State<_RootRouter> createState() => _RootRouterState();
+}
+
+class _RootRouterState extends State<_RootRouter> {
+  bool? _hasAppAccess;
+  String? _checkedForUserId;
+
+  Future<void> _checkAppAccess(String salleId, String userId) async {
+    setState(() {
+      _hasAppAccess = null;
+      _checkedForUserId = userId;
+    });
+    try {
+      final repo = AppAccessRepository(context.read());
+      final access = await repo.hasAccess(salleId);
+      if (mounted) setState(() => _hasAppAccess = access);
+    } catch (_) {
+      // §9.3 — En cas d'erreur réseau, on laisse passer plutôt que de
+      // bloquer par excès de prudence sur un simple problème de
+      // connectivité : le contrôle se refera à la prochaine ouverture.
+      if (mounted) setState(() => _hasAppAccess = true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,10 +88,30 @@ class _RootRouter extends StatelessWidget {
     }
 
     if (auth.status == AuthStatus.unauthenticated || auth.user == null) {
+      _checkedForUserId = null; // reset — la prochaine connexion doit revérifier
       return const LoginScreen();
     }
 
-    switch (auth.user!.roleCode) {
+    final user = auth.user!;
+    // §9.3 — Seuls gestionnaire, coach et adhérent dépendent de l'add-on
+    // "Application mobile" d'une salle précise ; propriétaire et
+    // SUPER_ADMIN ne sont jamais concernés par ce contrôle.
+    final requiresAppAccessCheck =
+        ['GESTIONNAIRE', 'COACH', 'ADHERENT'].contains(user.roleCode) && user.salle != null;
+
+    if (requiresAppAccessCheck) {
+      if (_checkedForUserId != user.userId) {
+        _checkAppAccess(user.salle!.id, user.userId);
+      }
+      if (_hasAppAccess == null) {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      }
+      if (_hasAppAccess == false) {
+        return const _AppAccessDeniedScreen();
+      }
+    }
+
+    switch (user.roleCode) {
       case 'ADHERENT':
         return const AdherentApp();
       case 'COACH':
@@ -75,8 +121,50 @@ class _RootRouter extends StatelessWidget {
       case 'PROPRIETAIRE':
         return const ProprietaireApp();
       default:
-        return _UnsupportedRoleScreen(roleCode: auth.user!.roleCode);
+        return _UnsupportedRoleScreen(roleCode: user.roleCode);
     }
+  }
+}
+
+/// §9.3 — Salle sans add-on "Application mobile" actif : accès web
+/// uniquement, message clair plutôt qu'une app qui semble cassée.
+class _AppAccessDeniedScreen extends StatelessWidget {
+  const _AppAccessDeniedScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.phonelink_off_outlined, size: 40, color: AppColors.ink400),
+                const SizedBox(height: 16),
+                const Text(
+                  "L'application mobile n'est pas activée pour cette salle",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Le propriétaire de la salle peut activer l'add-on \"Application mobile\" depuis son espace — en attendant, utilisez l'application web GymCloud.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: AppColors.ink400),
+                ),
+                const SizedBox(height: 24),
+                TextButton(
+                  onPressed: () => context.read<AuthProvider>().logout(),
+                  child: const Text('Se déconnecter'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

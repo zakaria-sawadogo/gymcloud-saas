@@ -92,4 +92,13 @@ export class SallesController {
   getCheckinQr(@Param('id') id: string) {
     return this.sallesService.getCheckinQrCode(id);
   }
+
+  @Get(':id/app-access')
+  @RequirePermission('read', 'Salle')
+  @ApiOperation({
+    summary: 'Cette salle a-t-elle l\'add-on "Application mobile" actif ? — vérifié au lancement de l\'app mobile (§9.3)',
+  })
+  async getAppAccess(@Param('id') id: string) {
+    return { hasAccess: await this.sallesService.hasApplicationAccess(id) };
+  }
 }
