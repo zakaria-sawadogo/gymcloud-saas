@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Patch } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateGestionnaireDto } from './dto/users.dto';
@@ -46,5 +46,12 @@ export class GestionnairesController {
   @ApiOperation({ summary: 'Désactiver (« supprimer ») un gestionnaire — historique conservé' })
   deactivate(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
     return this.usersService.deactivateGestionnaire(userId, user);
+  }
+
+  @Delete(':userId')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Supprimer définitivement un gestionnaire — irréversible, contrairement à "désactiver"' })
+  remove(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.deleteGestionnaire(userId, user);
   }
 }

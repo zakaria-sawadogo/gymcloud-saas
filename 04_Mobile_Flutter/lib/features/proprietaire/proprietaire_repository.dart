@@ -95,4 +95,9 @@ class ProprietaireRepository {
 
   Future<void> deactivateStaff(String kind, String userId) =>
       _api.patch<dynamic>('/${kind}s/$userId/deactivate');
+
+  /// §4.2, §4.4, §4.5 — Suppression définitive, contrairement à
+  /// "désactiver" qui conserve l'historique.
+  Future<void> deleteStaff(String kind, String userId) =>
+      _api.delete<dynamic>('/${kind}s/$userId');
 }

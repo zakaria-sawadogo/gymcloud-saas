@@ -519,6 +519,27 @@ export class UsersService {
     return this.deactivateUser(gestionnaireUserId, actor.userId);
   }
 
+  /**
+   * §4.2, §4.4 — Suppression définitive et irréversible d'un
+   * gestionnaire (contrairement à "désactiver", qui conserve
+   * l'historique). Peu de dépendances propres : ses jetons/historique
+   * de connexion suivent automatiquement (cascade déjà en place sur
+   * User), il ne reste qu'à retirer son profil puis son compte.
+   */
+  async deleteGestionnaire(gestionnaireUserId: string, actor: TenantContext) {
+    const profile = await this.assertOwnsGestionnaire(gestionnaireUserId, actor);
+    await this.prisma.notification.deleteMany({ where: { userId: gestionnaireUserId } });
+    await this.prisma.gestionnaireProfile.delete({ where: { id: profile.id } });
+    await this.prisma.user.delete({ where: { id: gestionnaireUserId } });
+    await this.audit.log({
+      userId: actor.userId,
+      action: 'gestionnaire.delete',
+      entityType: 'GestionnaireProfile',
+      entityId: profile.id,
+    });
+    return { success: true };
+  }
+
   // ─────────────────────────────────────────────────────────────
   // Coachs — cycle de vie avec vérification d'appartenance (§4.2,
   // §4.5) : un GESTIONNAIRE ne peut agir que sur les coachs de SA
@@ -557,6 +578,31 @@ export class UsersService {
   async deactivateCoach(coachUserId: string, actor: TenantContext) {
     await this.assertOwnsCoach(coachUserId, actor);
     return this.deactivateUser(coachUserId, actor.userId);
+  }
+
+  /**
+   * §4.2, §4.5 — Suppression définitive et irréversible d'un coach.
+   * Contrairement au gestionnaire, un coach a des dépendances propres
+   * (réservations où il intervient, disponibilités déclarées, forfaits
+   * mensuels adhérents) qu'il faut nettoyer avant de retirer son
+   * profil — sans jamais toucher aux adhérents ou paiements
+   * eux-mêmes, seulement au lien vers ce coach précis.
+   */
+  async deleteCoach(coachUserId: string, actor: TenantContext) {
+    const profile = await this.assertOwnsCoach(coachUserId, actor);
+    await this.prisma.booking.deleteMany({ where: { coachId: profile.id } });
+    await this.prisma.coachAvailability.deleteMany({ where: { coachId: profile.id } });
+    await this.prisma.coachMonthlyPass.deleteMany({ where: { coachId: profile.id } });
+    await this.prisma.notification.deleteMany({ where: { userId: coachUserId } });
+    await this.prisma.coachProfile.delete({ where: { id: profile.id } });
+    await this.prisma.user.delete({ where: { id: coachUserId } });
+    await this.audit.log({
+      userId: actor.userId,
+      action: 'coach.delete',
+      entityType: 'CoachProfile',
+      entityId: profile.id,
+    });
+    return { success: true };
   }
 
   // ─────────────────────────────────────────────────────────────

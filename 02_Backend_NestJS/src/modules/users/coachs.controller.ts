@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Patch, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Patch, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { IsOptional, IsNumber, IsString, Min } from 'class-validator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiPropertyOptional, ApiConsumes } from '@nestjs/swagger';
@@ -100,5 +100,12 @@ export class CoachsController {
   @ApiOperation({ summary: 'Désactiver (« supprimer ») un coach — historique conservé' })
   deactivate(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
     return this.usersService.deactivateCoach(userId, user);
+  }
+
+  @Delete(':userId')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Supprimer définitivement un coach — irréversible, contrairement à "désactiver"' })
+  remove(@Param('userId') userId: string, @CurrentUser() user: TenantContext) {
+    return this.usersService.deleteCoach(userId, user);
   }
 }

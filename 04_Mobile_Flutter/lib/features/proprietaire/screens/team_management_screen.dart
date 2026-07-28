@@ -78,6 +78,27 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
           if (confirmed != true) return;
           await _repo.deactivateStaff(kind, userId);
           break;
+        case 'delete':
+          final name = '${staff['user']['firstName']} ${staff['user']['lastName']}';
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Supprimer définitivement ?'),
+              content: Text(
+                '$name sera définitivement supprimé — contrairement à "désactiver", son historique ne sera pas conservé. Action irréversible.',
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Supprimer', style: TextStyle(color: AppColors.danger)),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true) return;
+          await _repo.deleteStaff(kind, userId);
+          break;
       }
       _load();
     } catch (e) {
@@ -170,6 +191,10 @@ class _TeamSection extends StatelessWidget {
                     else
                       const PopupMenuItem(value: 'suspend', child: Text('Suspendre')),
                     const PopupMenuItem(value: 'deactivate', child: Text('Désactiver')),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('Supprimer définitivement', style: TextStyle(color: AppColors.danger)),
+                    ),
                   ],
                 ),
               ),
