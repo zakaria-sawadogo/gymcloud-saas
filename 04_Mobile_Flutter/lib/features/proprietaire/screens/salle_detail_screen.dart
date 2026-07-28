@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/widgets/stat_card.dart';
 import '../proprietaire_repository.dart';
+import 'team_management_screen.dart';
 
 /// Drill-down vers le détail d'une salle spécifique — mêmes
 /// indicateurs que le tableau de bord Gestionnaire, en lecture seule
@@ -42,7 +43,21 @@ class _SalleDetailScreenState extends State<SalleDetailScreen> {
     final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.salleName)),
+      appBar: AppBar(
+        title: Text(widget.salleName),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.badge_outlined),
+            tooltip: 'Équipe',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TeamManagementScreen(salleId: widget.salleId, salleName: widget.salleName),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -66,13 +81,13 @@ class _SalleDetailScreenState extends State<SalleDetailScreen> {
                   ),
                   StatCard(
                     label: 'Revenus aujourd\'hui',
-                    value: currencyFormat.format(_data?['revenus']?['aujourdHui'] ?? 0),
+                    value: currencyFormat.format(double.parse((_data?['revenus']?['aujourdHui'] ?? 0).toString())),
                     icon: Icons.account_balance_wallet_outlined,
                     isAccent: true,
                   ),
                   StatCard(
                     label: 'Revenus ce mois',
-                    value: currencyFormat.format(_data?['revenus']?['ceMois'] ?? 0),
+                    value: currencyFormat.format(double.parse((_data?['revenus']?['ceMois'] ?? 0).toString())),
                     icon: Icons.trending_up,
                     isAccent: true,
                   ),

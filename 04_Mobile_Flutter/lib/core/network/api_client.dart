@@ -128,6 +128,15 @@ class ApiClient {
     }
   }
 
+  Future<T> delete<T>(String path) async {
+    try {
+      final res = await _dio.delete(path);
+      return res.data as T;
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+  }
+
   ApiException _toApiException(DioException e) {
     final statusCode = e.response?.statusCode ?? 0;
     final body = e.response?.data;

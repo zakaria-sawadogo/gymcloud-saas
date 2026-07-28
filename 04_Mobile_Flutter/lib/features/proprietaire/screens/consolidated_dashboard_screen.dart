@@ -7,6 +7,8 @@ import '../../../core/widgets/stat_card.dart';
 import '../proprietaire_repository.dart';
 import 'salle_detail_screen.dart';
 import '../../shared/logout_button.dart';
+import '../../shared/notification_bell.dart';
+import 'my_subscription_screen.dart';
 
 /// Vue consolidée multi-salles (§2.3, §11) — équivalent mobile de
 /// ProprietaireDashboardView.tsx côté web. Un propriétaire n'a pas
@@ -56,7 +58,21 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
     final salles = (_data?['salles'] as List<dynamic>?) ?? [];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Vue consolidée'), actions: const [LogoutButton()]),
+      appBar: AppBar(
+        title: const Text('Vue consolidée'),
+        actions: [
+          const NotificationBell(),
+          IconButton(
+            icon: const Icon(Icons.layers_outlined),
+            tooltip: 'Mon abonnement',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MySubscriptionScreen()),
+            ),
+          ),
+          const LogoutButton(),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -86,13 +102,13 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
                           ),
                           StatCard(
                             label: 'Revenus aujourd\'hui',
-                            value: currencyFormat.format(consolidated?['revenusAujourdHui'] ?? 0),
+                            value: currencyFormat.format(double.parse((consolidated?['revenusAujourdHui'] ?? 0).toString())),
                             icon: Icons.account_balance_wallet_outlined,
                             isAccent: true,
                           ),
                           StatCard(
                             label: 'Revenus ce mois',
-                            value: currencyFormat.format(consolidated?['revenusCeMois'] ?? 0),
+                            value: currencyFormat.format(double.parse((consolidated?['revenusCeMois'] ?? 0).toString())),
                             icon: Icons.trending_up,
                             isAccent: true,
                           ),
@@ -117,7 +133,7 @@ class _SalleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
     final adherentsActifs = salle['adherents']?['actifs'] ?? 0;
-    final revenusCeMois = salle['revenus']?['ceMois'] ?? 0;
+    final revenusCeMois = double.parse((salle['revenus']?['ceMois'] ?? 0).toString());
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),

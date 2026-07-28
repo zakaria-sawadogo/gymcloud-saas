@@ -167,3 +167,30 @@ class PendingPayment {
         method: json['method'],
       );
 }
+
+/// §6.5, §6.14, §14.x — Notification interne, commune aux apps
+/// Gestionnaire et Adhérent (chacun ne voit jamais que les siennes,
+/// filtrées côté serveur par userId).
+class AppNotification {
+  final String id;
+  final String title;
+  final String body;
+  final DateTime? readAt;
+  final DateTime createdAt;
+
+  AppNotification({
+    required this.id,
+    required this.title,
+    required this.body,
+    this.readAt,
+    required this.createdAt,
+  });
+
+  factory AppNotification.fromJson(Map<String, dynamic> json) => AppNotification(
+        id: json['id'],
+        title: json['title'],
+        body: json['body'],
+        readAt: json['readAt'] != null ? DateTime.parse(json['readAt']) : null,
+        createdAt: DateTime.parse(json['createdAt']),
+      );
+}

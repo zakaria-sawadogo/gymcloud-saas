@@ -113,12 +113,20 @@ export class InvoicePdfService {
       y += 16;
     };
 
-    addRow(
-      `Abonnement ${invoice.subscription.saasPlan.name} (${invoice.subscription.billingCycle === 'ANNUEL' ? 'annuel' : 'mensuel'})`,
-      money(priceCatalogue),
-    );
-    if (hasDiscount) {
-      addRow('Réduction appliquée', `- ${money(Number(invoice.discountAmount))}`, { negative: true });
+    // §9.8 — Une facture d'add-on activé en cours de cycle (baseAmount
+    // à 0, voir SaasBillingService.attachAddon) ne facture jamais
+    // l'abonnement lui-même, déjà facturé sur une facture séparée :
+    // afficher la ligne "Abonnement" dans ce cas induirait en erreur,
+    // son montant n'étant compté dans aucun total de cette facture-ci.
+    const chargesSubscription = Number(invoice.baseAmount) > 0;
+    if (chargesSubscription) {
+      addRow(
+        `Abonnement ${invoice.subscription.saasPlan.name} (${invoice.subscription.billingCycle === 'ANNUEL' ? 'annuel' : 'mensuel'})`,
+        money(priceCatalogue),
+      );
+      if (hasDiscount) {
+        addRow('Réduction appliquée', `- ${money(Number(invoice.discountAmount))}`, { negative: true });
+      }
     }
     if (invoice.extraSallesCount > 0) {
       addRow(`Salles supplémentaires (×${invoice.extraSallesCount})`, money(Number(invoice.extraSallesAmount)));

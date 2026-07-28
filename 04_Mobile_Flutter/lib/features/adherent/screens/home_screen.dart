@@ -7,6 +7,7 @@ import '../../../core/widgets/status_badge.dart';
 import '../../../core/models/adherent.dart';
 import '../adherent_repository.dart';
 import '../../shared/logout_button.dart';
+import '../../shared/notification_bell.dart';
 import 'renew_subscription_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -60,7 +61,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = context.watch<AuthProvider>().user;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Bonjour, ${user?.firstName ?? ''}'), actions: const [LogoutButton()]),
+      appBar: AppBar(
+        title: Text('Bonjour, ${user?.firstName ?? ''}'),
+        actions: const [NotificationBell(), LogoutButton()],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: _isLoading
