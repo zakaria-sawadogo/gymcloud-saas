@@ -1240,6 +1240,14 @@ export class SaasBillingService {
         paidAt: new Date(),
         paymentMethod: details.paymentMethod,
         paymentReference: details.paymentReference,
+        // §9.11 — Un encaissement direct doit aussi purger un éventuel
+        // paiement déclaré en attente (propriétaire ayant déclaré avoir
+        // payé, jamais validé/rejeté explicitement) — sinon ces champs
+        // restent incohérents avec le règlement réellement appliqué.
+        declaredPaymentMethod: null,
+        declaredPaymentReference: null,
+        declaredAt: null,
+        declaredByUserId: null,
       },
     });
 
