@@ -1255,6 +1255,53 @@ export class SaasBillingService {
       },
     });
 
+    // §9.3, §9.12 — Un encaissement direct (ce chemin-ci) doit activer
+    // le changement de plan ou l'add-on en attente, au même titre
+    // qu'une validation de paiement déclaré (voir approveDeclaredPayment)
+    // — sinon la facture est réglée mais rien ne se passe (bug réel
+    // corrigé).
+    if (invoice.pendingPlanId) {
+      await this.prisma.saasSubscription.update({
+        where: { id: invoice.subscriptionId },
+        data: {
+          saasPlanId: invoice.pendingPlanId,
+          ...(invoice.pendingBillingCycle ? { billingCycle: invoice.pendingBillingCycle } : {}),
+        },
+      });
+      await this.prisma.saasInvoice.update({
+        where: { id: invoiceId },
+        data: { pendingPlanId: null, pendingBillingCycle: null },
+      });
+    }
+
+    if (invoice.pendingAddonId) {
+      const startDate = new Date();
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + (invoice.pendingAddonDurationMonths ?? 12));
+
+      await this.prisma.saasSubscriptionAddon.update({
+        where: { subscriptionId_addonId: { subscriptionId: invoice.subscriptionId, addonId: invoice.pendingAddonId } },
+        data: { status: 'ACTIF', startDate, endDate },
+      });
+      await this.prisma.saasInvoice.update({
+        where: { id: invoiceId },
+        data: { pendingAddonId: null, pendingAddonDurationMonths: null },
+      });
+
+      const addon = await this.prisma.saasAddon.findUnique({ where: { id: invoice.pendingAddonId } });
+      const proprietaire = await this.prisma.saasSubscription.findUnique({
+        where: { id: invoice.subscriptionId },
+        select: { proprietaire: { select: { userId: true } } },
+      });
+      if (addon && proprietaire) {
+        await this.notifications.create(
+          proprietaire.proprietaire.userId,
+          'Add-on activé',
+          `L'add-on "${addon.name}" est maintenant actif jusqu'au ${endDate.toLocaleDateString('fr-FR')}.`,
+        );
+      }
+    }
+
     // §9.11 — Réactivation automatique si la souscription était en
     // grâce ou suspendue.
     await this.reactivateSubscriptionIfNeeded(invoice, actorUserId);
