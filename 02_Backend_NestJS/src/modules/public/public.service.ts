@@ -56,7 +56,7 @@ export class PublicService {
         subscription: {
           select: {
             saasPlan: { select: { modules: true } },
-            addons: { select: { addon: { select: { code: true } } } },
+            addons: { select: { status: true, addon: { select: { code: true } } } },
           },
         },
       },
@@ -64,7 +64,7 @@ export class PublicService {
     const hasSitePublicModule = salle?.subscription.saasPlan.modules.includes('site_public') ?? false;
     const hasSiteSalleAddon =
       salle?.subscription.addons.some(
-        (sa: { addon: { code: string } }) => sa.addon.code === 'SITE_SALLE',
+        (sa: { status: string; addon: { code: string } }) => sa.addon.code === 'SITE_SALLE' && sa.status === 'ACTIF',
       ) ?? false;
     // §9.3 — Accessible si le plan inclut le module historique "site_public"
     // OU si l'add-on "SITE_SALLE" a été explicitement activé — sans ça,

@@ -260,11 +260,14 @@ export class SallesService {
   async hasApplicationAccess(salleId: string): Promise<boolean> {
     const salle = await this.prisma.salle.findUnique({
       where: { id: salleId },
-      select: { subscription: { select: { addons: { select: { addon: { select: { code: true } } } } } } },
+      select: {
+        subscription: { select: { addons: { select: { status: true, addon: { select: { code: true } } } } } },
+      },
     });
     return (
-      salle?.subscription.addons.some((sa: { addon: { code: string } }) => sa.addon.code === 'APPLICATION_WEB') ??
-      false
+      salle?.subscription.addons.some(
+        (sa: { status: string; addon: { code: string } }) => sa.addon.code === 'APPLICATION_WEB' && sa.status === 'ACTIF',
+      ) ?? false
     );
   }
 
