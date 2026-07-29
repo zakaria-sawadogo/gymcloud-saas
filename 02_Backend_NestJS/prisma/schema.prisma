@@ -305,13 +305,23 @@ model SaasSubscription {
 model SaasSubscriptionAddon {
   subscriptionId String
   addonId        String
-  activatedAt    DateTime @default(now())
+  status         SaasSubscriptionAddonStatus @default(EN_ATTENTE)
+  requestedAt    DateTime  @default(now())
+  durationMonths Int       @default(12) // §9.3 — mois demandés par le propriétaire (ou cycle du plan si pris à la souscription)
+  startDate      DateTime? // posé à l'approbation du paiement, jamais avant
+  endDate        DateTime? // startDate + durationMonths — sert au renouvellement automatique
 
   subscription SaasSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   addon        SaasAddon        @relation(fields: [addonId], references: [id], onDelete: Cascade)
 
   @@id([subscriptionId, addonId])
   @@map("saas_subscription_addons")
+}
+
+enum SaasSubscriptionAddonStatus {
+  EN_ATTENTE
+  ACTIF
+  EXPIRE
 }
 
 enum SaasInvoiceStatus {
@@ -371,6 +381,13 @@ model SaasInvoice {
   // souscription (plan + cycle), pas seulement le règlement.
   pendingPlanId         String?
   pendingBillingCycle   BillingCycle?
+
+  // §9.3 — Activation d'add-on en attente de validation : si non nul,
+  // l'approbation de cette facture active AUSSI cet add-on pour la
+  // durée demandée, en plus du règlement — même principe que
+  // pendingPlanId ci-dessus.
+  pendingAddonId             String?
+  pendingAddonDurationMonths Int?
 
   historyEntry SaasSubscriptionHistory?
 

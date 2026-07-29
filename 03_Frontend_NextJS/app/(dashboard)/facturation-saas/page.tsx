@@ -438,7 +438,11 @@ function PendingValidationSection() {
                 </td>
                 <td className="px-5 py-3 text-ink-600">{inv.declaredAt ? formatDate(inv.declaredAt) : '—'}</td>
                 <td className="px-5 py-3 text-ink-600">
-                  {inv.pendingPlanId ? 'Changement de plan en attente' : '—'}
+                  {inv.pendingAddonName
+                    ? `Add-on : ${inv.pendingAddonName}`
+                    : inv.pendingPlanId
+                      ? 'Changement de plan en attente'
+                      : '—'}
                 </td>
                 <td className="px-5 py-3 text-right">
                   <div className="flex justify-end gap-2">

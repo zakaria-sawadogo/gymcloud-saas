@@ -59,21 +59,42 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
     }
   }
 
-  Future<void> _toggleAddon(String addonId, bool isActive) async {
+  Future<void> _requestAddon(Map<String, dynamic> addon) async {
+    final subscriptionId = _subscription?['id'];
+    if (subscriptionId == null) return;
+
+    final durationMonths = await showDialog<int>(
+      context: context,
+      builder: (ctx) => _DurationPickerDialog(addonName: addon['name'] ?? '', pricePerMonth: addon['price'] ?? 0),
+    );
+    if (durationMonths == null) return;
+
+    setState(() => _togglingAddonId = addon['id']);
+    try {
+      await _repo.attachAddon(subscriptionId, addon['id'], durationMonths: durationMonths);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Demande envoyée — l'add-on sera activé une fois le paiement validé")),
+        );
+      }
+      final activeAddons = await _repo.getActiveAddons(subscriptionId);
+      setState(() => _activeAddons = activeAddons);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e'), backgroundColor: AppColors.danger));
+      }
+    } finally {
+      if (mounted) setState(() => _togglingAddonId = null);
+    }
+  }
+
+  Future<void> _cancelAddon(String addonId) async {
     final subscriptionId = _subscription?['id'];
     if (subscriptionId == null) return;
     setState(() => _togglingAddonId = addonId);
     try {
-      if (isActive) {
-        await _repo.detachAddon(subscriptionId, addonId);
-      } else {
-        await _repo.attachAddon(subscriptionId, addonId);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Add-on activé — facturé séparément au prorata sur une facture à part')),
-          );
-        }
-      }
+      await _repo.detachAddon(subscriptionId, addonId);
       final activeAddons = await _repo.getActiveAddons(subscriptionId);
       setState(() => _activeAddons = activeAddons);
     } catch (e) {
@@ -109,7 +130,6 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
-    final activeAddonIds = _activeAddons.map((a) => a['addonId'] as String).toSet();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Mon abonnement')),
@@ -164,8 +184,12 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                       ),
                       const SizedBox(height: 12),
                       ..._allAddons.map((addon) {
-                        final isActive = activeAddonIds.contains(addon['id']);
-                        final isToggling = _togglingAddonId == addon['id'];
+                        final current = _activeAddons.firstWhere(
+                          (a) => a['addonId'] == addon['id'],
+                          orElse: () => <String, dynamic>{},
+                        );
+                        final status = current['status'] as String?;
+                        final isBusy = _togglingAddonId == addon['id'];
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: Padding(
@@ -173,7 +197,31 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(addon['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                Row(
+                                  children: [
+                                    Text(addon['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    if (status == 'EN_ATTENTE' || status == 'ACTIF') ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: status == 'ACTIF'
+                                              ? AppColors.primary.withValues(alpha: 0.1)
+                                              : AppColors.ink50,
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Text(
+                                          status == 'ACTIF' ? 'Actif' : 'En attente',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: status == 'ACTIF' ? AppColors.primary : AppColors.ink600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                                 if (addon['description'] != null) ...[
                                   const SizedBox(height: 2),
                                   Text(addon['description'], style: const TextStyle(color: AppColors.ink600, fontSize: 13)),
@@ -183,22 +231,46 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                                   '${currencyFormat.format(double.parse((addon['price'] ?? 0).toString()))} / mois',
                                   style: const TextStyle(color: AppColors.ink600, fontSize: 13),
                                 ),
+                                if (status == 'ACTIF' && current['endDate'] != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Jusqu\'au ${DateFormat('dd/MM/yyyy').format(DateTime.parse(current['endDate']))}',
+                                    style: const TextStyle(color: AppColors.ink400, fontSize: 12),
+                                  ),
+                                ],
+                                if (status == 'EN_ATTENTE') ...[
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'En attente de validation du paiement',
+                                    style: TextStyle(color: AppColors.ink400, fontSize: 12),
+                                  ),
+                                ],
                                 const SizedBox(height: 10),
                                 SizedBox(
                                   width: double.infinity,
                                   child: OutlinedButton(
-                                    onPressed: isToggling ? null : () => _toggleAddon(addon['id'], isActive),
+                                    onPressed: isBusy
+                                        ? null
+                                        : status == null
+                                            ? () => _requestAddon(addon)
+                                            : () => _cancelAddon(addon['id']),
                                     style: OutlinedButton.styleFrom(
-                                      backgroundColor: isActive ? null : AppColors.primary,
-                                      foregroundColor: isActive ? AppColors.ink900 : Colors.white,
+                                      backgroundColor: status == null ? AppColors.primary : null,
+                                      foregroundColor: status == null ? Colors.white : AppColors.ink900,
                                     ),
-                                    child: isToggling
+                                    child: isBusy
                                         ? const SizedBox(
                                             height: 16,
                                             width: 16,
                                             child: CircularProgressIndicator(strokeWidth: 2),
                                           )
-                                        : Text(isActive ? 'Désactiver' : 'Activer'),
+                                        : Text(
+                                            status == null
+                                                ? 'Activer'
+                                                : status == 'EN_ATTENTE'
+                                                    ? 'Annuler la demande'
+                                                    : 'Désactiver',
+                                          ),
                                   ),
                                 ),
                               ],
@@ -259,6 +331,71 @@ class _InfoColumn extends StatelessWidget {
         Text(label, style: const TextStyle(color: AppColors.ink400, fontSize: 12)),
         const SizedBox(height: 2),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+      ],
+    );
+  }
+}
+
+/// §9.3 — Le propriétaire précise la durée souhaitée (12 mois par
+/// défaut) avant l'envoi de la demande — jamais d'activation
+/// immédiate, une facture est générée à régler.
+class _DurationPickerDialog extends StatefulWidget {
+  final String addonName;
+  final dynamic pricePerMonth;
+  const _DurationPickerDialog({required this.addonName, required this.pricePerMonth});
+
+  @override
+  State<_DurationPickerDialog> createState() => _DurationPickerDialogState();
+}
+
+class _DurationPickerDialogState extends State<_DurationPickerDialog> {
+  int _months = 12;
+
+  @override
+  Widget build(BuildContext context) {
+    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final pricePerMonth = double.parse(widget.pricePerMonth.toString());
+    final total = pricePerMonth * _months;
+
+    return AlertDialog(
+      title: Text('Activer "${widget.addonName}"'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Durée (mois)', style: TextStyle(fontSize: 13, color: AppColors.ink600)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline),
+                onPressed: _months > 1 ? () => setState(() => _months--) : null,
+              ),
+              Text('$_months', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: () => setState(() => _months++),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Total : ${currencyFormat.format(total)} pour $_months mois',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "Une facture sera générée, à régler pour activer l'add-on.",
+            style: TextStyle(fontSize: 12, color: AppColors.ink400),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, _months),
+          child: const Text("Demander l'activation"),
+        ),
       ],
     );
   }

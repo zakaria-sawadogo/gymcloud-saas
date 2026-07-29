@@ -323,6 +323,9 @@ function PayMobileMoneyModal({
 
 interface SubscriptionAddon {
   addonId: string;
+  status: 'EN_ATTENTE' | 'ACTIF' | 'EXPIRE';
+  durationMonths: number;
+  endDate: string | null;
   addon: { id: string; name: string; description: string | null; price: number };
 }
 
@@ -343,6 +346,7 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
     error: activeError,
     refetch: refetchActive,
   } = useApi<SubscriptionAddon[]>(`/saas/plans/${subscriptionId}/addons`);
+  const [requestingAddon, setRequestingAddon] = useState<{ id: string; name: string; price: number } | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   if (isLoadingAddons || isLoadingActive) {
@@ -357,16 +361,12 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
   }
   if (!allAddons || allAddons.length === 0) return null;
 
-  const activeIds = new Set((activeAddons ?? []).map((a) => a.addonId));
+  const byAddonId = new Map((activeAddons ?? []).map((a) => [a.addonId, a]));
 
-  const toggle = async (addonId: string, isActive: boolean) => {
+  const cancelRequest = async (addonId: string) => {
     setTogglingId(addonId);
     try {
-      if (isActive) {
-        await apiClient.delete(`/saas/plans/${subscriptionId}/addons/${addonId}`);
-      } else {
-        await apiClient.post(`/saas/plans/${subscriptionId}/addons/${addonId}`);
-      }
+      await apiClient.delete(`/saas/plans/${subscriptionId}/addons/${addonId}`);
       refetchActive();
     } catch (err) {
       alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -376,36 +376,129 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
   };
 
   return (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle>Add-ons disponibles</CardTitle>
-      </CardHeader>
-      <p className="mb-4 text-sm text-ink-500">
-        Jamais inclus automatiquement — activez ceux dont vous avez besoin, facturés séparément au prorata sur une
-        facture à part.
-      </p>
-      <div className="divide-y divide-ink-100">
-        {allAddons.map((addon) => {
-          const isActive = activeIds.has(addon.id);
-          return (
-            <div key={addon.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-              <div>
-                <p className="font-medium text-ink-900">{addon.name}</p>
-                {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
-                <p className="text-sm text-ink-600">{formatCurrency(addon.price)} / mois</p>
+    <>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Add-ons disponibles</CardTitle>
+        </CardHeader>
+        <p className="mb-4 text-sm text-ink-500">
+          Jamais inclus automatiquement — une demande d&apos;activation crée une facture à régler, activée par notre
+          équipe une fois le paiement validé.
+        </p>
+        <div className="divide-y divide-ink-100">
+          {allAddons.map((addon) => {
+            const current = byAddonId.get(addon.id);
+            const isBusy = togglingId === addon.id;
+            return (
+              <div key={addon.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-ink-900">{addon.name}</p>
+                    {current?.status === 'EN_ATTENTE' && <StatusBadge status="EN_ATTENTE" />}
+                    {current?.status === 'ACTIF' && <StatusBadge status="ACTIF" />}
+                  </div>
+                  {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
+                  <p className="text-sm text-ink-600">{formatCurrency(addon.price)} / mois</p>
+                  {current?.status === 'ACTIF' && current.endDate && (
+                    <p className="text-xs text-ink-400">Jusqu&apos;au {formatDate(current.endDate)}</p>
+                  )}
+                  {current?.status === 'EN_ATTENTE' && (
+                    <p className="text-xs text-ink-400">En attente de validation du paiement</p>
+                  )}
+                </div>
+                {!current && (
+                  <Button size="sm" isLoading={isBusy} onClick={() => setRequestingAddon(addon)}>
+                    Activer
+                  </Button>
+                )}
+                {current?.status === 'EN_ATTENTE' && (
+                  <Button size="sm" variant="ghost" isLoading={isBusy} onClick={() => cancelRequest(addon.id)}>
+                    Annuler la demande
+                  </Button>
+                )}
+                {current?.status === 'ACTIF' && (
+                  <Button size="sm" variant="secondary" isLoading={isBusy} onClick={() => cancelRequest(addon.id)}>
+                    Désactiver
+                  </Button>
+                )}
               </div>
-              <Button
-                size="sm"
-                variant={isActive ? 'secondary' : 'primary'}
-                isLoading={togglingId === addon.id}
-                onClick={() => toggle(addon.id, isActive)}
-              >
-                {isActive ? 'Désactiver' : 'Activer'}
-              </Button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+      </Card>
+
+      {requestingAddon && (
+        <RequestAddonModal
+          subscriptionId={subscriptionId}
+          addon={requestingAddon}
+          onClose={() => setRequestingAddon(null)}
+          onRequested={() => {
+            setRequestingAddon(null);
+            refetchActive();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * §9.3 — Demande d'activation d'un add-on : le propriétaire précise
+ * la durée (12 mois par défaut), la facture correspondante n'est
+ * réglée et l'add-on activé qu'après validation SUPER_ADMIN.
+ */
+function RequestAddonModal({
+  subscriptionId,
+  addon,
+  onClose,
+  onRequested,
+}: {
+  subscriptionId: string;
+  addon: { id: string; name: string; price: number };
+  onClose: () => void;
+  onRequested: () => void;
+}) {
+  const [durationMonths, setDurationMonths] = useState(12);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const totalAmount = addon.price * durationMonths;
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await apiClient.post(`/saas/plans/${subscriptionId}/addons/${addon.id}`, { durationMonths });
+      onRequested();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Activer "${addon.name}"`}>
+      <Field label="Durée (mois)">
+        <Input
+          type="number"
+          min="1"
+          value={durationMonths}
+          onChange={(e) => setDurationMonths(Math.max(1, Number(e.target.value)))}
+        />
+      </Field>
+      <p className="mb-4 text-sm text-ink-600">
+        Total : <span className="font-semibold text-ink-900">{formatCurrency(totalAmount)}</span> pour {durationMonths}{' '}
+        mois — une facture sera générée, à régler pour activer l&apos;add-on.
+      </p>
+      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      <div className="flex gap-2">
+        <Button variant="ghost" onClick={onClose} className="flex-1">
+          Annuler
+        </Button>
+        <Button isLoading={isSubmitting} onClick={handleSubmit} className="flex-1">
+          Demander l&apos;activation
+        </Button>
       </div>
-    </Card>
+    </Modal>
   );
 }

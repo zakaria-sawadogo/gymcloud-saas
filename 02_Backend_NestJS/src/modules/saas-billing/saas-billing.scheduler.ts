@@ -26,5 +26,9 @@ export class SaasBillingSchedulerService {
     this.logger.log(
       `Terminé : ${result.movedToGrace} passage(s) en grâce (facture générée), ${result.movedToSuspended} suspension(s) après grâce.`,
     );
+
+    this.logger.log('Traitement quotidien du renouvellement des add-ons...');
+    const addonResult = await this.saasBillingService.processAddonRenewals();
+    this.logger.log(`Terminé : ${addonResult.renewed} add-on(s) mis en attente de renouvellement.`);
   }
 }

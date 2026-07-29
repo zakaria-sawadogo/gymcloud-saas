@@ -157,14 +157,21 @@ export class SaasPlansController {
   @RequirePermission('update', 'SaasSubscription')
   @ApiOperation({
     summary:
-      "Activer un add-on sur cette souscription (§9.3) — jamais automatique, le propriétaire ou le SUPER_ADMIN doit explicitement l'activer. Répercuté sur la prochaine facture.",
+      "Demande d'activation d'un add-on (§9.3) — jamais activé immédiatement : crée une facture à régler, activée seulement à sa validation par le SUPER_ADMIN (mêmes règles que le paiement d'un plan).",
   })
-  attachAddon(
+  requestAddon(
     @Param('subscriptionId') subscriptionId: string,
     @Param('addonId') addonId: string,
+    @Body() body: { durationMonths?: number },
     @CurrentUser() user: TenantContext,
   ) {
-    return this.saasBillingService.attachAddon(subscriptionId, addonId, user.userId, user);
+    return this.saasBillingService.requestAddonActivation(
+      subscriptionId,
+      addonId,
+      body.durationMonths ?? 12,
+      user.userId,
+      user,
+    );
   }
 
   @Delete(':subscriptionId/addons/:addonId')

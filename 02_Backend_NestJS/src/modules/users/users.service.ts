@@ -104,17 +104,22 @@ export class UsersService {
     }
 
     // §9.3 — Reprend les add-ons souhaités lors d'une demande depuis le
-    // site vitrine (jamais activés automatiquement autrement) — leur
-    // coût sera reflété dès la prochaine facture de la souscription
-    // qui vient d'être créée pour cette salle.
+    // site vitrine (jamais activés automatiquement autrement) —
+    // activation directe (pas de validation séparée : le SUPER_ADMIN
+    // crée déjà ce compte lui-même), durée alignée sur le cycle du
+    // plan choisi (mensuel → 1 mois, annuel → 12 mois).
     if (dto.addonCodes && dto.addonCodes.length > 0 && salle.subscriptionId) {
-      const matchingAddons = await this.prisma.saasAddon.findMany({
-        where: { code: { in: dto.addonCodes } },
-        select: { id: true },
-      });
+      const [matchingAddons, newSubscription] = await Promise.all([
+        this.prisma.saasAddon.findMany({ where: { code: { in: dto.addonCodes } }, select: { id: true } }),
+        this.prisma.saasSubscription.findUnique({
+          where: { id: salle.subscriptionId },
+          select: { billingCycle: true },
+        }),
+      ]);
+      const durationMonths = newSubscription?.billingCycle === 'ANNUEL' ? 12 : 1;
       await Promise.all(
         matchingAddons.map((a: { id: string }) =>
-          this.saasBillingService.attachAddon(salle.subscriptionId!, a.id, actor.userId, actor),
+          this.saasBillingService.attachAddonDirect(salle.subscriptionId!, a.id, durationMonths, actor.userId),
         ),
       );
     }

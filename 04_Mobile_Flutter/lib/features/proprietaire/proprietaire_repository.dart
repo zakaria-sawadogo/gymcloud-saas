@@ -37,8 +37,8 @@ class ProprietaireRepository {
   /// §9.3, §9.8 — Jamais automatique : le propriétaire active
   /// explicitement, facturé séparément au prorata (voir
   /// SaasBillingService.attachAddon côté backend).
-  Future<void> attachAddon(String subscriptionId, String addonId) =>
-      _api.post<dynamic>('/saas/plans/$subscriptionId/addons/$addonId');
+  Future<void> attachAddon(String subscriptionId, String addonId, {int durationMonths = 12}) =>
+      _api.post<dynamic>('/saas/plans/$subscriptionId/addons/$addonId', data: {'durationMonths': durationMonths});
 
   Future<void> detachAddon(String subscriptionId, String addonId) =>
       _api.delete<dynamic>('/saas/plans/$subscriptionId/addons/$addonId');
