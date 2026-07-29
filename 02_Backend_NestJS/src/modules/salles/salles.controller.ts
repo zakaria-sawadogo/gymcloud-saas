@@ -94,9 +94,9 @@ export class SallesController {
   }
 
   @Get(':id/app-access')
-  @RequirePermission('read', 'Salle')
   @ApiOperation({
-    summary: 'Cette salle a-t-elle l\'add-on "Application mobile" actif ? — vérifié au lancement de l\'app mobile (§9.3)',
+    summary:
+      'Cette salle a-t-elle l\'add-on "Application mobile" actif ? — vérifié au lancement de l\'app mobile (§9.3). Accessible à tout compte authentifié de la salle (gestionnaire, coach, adhérent) : aucune permission "read Salle" requise, donnée peu sensible (un simple booléen).',
   })
   async getAppAccess(@Param('id') id: string) {
     return { hasAccess: await this.sallesService.hasApplicationAccess(id) };
