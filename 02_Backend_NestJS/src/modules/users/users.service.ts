@@ -97,7 +97,19 @@ export class UsersService {
         actor.userId,
       );
     } catch (error) {
-      // Retour arrière : pas de propriétaire orphelin sans salle (§2.4)
+      // Retour arrière : pas de propriétaire orphelin sans salle (§2.4).
+      // La souscription SaaS (et sa facture de bootstrap) peut avoir
+      // été créée par sallesService.create AVANT l'échec de la salle
+      // elle-même — il faut la retirer en premier, sinon la
+      // suppression du propriétaire échoue à son tour sur la
+      // contrainte de clé étrangère (bug réel corrigé).
+      const orphanSubscription = await this.prisma.saasSubscription.findUnique({
+        where: { proprietaireId: proprietaire.id },
+      });
+      if (orphanSubscription) {
+        await this.prisma.saasInvoice.deleteMany({ where: { subscriptionId: orphanSubscription.id } });
+        await this.prisma.saasSubscription.delete({ where: { id: orphanSubscription.id } });
+      }
       await this.prisma.proprietaire.delete({ where: { id: proprietaire.id } });
       await this.prisma.user.delete({ where: { id: user.id } });
       throw error;
