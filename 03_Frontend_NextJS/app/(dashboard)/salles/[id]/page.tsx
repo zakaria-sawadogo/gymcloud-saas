@@ -191,13 +191,6 @@ export default function SalleDetailPage() {
                   <div className="mt-6">
                     <SallePaymentsView salleId={params.id} currency={salle?.country?.currency ?? 'XOF'} />
                   </div>
-
-                  {user?.roleCode === 'PROPRIETAIRE' && (
-                    <div className="mt-6">
-                      <h3 className="mb-3 font-display text-lg font-semibold text-ink-900">Boutique</h3>
-                      <BoutiqueReadOnlyView salleId={params.id} />
-                    </div>
-                  )}
                 </>
               ),
             },
@@ -244,6 +237,15 @@ export default function SalleDetailPage() {
                 </>
               ),
             },
+            ...(user?.roleCode === 'PROPRIETAIRE'
+              ? [
+                  {
+                    id: 'boutique',
+                    label: 'Boutique',
+                    content: <BoutiqueReadOnlyView salleId={params.id} />,
+                  },
+                ]
+              : []),
           ]}
         />
       )}
