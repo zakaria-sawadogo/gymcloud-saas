@@ -337,8 +337,8 @@ interface SubscriptionAddon {
  * silencieusement sur la prochaine facture.
  */
 function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
-  const { data: allAddons, isLoading: isLoadingAddons } = useApi<
-    { id: string; name: string; description: string | null; price: number }[]
+  const { data: allAddonsRaw, isLoading: isLoadingAddons } = useApi<
+    { id: string; name: string; description: string | null; price: number; active: boolean }[]
   >('/saas/plans/addons');
   const {
     data: activeAddons,
@@ -359,7 +359,11 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
       </Card>
     );
   }
-  if (!allAddons || allAddons.length === 0) return null;
+  if (!allAddonsRaw || allAddonsRaw.length === 0) return null;
+  // §9.3 — Un add-on suspendu par le SUPER_ADMIN (type entier, pas une
+  // instance précise) ne doit plus être proposé à l'activation.
+  const allAddons = allAddonsRaw.filter((a) => a.active);
+  if (allAddons.length === 0) return null;
 
   const byAddonId = new Map((activeAddons ?? []).map((a) => [a.addonId, a]));
 

@@ -418,6 +418,18 @@ function AddonsSection() {
     }
   };
 
+  const toggleActive = async (addon: SaasAddon) => {
+    setIsSubmitting(true);
+    try {
+      await apiClient.patch(`/saas/plans/addons/${addon.id}`, { active: !addon.active });
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) return null;
 
   return (
@@ -453,11 +465,26 @@ function AddonsSection() {
             ) : (
               <div key={addon.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
                 <div>
-                  <p className="font-medium text-ink-900">{addon.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-ink-900">{addon.name}</p>
+                    {!addon.active && (
+                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                        Suspendu
+                      </span>
+                    )}
+                  </div>
                   {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-medium text-ink-900">{formatCurrency(addon.price)} / mois</span>
+                  <Button
+                    size="sm"
+                    variant={addon.active ? 'secondary' : 'primary'}
+                    isLoading={isSubmitting}
+                    onClick={() => toggleActive(addon)}
+                  >
+                    {addon.active ? 'Suspendre' : 'Réactiver'}
+                  </Button>
                   <button
                     onClick={() => startEditing(addon)}
                     className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-50 hover:text-ink-700"
