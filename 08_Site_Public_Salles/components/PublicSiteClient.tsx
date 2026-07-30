@@ -384,7 +384,7 @@ export function PublicSiteClient({
                   <div className="p-5">
                     <p className="font-medium text-ink-900">{p.name}</p>
                     <p className="mt-1 font-display text-lg font-semibold" style={{ color: 'var(--salle-primary)' }}>
-                      {formatCurrency(p.price, 'XOF')}
+                      {formatCurrency(p.price, salle.currency)}
                     </p>
                   </div>
                 </div>

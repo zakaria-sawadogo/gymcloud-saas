@@ -184,4 +184,26 @@ export class SaasPlansController {
   ) {
     return this.saasBillingService.detachAddon(subscriptionId, addonId, user.userId, user);
   }
+
+  @Patch(':subscriptionId/addons/:addonId/suspend')
+  @RequirePermission('manage', 'SaasSubscription')
+  @ApiOperation({ summary: 'Suspension administrative d\'un add-on (impayé, litige...) — réservé SUPER_ADMIN, réversible' })
+  suspendAddon(
+    @Param('subscriptionId') subscriptionId: string,
+    @Param('addonId') addonId: string,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.saasBillingService.suspendSubscriptionAddon(subscriptionId, addonId, user.userId);
+  }
+
+  @Patch(':subscriptionId/addons/:addonId/reactivate')
+  @RequirePermission('manage', 'SaasSubscription')
+  @ApiOperation({ summary: 'Réactiver un add-on suspendu — réservé SUPER_ADMIN' })
+  reactivateAddon(
+    @Param('subscriptionId') subscriptionId: string,
+    @Param('addonId') addonId: string,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.saasBillingService.reactivateSubscriptionAddon(subscriptionId, addonId, user.userId);
+  }
 }

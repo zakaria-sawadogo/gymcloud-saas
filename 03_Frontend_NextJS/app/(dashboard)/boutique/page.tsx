@@ -52,10 +52,10 @@ export default function BoutiquePage() {
   const salleId = user?.salle?.id;
 
   if (!salleId) return null;
-  return <BoutiqueView salleId={salleId} />;
+  return <BoutiqueView salleId={salleId} currency={user?.salle?.currency ?? 'XOF'} />;
 }
 
-function BoutiqueView({ salleId }: { salleId: string }) {
+function BoutiqueView({ salleId, currency }: { salleId: string; currency: string }) {
   const {
     data: products,
     isLoading: isLoadingProducts,
@@ -109,7 +109,7 @@ function BoutiqueView({ salleId }: { salleId: string }) {
         </Card>
         <Card>
           <p className="text-sm text-ink-500">Total encaissé</p>
-          <p className="mt-1 text-2xl font-semibold text-ink-900">{formatCurrency(caisse?.total ?? 0)}</p>
+          <p className="mt-1 text-2xl font-semibold text-ink-900">{formatCurrency(caisse?.total ?? 0, currency)}</p>
         </Card>
         <Card>
           <p className="mb-1 text-sm text-ink-500">Par moyen de paiement</p>
@@ -118,7 +118,7 @@ function BoutiqueView({ salleId }: { salleId: string }) {
               {Object.entries(caisse.byMethod).map(([method, amount]) => (
                 <div key={method} className="flex justify-between">
                   <span>{PAYMENT_METHOD_LABELS[method] ?? method}</span>
-                  <span className="font-medium">{formatCurrency(amount)}</span>
+                  <span className="font-medium">{formatCurrency(amount, currency)}</span>
                 </div>
               ))}
             </div>
@@ -133,7 +133,7 @@ function BoutiqueView({ salleId }: { salleId: string }) {
           <CardHeader>
             <CardTitle>Vente au comptoir</CardTitle>
           </CardHeader>
-          <SalePanel salleId={salleId} products={products ?? []} onSold={refetchAll} />
+          <SalePanel salleId={salleId} products={products ?? []} currency={currency} onSold={refetchAll} />
         </Card>
 
         <Card className="p-0">
@@ -161,7 +161,7 @@ function BoutiqueView({ salleId }: { salleId: string }) {
                         {p.name} {!p.active && <span className="text-xs text-ink-400">(désactivé)</span>}
                       </p>
                       <p className="text-sm text-ink-500">
-                        {formatCurrency(p.price)} · stock : {p.stockQty}
+                        {formatCurrency(p.price, currency)} · stock : {p.stockQty}
                       </p>
                     </div>
                   </div>
@@ -178,7 +178,7 @@ function BoutiqueView({ salleId }: { salleId: string }) {
         </Card>
       </div>
 
-      <SalesByProductPanel salleId={salleId} />
+      <SalesByProductPanel salleId={salleId} currency={currency} />
 
       {caisse && caisse.sales.length > 0 && (
         <Card className="mt-6 p-0">
@@ -203,7 +203,7 @@ function BoutiqueView({ salleId }: { salleId: string }) {
                   <td className="px-5 py-2 text-ink-600">{formatDateTime(sale.createdAt)}</td>
                   <td className="px-5 py-2 text-ink-900">{sale.product.name}</td>
                   <td className="px-5 py-2 text-ink-600">{sale.quantity}</td>
-                  <td className="px-5 py-2 font-medium text-ink-900">{formatCurrency(sale.totalAmount)}</td>
+                  <td className="px-5 py-2 font-medium text-ink-900">{formatCurrency(sale.totalAmount, currency)}</td>
                   <td className="px-5 py-2 text-ink-600">
                     {PAYMENT_METHOD_LABELS[sale.paymentMethod] ?? sale.paymentMethod}
                   </td>
@@ -242,10 +242,12 @@ function BoutiqueView({ salleId }: { salleId: string }) {
 function SalePanel({
   salleId,
   products,
+  currency,
   onSold,
 }: {
   salleId: string;
   products: Product[];
+  currency: string;
   onSold: () => void;
 }) {
   const [productId, setProductId] = useState('');
@@ -285,7 +287,7 @@ function SalePanel({
           <option value="">Sélectionner un produit</option>
           {availableProducts.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name} — {formatCurrency(p.price)} (stock : {p.stockQty})
+              {p.name} — {formatCurrency(p.price, currency)} (stock : {p.stockQty})
             </option>
           ))}
         </Select>
@@ -310,7 +312,7 @@ function SalePanel({
       </Field>
       {productId && (
         <p className="text-sm text-ink-600">
-          Total : <span className="font-semibold text-ink-900">{formatCurrency(total)}</span>
+          Total : <span className="font-semibold text-ink-900">{formatCurrency(total, currency)}</span>
         </p>
       )}
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -529,7 +531,7 @@ interface SalesByProductSummary {
  * décider quoi réapprovisionner, distinct de la caisse (montants) qui
  * ne dit rien du volume écoulé.
  */
-function SalesByProductPanel({ salleId }: { salleId: string }) {
+function SalesByProductPanel({ salleId, currency }: { salleId: string; currency: string }) {
   const [period, setPeriod] = useState<'day' | 'month'>('day');
   const { data, isLoading } = useApi<SalesByProductSummary>(
     `/salles/${salleId}/boutique/sales-by-product?period=${period}`,
@@ -566,7 +568,7 @@ function SalesByProductPanel({ salleId }: { salleId: string }) {
               <span className="text-ink-900">{item.name}</span>
               <span className="flex gap-4">
                 <span className="font-medium text-ink-900">{item.quantity} vendu(s)</span>
-                <span className="text-ink-500">{formatCurrency(item.revenue)}</span>
+                <span className="text-ink-500">{formatCurrency(item.revenue, currency)}</span>
               </span>
             </div>
           ))}
@@ -574,7 +576,7 @@ function SalesByProductPanel({ salleId }: { salleId: string }) {
             <span>Total</span>
             <span className="flex gap-4">
               <span>{data.totalQuantity} vendu(s)</span>
-              <span>{formatCurrency(data.totalRevenue)}</span>
+              <span>{formatCurrency(data.totalRevenue, currency)}</span>
             </span>
           </div>
         </div>

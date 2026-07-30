@@ -237,6 +237,11 @@ function ManageSubscriptionModal({
         </div>
 
         <SubscriptionHistoryTable apiPath={`/saas/plans/${subscription.id}/history`} />
+
+        <div className="mt-5">
+          <h3 className="mb-2 text-sm font-semibold text-ink-900">Add-ons</h3>
+          <ManageAddonsSection subscriptionId={subscription.id} />
+        </div>
       </Modal>
 
       <ChangePlanModal
@@ -251,6 +256,62 @@ function ManageSubscriptionModal({
         }}
       />
     </>
+  );
+}
+
+/**
+ * §9.3, §9.4 — Suspension/réactivation administrative d'un add-on
+ * par le SUPER_ADMIN (impayé, litige...) — distinct de "détacher"
+ * (retire complètement), réversible, conserve la date de fin acquise.
+ */
+function ManageAddonsSection({ subscriptionId }: { subscriptionId: string }) {
+  const { data: addons, isLoading, refetch } = useApi<
+    { addonId: string; status: string; endDate: string | null; addon: { name: string } }[]
+  >(`/saas/plans/${subscriptionId}/addons`);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  if (isLoading) return <p className="text-sm text-ink-400">Chargement...</p>;
+  if (!addons || addons.length === 0) return <p className="text-sm text-ink-400">Aucun add-on activé.</p>;
+
+  const toggle = async (addonId: string, currentStatus: string) => {
+    setBusyId(addonId);
+    try {
+      const action = currentStatus === 'SUSPENDU' ? 'reactivate' : 'suspend';
+      await apiClient.patch(`/saas/plans/${subscriptionId}/addons/${addonId}/${action}`);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {addons.map((a) => (
+        <div key={a.addonId} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
+          <div>
+            <p className="text-sm font-medium text-ink-900">{a.addon.name}</p>
+            <p className="text-xs text-ink-400">
+              {a.status === 'ACTIF' && 'Actif'}
+              {a.status === 'SUSPENDU' && 'Suspendu'}
+              {a.status === 'EN_ATTENTE' && 'En attente de validation'}
+              {a.endDate && a.status !== 'EN_ATTENTE' && ` · jusqu'au ${formatDate(a.endDate)}`}
+            </p>
+          </div>
+          {(a.status === 'ACTIF' || a.status === 'SUSPENDU') && (
+            <Button
+              size="sm"
+              variant={a.status === 'SUSPENDU' ? 'primary' : 'secondary'}
+              isLoading={busyId === a.addonId}
+              onClick={() => toggle(a.addonId, a.status)}
+            >
+              {a.status === 'SUSPENDU' ? 'Réactiver' : 'Suspendre'}
+            </Button>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 

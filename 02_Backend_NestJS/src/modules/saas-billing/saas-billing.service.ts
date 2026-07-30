@@ -318,6 +318,44 @@ export class SaasBillingService {
     return this.listSubscriptionAddons(subscriptionId);
   }
 
+  /**
+   * §9.3, §9.4 — Suspension administrative d'un add-on par le
+   * SUPER_ADMIN (impayé, litige...) : contrairement à "détacher"
+   * (retire la ligne), la suspension est réversible et conserve la
+   * date de fin déjà acquise — jamais accessible au propriétaire
+   * lui-même (permission "manage" réservée SUPER_ADMIN, il n'a que
+   * "update").
+   */
+  async suspendSubscriptionAddon(subscriptionId: string, addonId: string, actorUserId: string) {
+    await this.prisma.saasSubscriptionAddon.update({
+      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      data: { status: 'SUSPENDU' },
+    });
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'saas_subscription.addon_suspended',
+      entityType: 'SaasSubscription',
+      entityId: subscriptionId,
+      metadata: { addonId },
+    });
+    return this.listSubscriptionAddons(subscriptionId);
+  }
+
+  async reactivateSubscriptionAddon(subscriptionId: string, addonId: string, actorUserId: string) {
+    await this.prisma.saasSubscriptionAddon.update({
+      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      data: { status: 'ACTIF' },
+    });
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'saas_subscription.addon_reactivated',
+      entityType: 'SaasSubscription',
+      entityId: subscriptionId,
+      metadata: { addonId },
+    });
+    return this.listSubscriptionAddons(subscriptionId);
+  }
+
   private async assertOwnsSubscription(subscriptionId: string, actor?: TenantContext) {
     if (!actor || actor.isGlobalAccess) return;
     const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({

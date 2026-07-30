@@ -53,6 +53,7 @@ export class PublicService {
         website: true,
         socialLinks: true,
         openingHours: true,
+        country: { select: { currency: true } },
         subscription: {
           select: {
             saasPlan: { select: { modules: true } },
@@ -72,8 +73,8 @@ export class PublicService {
     if (!salle || (!hasSitePublicModule && !hasSiteSalleAddon)) {
       throw new NotFoundException('Salle introuvable');
     }
-    const { subscription, ...publicFields } = salle;
-    return publicFields;
+    const { subscription, country, ...publicFields } = salle;
+    return { ...publicFields, currency: country?.currency ?? 'XOF' };
   }
 
   /** Formules publiques (nom, prix, durée) — jamais de coût interne (tarif salle supplémentaire, etc.). */

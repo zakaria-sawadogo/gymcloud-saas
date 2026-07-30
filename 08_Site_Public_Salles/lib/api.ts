@@ -16,6 +16,7 @@ export interface PublicSalle {
   website?: string;
   socialLinks?: Record<string, string>;
   openingHours?: Record<string, string>;
+  currency: string;
 }
 
 export interface PublicFormule {

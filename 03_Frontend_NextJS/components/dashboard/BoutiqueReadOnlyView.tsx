@@ -35,7 +35,7 @@ interface SalesByProductSummary {
  * supervise (permission CASL "read" uniquement), la vente au comptoir
  * reste une tâche du gestionnaire (page /boutique dédiée).
  */
-export function BoutiqueReadOnlyView({ salleId }: { salleId: string }) {
+export function BoutiqueReadOnlyView({ salleId, currency = 'XOF' }: { salleId: string; currency?: string }) {
   const [period, setPeriod] = useState<'day' | 'month'>('day');
   const { data: products, isLoading: isLoadingProducts, error } = useApi<Product[]>(
     `/salles/${salleId}/boutique/products`,
@@ -75,7 +75,7 @@ export function BoutiqueReadOnlyView({ salleId }: { salleId: string }) {
                   <p className="font-medium text-ink-900">
                     {p.name} {!p.active && <span className="text-xs text-ink-400">(désactivé)</span>}
                   </p>
-                  <p className="text-sm text-ink-500">{formatCurrency(p.price)}</p>
+                  <p className="text-sm text-ink-500">{formatCurrency(p.price, currency)}</p>
                 </div>
                 <span
                   className={`text-sm font-semibold ${p.stockQty <= 5 ? 'text-red-600' : 'text-ink-900'}`}
@@ -122,7 +122,7 @@ export function BoutiqueReadOnlyView({ salleId }: { salleId: string }) {
                 <span className="text-ink-900">{item.name}</span>
                 <span className="flex gap-4">
                   <span className="font-medium text-ink-900">{item.quantity} vendu(s)</span>
-                  <span className="text-ink-500">{formatCurrency(item.revenue)}</span>
+                  <span className="text-ink-500">{formatCurrency(item.revenue, currency)}</span>
                 </span>
               </div>
             ))}
@@ -130,7 +130,7 @@ export function BoutiqueReadOnlyView({ salleId }: { salleId: string }) {
               <span>Total</span>
               <span className="flex gap-4">
                 <span>{sales.totalQuantity} vendu(s)</span>
-                <span>{formatCurrency(sales.totalRevenue)}</span>
+                <span>{formatCurrency(sales.totalRevenue, currency)}</span>
               </span>
             </div>
           </div>

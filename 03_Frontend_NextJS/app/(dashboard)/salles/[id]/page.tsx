@@ -242,7 +242,7 @@ export default function SalleDetailPage() {
                   {
                     id: 'boutique',
                     label: 'Boutique',
-                    content: <BoutiqueReadOnlyView salleId={params.id} />,
+                    content: <BoutiqueReadOnlyView salleId={params.id} currency={salle?.country?.currency ?? 'XOF'} />,
                   },
                 ]
               : []),

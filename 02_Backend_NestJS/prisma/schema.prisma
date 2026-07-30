@@ -321,6 +321,7 @@ model SaasSubscriptionAddon {
 enum SaasSubscriptionAddonStatus {
   EN_ATTENTE
   ACTIF
+  SUSPENDU
   EXPIRE
 }
 
