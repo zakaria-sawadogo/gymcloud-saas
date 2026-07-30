@@ -38,6 +38,12 @@ export class PublicController {
     return this.publicService.getUpcomingCoursCollectifs(subdomain);
   }
 
+  @Get(':subdomain/products')
+  @ApiOperation({ summary: 'Produits boutique publics (§14.x) — vide si l\'add-on Boutique n\'est pas actif' })
+  getProducts(@Param('subdomain') subdomain: string) {
+    return this.publicService.getPublicProducts(subdomain);
+  }
+
   @Get(':subdomain/gallery')
   @ApiOperation({ summary: 'Galerie photo publique (§3.4)' })
   getGallery(@Param('subdomain') subdomain: string) {

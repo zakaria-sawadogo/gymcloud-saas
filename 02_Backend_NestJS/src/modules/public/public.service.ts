@@ -86,6 +86,33 @@ export class PublicService {
     });
   }
 
+  /**
+   * §14.x — Produits boutique publics : n'apparaissent que si la
+   * salle a À LA FOIS "Site public" (déjà vérifié par
+   * getSalleBySubdomain ci-dessus) ET l'add-on "Boutique" actifs —
+   * l'un sans l'autre, rien ne s'affiche.
+   */
+  async getPublicProducts(subdomain: string) {
+    const salle = await this.getSalleBySubdomain(subdomain);
+    const salleWithAddons = await this.prisma.salle.findUnique({
+      where: { id: salle.id },
+      select: {
+        subscription: { select: { addons: { select: { status: true, addon: { select: { code: true } } } } } },
+      },
+    });
+    const hasBoutique =
+      salleWithAddons?.subscription.addons.some(
+        (sa: { status: string; addon: { code: string } }) => sa.addon.code === 'BOUTIQUE' && sa.status === 'ACTIF',
+      ) ?? false;
+    if (!hasBoutique) return [];
+
+    return this.prisma.product.findMany({
+      where: { salleId: salle.id, active: true, stockQty: { gt: 0 } },
+      select: { id: true, name: true, price: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   /** Cours collectifs à venir — pour la présentation des activités et le choix d'un essai gratuit. */
   async getUpcomingCoursCollectifs(subdomain: string) {
     const salle = await this.getSalleBySubdomain(subdomain);

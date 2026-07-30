@@ -72,6 +72,17 @@ export async function getCatalogue(subdomain: string): Promise<PublicFormule[]> 
   return request<PublicFormule[]>(`/public/salles/${subdomain}/catalogue`);
 }
 
+export interface PublicProduct {
+  id: string;
+  name: string;
+  price: number;
+}
+
+/** §14.x — Vide si l'add-on Boutique n'est pas actif pour cette salle. */
+export async function getProducts(subdomain: string): Promise<PublicProduct[]> {
+  return request<PublicProduct[]>(`/public/salles/${subdomain}/products`);
+}
+
 export async function getCoursCollectifs(subdomain: string): Promise<PublicCoursCollectif[]> {
   return request<PublicCoursCollectif[]>(`/public/salles/${subdomain}/cours-collectifs`);
 }

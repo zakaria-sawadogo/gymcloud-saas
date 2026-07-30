@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { MapPin, Phone, Clock, Sparkles, UserPlus, Users, ChevronRight, Camera, Star, Share2, Facebook, Instagram, MessageCircle, Music2, Timer } from 'lucide-react';
-import type { PublicSalle, PublicFormule, PublicCoursCollectif, PublicGalleryImage, PublicPost, PublicCoach, PublicTestimonial } from '@/lib/api';
+import type { PublicSalle, PublicFormule, PublicCoursCollectif, PublicGalleryImage, PublicPost, PublicCoach, PublicTestimonial, PublicProduct } from '@/lib/api';
 import { formatCurrency, formatDateTime, formatDate } from '@/lib/utils';
 import { RegisterModal } from '@/components/RegisterModal';
 import { TrialModal } from '@/components/TrialModal';
@@ -28,6 +28,7 @@ export function PublicSiteClient({
   posts,
   coachs,
   testimonials,
+  products,
 }: {
   subdomain: string;
   salle: PublicSalle;
@@ -37,6 +38,7 @@ export function PublicSiteClient({
   posts: PublicPost[];
   coachs: PublicCoach[];
   testimonials: PublicTestimonial[];
+  products: PublicProduct[];
 }) {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [trialCours, setTrialCours] = useState<PublicCoursCollectif | null>(null);
@@ -357,6 +359,26 @@ export function PublicSiteClient({
                   >
                     Choisir cette formule
                   </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Boutique ── */}
+      {products.length > 0 && (
+        <section id="boutique" className="px-6 py-16" style={{ background: 'var(--paper-dim, #F1EDE3)' }}>
+          <div className="mx-auto max-w-5xl">
+            <h2 className="mb-2 font-display text-2xl font-semibold text-ink-900">Notre boutique</h2>
+            <p className="mb-8 text-sm text-ink-400">Disponible sur place, à l&apos;accueil.</p>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {products.map((p) => (
+                <div key={p.id} className="rounded-2xl border border-ink-100 bg-white p-5">
+                  <p className="font-medium text-ink-900">{p.name}</p>
+                  <p className="mt-1 font-display text-lg font-semibold" style={{ color: 'var(--salle-primary)' }}>
+                    {formatCurrency(p.price, 'XOF')}
+                  </p>
                 </div>
               ))}
             </div>
