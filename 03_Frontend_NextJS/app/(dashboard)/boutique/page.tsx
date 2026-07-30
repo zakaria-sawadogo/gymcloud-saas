@@ -529,7 +529,7 @@ interface SalesByProductSummary {
  * décider quoi réapprovisionner, distinct de la caisse (montants) qui
  * ne dit rien du volume écoulé.
  */
-export function SalesByProductPanel({ salleId }: { salleId: string }) {
+function SalesByProductPanel({ salleId }: { salleId: string }) {
   const [period, setPeriod] = useState<'day' | 'month'>('day');
   const { data, isLoading } = useApi<SalesByProductSummary>(
     `/salles/${salleId}/boutique/sales-by-product?period=${period}`,

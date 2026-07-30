@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Plus, UserCog, Dumbbell, Coins, Globe, ExternalLink, QrCode, Printer, Camera } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
+import { useAuth } from '@/lib/auth-context';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -39,6 +40,7 @@ import type { Salle, GestionnaireProfile, CoachProfile } from '@/types';
  */
 export default function SalleDetailPage() {
   const params = useParams<{ id: string }>();
+  const { user } = useAuth();
   const { data: salle, refetch: refetchSalle } = useApi<Salle>(`/salles/${params.id}`);
   const [isCreateGestionnaireOpen, setIsCreateGestionnaireOpen] = useState(false);
   const [isCreateCoachOpen, setIsCreateCoachOpen] = useState(false);
@@ -190,10 +192,12 @@ export default function SalleDetailPage() {
                     <SallePaymentsView salleId={params.id} currency={salle?.country?.currency ?? 'XOF'} />
                   </div>
 
-                  <div className="mt-6">
-                    <h3 className="mb-3 font-display text-lg font-semibold text-ink-900">Boutique</h3>
-                    <BoutiqueReadOnlyView salleId={params.id} />
-                  </div>
+                  {user?.roleCode === 'PROPRIETAIRE' && (
+                    <div className="mt-6">
+                      <h3 className="mb-3 font-display text-lg font-semibold text-ink-900">Boutique</h3>
+                      <BoutiqueReadOnlyView salleId={params.id} />
+                    </div>
+                  )}
                 </>
               ),
             },
