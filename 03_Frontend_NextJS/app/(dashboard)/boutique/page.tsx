@@ -216,6 +216,7 @@ function BoutiqueView({ salleId, currency }: { salleId: string; currency: string
 
       <CreateProductModal
         salleId={salleId}
+        currency={currency}
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onCreated={() => {
@@ -227,6 +228,7 @@ function BoutiqueView({ salleId, currency }: { salleId: string; currency: string
       {editingProduct && (
         <EditProductModal
           salleId={salleId}
+          currency={currency}
           product={editingProduct}
           onClose={() => setEditingProduct(null)}
           onUpdated={() => {
@@ -325,11 +327,13 @@ function SalePanel({
 
 function CreateProductModal({
   salleId,
+  currency,
   isOpen,
   onClose,
   onCreated,
 }: {
   salleId: string;
+  currency: string;
   isOpen: boolean;
   onClose: () => void;
   onCreated: () => void;
@@ -370,7 +374,7 @@ function CreateProductModal({
       <Field label="Nom">
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field label="Prix (XOF)">
+      <Field label={`Prix (${currency})`}>
         <Input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} />
       </Field>
       <Field label="Stock initial">
@@ -391,11 +395,13 @@ function CreateProductModal({
 
 function EditProductModal({
   salleId,
+  currency,
   product,
   onClose,
   onUpdated,
 }: {
   salleId: string;
+  currency: string;
   product: Product;
   onClose: () => void;
   onUpdated: () => void;
@@ -429,7 +435,7 @@ function EditProductModal({
       <Field label="Nom">
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field label="Prix (XOF)">
+      <Field label={`Prix (${currency})`}>
         <Input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} />
       </Field>
       <Field label="Stock">

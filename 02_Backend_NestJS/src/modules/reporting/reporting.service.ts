@@ -167,12 +167,15 @@ export class ReportingService {
   // ─────────────────────────────────────────────────────────────
 
   async getProprietaireDashboard(proprietaireId: string) {
-    const salles = await this.prisma.salle.findMany({ where: { proprietaireId } });
+    const salles = await this.prisma.salle.findMany({
+      where: { proprietaireId },
+      include: { country: { select: { currency: true } } },
+    });
 
     const perSalle = await Promise.all(
-      salles.map(async (salle: { id: string; name: string }) => {
+      salles.map(async (salle: { id: string; name: string; country: { currency: string } | null }) => {
         const dashboard = await this.getGestionnaireDashboard(salle.id);
-        return { salleId: salle.id, salleName: salle.name, ...dashboard };
+        return { salleId: salle.id, salleName: salle.name, currency: salle.country?.currency ?? 'XOF', ...dashboard };
       }),
     );
 
@@ -186,7 +189,21 @@ export class ReportingService {
       { totalAdherentsActifs: 0, revenusAujourdHui: 0, revenusCeMois: 0, presentsActuellement: 0 },
     );
 
-    return { consolidated, salles: perSalle };
+    // §9.x — Additionner des montants dans des devises différentes n'a
+    // aucun sens (XOF et GNF ne sont pas interchangeables 1:1) : le
+    // total consolidé n'est fiable que si toutes les salles partagent
+    // la même devise. Signalé explicitement plutôt que silencieusement
+    // faux — l'app affichera un avertissement au lieu d'un montant
+    // trompeur si ce n'est pas le cas.
+    const currencies = new Set(perSalle.map((s) => s.currency));
+    const hasMixedCurrencies = currencies.size > 1;
+
+    return {
+      consolidated,
+      salles: perSalle,
+      currency: hasMixedCurrencies ? null : (perSalle[0]?.currency ?? 'XOF'),
+      hasMixedCurrencies,
+    };
   }
 
   // ─────────────────────────────────────────────────────────────

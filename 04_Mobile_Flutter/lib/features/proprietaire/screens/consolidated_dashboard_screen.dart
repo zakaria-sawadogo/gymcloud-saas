@@ -53,9 +53,15 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
     final consolidated = _data?['consolidated'] as Map<String, dynamic>?;
     final salles = (_data?['salles'] as List<dynamic>?) ?? [];
+    final hasMixedCurrencies = _data?['hasMixedCurrencies'] == true;
+    final topCurrency = _data?['currency'] as String?;
+    final currencyFormat = NumberFormat.currency(
+      locale: 'fr_FR',
+      symbol: topCurrency ?? 'XOF',
+      decimalDigits: 0,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -82,6 +88,19 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      if (hasMixedCurrencies)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.danger.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            "Vos salles utilisent des devises différentes — le total ci-dessous n'est pas fiable, consultez le détail par salle.",
+                            style: TextStyle(fontSize: 12, color: AppColors.danger),
+                          ),
+                        ),
                       GridView.count(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -131,7 +150,11 @@ class _SalleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      locale: 'fr_FR',
+      symbol: (salle['currency'] as String?) ?? 'XOF',
+      decimalDigits: 0,
+    );
     final adherentsActifs = salle['adherents']?['actifs'] ?? 0;
     final revenusCeMois = double.parse((salle['revenus']?['ceMois'] ?? 0).toString());
 
