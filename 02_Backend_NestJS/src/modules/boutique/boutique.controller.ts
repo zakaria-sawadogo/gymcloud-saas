@@ -83,4 +83,15 @@ export class BoutiqueController {
   getDailyCaisse(@Param('salleId') salleId: string, @Query('date') date?: string) {
     return this.boutiqueService.getDailyCaisse(salleId, date);
   }
+
+  @Get('sales-by-product')
+  @RequirePermission('read', 'Product')
+  @ApiOperation({ summary: 'Quantités vendues par produit, sur le jour ou le mois (§14.x)' })
+  getSalesByProduct(
+    @Param('salleId') salleId: string,
+    @Query('period') period: 'day' | 'month' = 'day',
+    @Query('date') date?: string,
+  ) {
+    return this.boutiqueService.getSalesByProduct(salleId, period, date);
+  }
 }

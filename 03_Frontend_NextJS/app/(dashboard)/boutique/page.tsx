@@ -178,6 +178,8 @@ function BoutiqueView({ salleId }: { salleId: string }) {
         </Card>
       </div>
 
+      <SalesByProductPanel salleId={salleId} />
+
       {caisse && caisse.sales.length > 0 && (
         <Card className="mt-6 p-0">
           <div className="p-5 pb-0">
@@ -506,5 +508,77 @@ function ProductImageUpload({
         className="hidden"
       />
     </label>
+  );
+}
+
+interface SalesByProductItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  revenue: number;
+}
+
+interface SalesByProductSummary {
+  items: SalesByProductItem[];
+  totalQuantity: number;
+  totalRevenue: number;
+}
+
+/**
+ * §14.x — Quantités vendues par produit, jour ou mois — utile pour
+ * décider quoi réapprovisionner, distinct de la caisse (montants) qui
+ * ne dit rien du volume écoulé.
+ */
+function SalesByProductPanel({ salleId }: { salleId: string }) {
+  const [period, setPeriod] = useState<'day' | 'month'>('day');
+  const { data, isLoading } = useApi<SalesByProductSummary>(
+    `/salles/${salleId}/boutique/sales-by-product?period=${period}`,
+    [period],
+  );
+
+  return (
+    <Card className="mb-6">
+      <div className="mb-4 flex items-center justify-between">
+        <CardTitle>Quantités vendues</CardTitle>
+        <div className="flex overflow-hidden rounded-lg border border-ink-200">
+          <button
+            onClick={() => setPeriod('day')}
+            className={`px-3 py-1.5 text-sm ${period === 'day' ? 'bg-primary-600 text-white' : 'text-ink-600'}`}
+          >
+            Aujourd&apos;hui
+          </button>
+          <button
+            onClick={() => setPeriod('month')}
+            className={`px-3 py-1.5 text-sm ${period === 'month' ? 'bg-primary-600 text-white' : 'text-ink-600'}`}
+          >
+            Ce mois
+          </button>
+        </div>
+      </div>
+      {isLoading ? (
+        <div className="h-20 animate-pulse rounded-lg bg-ink-50" />
+      ) : !data || data.items.length === 0 ? (
+        <EmptyState icon={<ShoppingBag className="h-6 w-6" />} title="Aucune vente sur cette période" />
+      ) : (
+        <div className="divide-y divide-ink-100">
+          {data.items.map((item) => (
+            <div key={item.productId} className="flex items-center justify-between py-2.5 text-sm">
+              <span className="text-ink-900">{item.name}</span>
+              <span className="flex gap-4">
+                <span className="font-medium text-ink-900">{item.quantity} vendu(s)</span>
+                <span className="text-ink-500">{formatCurrency(item.revenue)}</span>
+              </span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between pt-3 text-sm font-semibold text-ink-900">
+            <span>Total</span>
+            <span className="flex gap-4">
+              <span>{data.totalQuantity} vendu(s)</span>
+              <span>{formatCurrency(data.totalRevenue)}</span>
+            </span>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }

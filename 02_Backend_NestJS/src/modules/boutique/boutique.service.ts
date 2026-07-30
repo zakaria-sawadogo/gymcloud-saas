@@ -192,4 +192,59 @@ export class BoutiqueService {
     }
     return { total, byMethod, salesCount: sales.length, sales };
   }
+
+  /**
+   * §14.x — Quantités vendues par produit, sur le jour ou le mois
+   * complet contenant la date donnée (aujourd'hui par défaut) — utile
+   * pour décider quoi réapprovisionner, distinct de la caisse
+   * (montants encaissés) qui ne dit rien du volume écoulé.
+   */
+  async getSalesByProduct(salleId: string, period: 'day' | 'month', date?: string) {
+    await this.assertHasBoutiqueAccess(salleId);
+    const ref = date ? new Date(date) : new Date();
+
+    let rangeStart: Date;
+    let rangeEnd: Date;
+    if (period === 'month') {
+      rangeStart = new Date(ref.getFullYear(), ref.getMonth(), 1, 0, 0, 0, 0);
+      rangeEnd = new Date(ref.getFullYear(), ref.getMonth() + 1, 0, 23, 59, 59, 999);
+    } else {
+      rangeStart = new Date(ref);
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd = new Date(ref);
+      rangeEnd.setHours(23, 59, 59, 999);
+    }
+
+    const sales = await this.prisma.productSale.findMany({
+      where: { salleId, createdAt: { gte: rangeStart, lte: rangeEnd } },
+      include: { product: { select: { id: true, name: true } } },
+    });
+
+    const byProduct = new Map<string, { productId: string; name: string; quantity: number; revenue: number }>();
+    for (const sale of sales) {
+      const existing = byProduct.get(sale.productId);
+      const revenue = Number(sale.totalAmount);
+      if (existing) {
+        existing.quantity += sale.quantity;
+        existing.revenue += revenue;
+      } else {
+        byProduct.set(sale.productId, {
+          productId: sale.productId,
+          name: sale.product.name,
+          quantity: sale.quantity,
+          revenue,
+        });
+      }
+    }
+
+    const items = [...byProduct.values()].sort((a, b) => b.quantity - a.quantity);
+    return {
+      period,
+      rangeStart,
+      rangeEnd,
+      items,
+      totalQuantity: items.reduce((sum, i) => sum + i.quantity, 0),
+      totalRevenue: items.reduce((sum, i) => sum + i.revenue, 0),
+    };
+  }
 }
