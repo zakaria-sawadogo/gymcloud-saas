@@ -19,6 +19,7 @@ import {
   BarChart3,
   LogOut,
   Mail,
+  ShoppingBag,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
@@ -61,6 +62,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Contrôle d\'accès', href: '/access-control', icon: QrCode },
     { label: 'Réservations', href: '/bookings', icon: CalendarCheck },
     { label: 'Paiements', href: '/payments', icon: CreditCard },
+    { label: 'Boutique', href: '/boutique', icon: ShoppingBag },
     { label: 'Marketing', href: '/marketing', icon: Megaphone },
     { label: 'Statistiques', href: '/statistiques', icon: BarChart3 },
   ],
