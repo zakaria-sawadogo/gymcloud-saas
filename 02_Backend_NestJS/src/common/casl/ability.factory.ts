@@ -9,6 +9,7 @@ export type Subjects =
   | 'Adherent'
   | 'AdherentAbonnement'
   | 'Payment'
+  | 'Product'
   | 'Booking'
   | 'AccessLog'
   | 'MarketingCampaign'
@@ -54,6 +55,7 @@ export class AbilityFactory {
         can('update', 'Salle'); // identité visuelle et paramètres de SES salles (§3.4-3.9) — appartenance vérifiée en service
         can('read', 'Adherent');
         can('read', 'Payment');
+        can('read', 'Product'); // §14.x — supervision de la boutique, pas la vente au comptoir (rôle GESTIONNAIRE)
         can('read', 'SaasSubscription');
         can('update', 'SaasSubscription'); // changement/renouvellement de SON PROPRE plan (§9.12) — vérifié en service
         can('read', 'AccessLog'); // nécessaire au tableau de bord consolidé (§11)
@@ -76,6 +78,7 @@ export class AbilityFactory {
         can('manage', 'Adherent');
         can('manage', 'AdherentAbonnement');
         can('manage', 'Payment');
+        can('manage', 'Product'); // §14.x — boutique, restriction fine (add-on actif) en service
         can('manage', 'Booking');
         can('manage', 'AccessLog');
         can('manage', 'MarketingCampaign');

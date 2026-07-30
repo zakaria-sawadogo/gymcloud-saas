@@ -528,6 +528,8 @@ model Salle {
   adherents       AdherentProfile[]
   abonnements     AbonnementCatalogue[]
   payments        Payment[]
+  products        Product[]
+  productSales    ProductSale[]
   accessLogs      AccessLog[]
   bookings        Booking[]
   coursCollectifs CoursCollectif[]
@@ -958,6 +960,45 @@ model Payment {
   @@index([salleId, createdAt])
   @@index([adherentId])
   @@map("payments")
+}
+
+/// §14.x — Add-on "Mini caisse boutique" : catalogue de produits
+/// vendus au comptoir (boissons, compléments, goodies, pass
+/// journalier...), distinct des abonnements/paiements d'adhérents.
+/// N'a de sens que si l'add-on BOUTIQUE est actif pour la salle —
+/// vérifié en service, pas ici.
+model Product {
+  id       String  @id @default(uuid())
+  salleId  String
+  salle    Salle   @relation(fields: [salleId], references: [id])
+  name     String
+  price    Decimal @db.Decimal(10, 2)
+  stockQty Int     @default(0)
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  sales     ProductSale[]
+
+  @@index([salleId])
+  @@map("products")
+}
+
+model ProductSale {
+  id            String        @id @default(uuid())
+  salleId       String
+  salle         Salle         @relation(fields: [salleId], references: [id])
+  productId     String
+  product       Product       @relation(fields: [productId], references: [id])
+  quantity      Int
+  unitPrice     Decimal       @db.Decimal(10, 2) // figé au moment de la vente — un changement de tarif plus tard ne réécrit pas l'historique
+  totalAmount   Decimal       @db.Decimal(12, 2)
+  paymentMethod PaymentMethod
+  soldByUserId  String
+
+  createdAt DateTime @default(now())
+
+  @@index([salleId, createdAt])
+  @@map("product_sales")
 }
 
 model Receipt {

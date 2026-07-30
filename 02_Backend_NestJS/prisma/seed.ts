@@ -239,6 +239,18 @@ async function main() {
     },
   });
 
+  await prisma.saasAddon.upsert({
+    where: { code: 'BOUTIQUE' },
+    update: {},
+    create: {
+      id: randomUUID(),
+      code: 'BOUTIQUE',
+      name: 'Mini caisse boutique',
+      description: 'Vente de produits au comptoir (boissons, compléments, goodies, pass journalier...), suivi de stock et caisse dédiée.',
+      price: 15000,
+    },
+  });
+
   console.log('Seed — premier compte SUPER_ADMIN...');
 
   // Problème de démarrage classique : impossible de créer un
