@@ -108,7 +108,7 @@ export class PublicService {
 
     return this.prisma.product.findMany({
       where: { salleId: salle.id, active: true, stockQty: { gt: 0 } },
-      select: { id: true, name: true, price: true },
+      select: { id: true, name: true, price: true, imageUrl: true },
       orderBy: { name: 'asc' },
     });
   }

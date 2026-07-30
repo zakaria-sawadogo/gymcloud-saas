@@ -374,11 +374,19 @@ export function PublicSiteClient({
             <p className="mb-8 text-sm text-ink-400">Disponible sur place, à l&apos;accueil.</p>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {products.map((p) => (
-                <div key={p.id} className="rounded-2xl border border-ink-100 bg-white p-5">
-                  <p className="font-medium text-ink-900">{p.name}</p>
-                  <p className="mt-1 font-display text-lg font-semibold" style={{ color: 'var(--salle-primary)' }}>
-                    {formatCurrency(p.price, 'XOF')}
-                  </p>
+                <div key={p.id} className="overflow-hidden rounded-2xl border border-ink-100 bg-white">
+                  {p.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.imageUrl} alt={p.name} className="h-32 w-full object-cover" />
+                  ) : (
+                    <div className="h-32 w-full" style={{ background: 'var(--paper-dim, #F1EDE3)' }} />
+                  )}
+                  <div className="p-5">
+                    <p className="font-medium text-ink-900">{p.name}</p>
+                    <p className="mt-1 font-display text-lg font-semibold" style={{ color: 'var(--salle-primary)' }}>
+                      {formatCurrency(p.price, 'XOF')}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>

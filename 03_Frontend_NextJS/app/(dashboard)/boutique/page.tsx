@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, ShoppingBag, Pencil } from 'lucide-react';
+import { Plus, ShoppingBag, Pencil, Camera } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
@@ -18,6 +18,7 @@ interface Product {
   price: number;
   stockQty: number;
   active: boolean;
+  imageUrl: string | null;
 }
 
 interface Sale {
@@ -147,13 +148,22 @@ function BoutiqueView({ salleId }: { salleId: string }) {
             <div className="divide-y divide-ink-100">
               {products.map((p) => (
                 <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                  <div>
-                    <p className="font-medium text-ink-900">
-                      {p.name} {!p.active && <span className="text-xs text-ink-400">(désactivé)</span>}
-                    </p>
-                    <p className="text-sm text-ink-500">
-                      {formatCurrency(p.price)} · stock : {p.stockQty}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <ProductImageUpload
+                      salleId={salleId}
+                      productId={p.id}
+                      imageUrl={p.imageUrl}
+                      name={p.name}
+                      onUploaded={refetchProducts}
+                    />
+                    <div>
+                      <p className="font-medium text-ink-900">
+                        {p.name} {!p.active && <span className="text-xs text-ink-400">(désactivé)</span>}
+                      </p>
+                      <p className="text-sm text-ink-500">
+                        {formatCurrency(p.price)} · stock : {p.stockQty}
+                      </p>
+                    </div>
                   </div>
                   <button
                     onClick={() => setEditingProduct(p)}
@@ -435,5 +445,66 @@ function EditProductModal({
         </Button>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * §14.x — Même mécanisme que la photo de coach (upload direct,
+ * miniature cliquable) — affichée ensuite sur le site public si
+ * Site public + Boutique sont actifs pour la salle.
+ */
+function ProductImageUpload({
+  salleId,
+  productId,
+  imageUrl,
+  name,
+  onUploaded,
+}: {
+  salleId: string;
+  productId: string;
+  imageUrl: string | null;
+  name: string;
+  onUploaded: () => void;
+}) {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      await apiClient.patch(`/salles/${salleId}/boutique/products/${productId}/image`, formData);
+      onUploaded();
+    } catch {
+      // Échec silencieux — l'utilisateur peut réessayer directement.
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <label className="relative cursor-pointer">
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt={name} className="h-10 w-10 rounded-lg object-cover" />
+      ) : (
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-100 text-xs font-semibold text-primary-700">
+          {name.charAt(0)}
+        </div>
+      )}
+      <div className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow">
+        <Camera className="h-2.5 w-2.5 text-ink-500" />
+      </div>
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleFileChange}
+        disabled={isUploading}
+        className="hidden"
+      />
+    </label>
   );
 }

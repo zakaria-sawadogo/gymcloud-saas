@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { BoutiqueService } from './boutique.service';
 import { CreateProductDto, UpdateProductDto, RecordSaleDto } from './dto/boutique.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
@@ -38,6 +39,24 @@ export class BoutiqueController {
     @CurrentUser() user: TenantContext,
   ) {
     return this.boutiqueService.updateProduct(productId, dto, user.userId);
+  }
+
+  @Patch('products/:productId/image')
+  @RequirePermission('manage', 'Product')
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Photo du produit, affichée sur le site public si Site public + Boutique actifs' })
+  updateProductImage(
+    @Param('productId') productId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: TenantContext,
+  ) {
+    if (!file) throw new BadRequestException('Image requise');
+    if (file.size > 5 * 1024 * 1024) throw new BadRequestException('Image trop volumineuse (5 Mo maximum)');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      throw new BadRequestException('Format non supporté — utilisez JPEG, PNG ou WebP');
+    }
+    return this.boutiqueService.updateProductImage(productId, file, user.userId);
   }
 
   @Post('sales')

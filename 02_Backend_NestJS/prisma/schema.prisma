@@ -975,6 +975,7 @@ model Product {
   price    Decimal @db.Decimal(10, 2)
   stockQty Int     @default(0)
   active   Boolean @default(true)
+  imageUrl String?
 
   createdAt DateTime @default(now())
   sales     ProductSale[]

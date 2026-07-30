@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { CreateProductDto, UpdateProductDto, RecordSaleDto } from './dto/boutique.dto';
 
 /**
@@ -15,6 +16,7 @@ export class BoutiqueService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   private async assertHasBoutiqueAccess(salleId: string) {
@@ -81,6 +83,28 @@ export class BoutiqueService {
       salleId: product.salleId,
     });
     return updated;
+  }
+
+  async updateProductImage(
+    productId: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string },
+    actorUserId: string,
+  ) {
+    const product = await this.prisma.product.findUniqueOrThrow({ where: { id: productId } });
+    await this.assertHasBoutiqueAccess(product.salleId);
+
+    const imageUrl = await this.storage.uploadFile(file.buffer, `products/${productId}`, file.originalname, file.mimetype);
+    await this.prisma.product.update({ where: { id: productId }, data: { imageUrl } });
+    if (product.imageUrl) await this.storage.deleteFileByUrl(product.imageUrl);
+
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'product.update_image',
+      entityType: 'Product',
+      entityId: productId,
+      salleId: product.salleId,
+    });
+    return { imageUrl };
   }
 
   /**

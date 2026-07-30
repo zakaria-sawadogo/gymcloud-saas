@@ -76,6 +76,7 @@ export interface PublicProduct {
   id: string;
   name: string;
   price: number;
+  imageUrl: string | null;
 }
 
 /** §14.x — Vide si l'add-on Boutique n'est pas actif pour cette salle. */
