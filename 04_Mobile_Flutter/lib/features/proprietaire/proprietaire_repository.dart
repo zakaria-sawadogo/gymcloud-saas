@@ -100,4 +100,15 @@ class ProprietaireRepository {
   /// "désactiver" qui conserve l'historique.
   Future<void> deleteStaff(String kind, String userId) =>
       _api.delete<dynamic>('/${kind}s/$userId');
+
+  // ── Boutique (§14.x) — supervision en lecture seule, la vente au
+  // comptoir reste une tâche du gestionnaire. ────────────────────
+
+  Future<List<Map<String, dynamic>>> getBoutiqueProducts(String salleId) async {
+    final data = await _api.get<List<dynamic>>('/salles/$salleId/boutique/products');
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> getBoutiqueSalesByProduct(String salleId, {String period = 'day'}) =>
+      _api.get<Map<String, dynamic>>('/salles/$salleId/boutique/sales-by-product', query: {'period': period});
 }

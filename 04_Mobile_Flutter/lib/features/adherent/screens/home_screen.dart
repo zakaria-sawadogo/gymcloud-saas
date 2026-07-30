@@ -9,6 +9,7 @@ import '../adherent_repository.dart';
 import '../../shared/logout_button.dart';
 import '../../shared/notification_bell.dart';
 import 'renew_subscription_screen.dart';
+import 'boutique_catalog_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex) onNavigateToTab;
@@ -190,6 +191,21 @@ class _QuickActionsRow extends StatelessWidget {
             icon: Icons.event,
             label: 'Réserver une séance',
             onTap: () => onNavigateToTab(2),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _ActionTile(
+            icon: Icons.shopping_bag_outlined,
+            label: 'Boutique',
+            onTap: () {
+              final salleId = context.read<AuthProvider>().user?.salle?.id;
+              if (salleId == null) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => BoutiqueCatalogScreen(salleId: salleId)),
+              );
+            },
           ),
         ),
       ],

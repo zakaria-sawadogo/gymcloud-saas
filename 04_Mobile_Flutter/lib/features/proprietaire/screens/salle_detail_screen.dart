@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/widgets/stat_card.dart';
 import '../proprietaire_repository.dart';
 import 'team_management_screen.dart';
+import 'boutique_summary_screen.dart';
 
 /// Drill-down vers le détail d'une salle spécifique — mêmes
 /// indicateurs que le tableau de bord Gestionnaire, en lecture seule
@@ -53,6 +54,16 @@ class _SalleDetailScreenState extends State<SalleDetailScreen> {
               context,
               MaterialPageRoute(
                 builder: (_) => TeamManagementScreen(salleId: widget.salleId, salleName: widget.salleName),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.shopping_bag_outlined),
+            tooltip: 'Boutique',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BoutiqueSummaryScreen(salleId: widget.salleId, salleName: widget.salleName),
               ),
             ),
           ),

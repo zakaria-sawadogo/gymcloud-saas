@@ -94,4 +94,61 @@ class GestionnaireRepository {
           if (phoneNumber != null) 'phoneNumber': phoneNumber,
         },
       );
+
+  // ── Boutique (§14.x) — gestion complète, contrairement à la vue
+  // propriétaire qui n'est qu'en lecture seule. ───────────────────
+
+  Future<List<Map<String, dynamic>>> getBoutiqueProducts(String salleId) async {
+    final data = await _api.get<List<dynamic>>('/salles/$salleId/boutique/products');
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> createBoutiqueProduct({
+    required String salleId,
+    required String name,
+    required num price,
+    int stockQty = 0,
+  }) =>
+      _api.post<Map<String, dynamic>>(
+        '/salles/$salleId/boutique/products',
+        data: {'name': name, 'price': price, 'stockQty': stockQty},
+      );
+
+  Future<Map<String, dynamic>> updateBoutiqueProduct({
+    required String salleId,
+    required String productId,
+    String? name,
+    num? price,
+    int? stockQty,
+    bool? active,
+  }) =>
+      _api.patch<Map<String, dynamic>>(
+        '/salles/$salleId/boutique/products/$productId',
+        data: {
+          if (name != null) 'name': name,
+          if (price != null) 'price': price,
+          if (stockQty != null) 'stockQty': stockQty,
+          if (active != null) 'active': active,
+        },
+      );
+
+  Future<Map<String, dynamic>> recordBoutiqueSale({
+    required String salleId,
+    required String productId,
+    required int quantity,
+    required String paymentMethod,
+  }) =>
+      _api.post<Map<String, dynamic>>(
+        '/salles/$salleId/boutique/sales',
+        data: {'productId': productId, 'quantity': quantity, 'paymentMethod': paymentMethod},
+      );
+
+  Future<Map<String, dynamic>> getBoutiqueCaisse(String salleId, {String? date}) =>
+      _api.get<Map<String, dynamic>>(
+        '/salles/$salleId/boutique/caisse',
+        query: date != null ? {'date': date} : null,
+      );
+
+  Future<Map<String, dynamic>> getBoutiqueSalesByProduct(String salleId, {String period = 'day'}) =>
+      _api.get<Map<String, dynamic>>('/salles/$salleId/boutique/sales-by-product', query: {'period': period});
 }

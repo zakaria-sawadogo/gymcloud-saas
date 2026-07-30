@@ -119,4 +119,12 @@ class AdherentRepository {
           if (paymentPhoneNumber != null) 'paymentPhoneNumber': paymentPhoneNumber,
         },
       );
+
+  /// §14.x — Catalogue boutique, consultation seule : le paiement
+  /// reste au comptoir, jamais à distance (produit physique à remettre
+  /// en main propre).
+  Future<List<Map<String, dynamic>>> getBoutiqueProducts(String salleId) async {
+    final data = await _api.get<List<dynamic>>('/salles/$salleId/boutique/products');
+    return data.cast<Map<String, dynamic>>();
+  }
 }
