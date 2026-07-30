@@ -17,6 +17,7 @@ import { GestionnaireDashboardView } from '@/components/dashboard/GestionnaireDa
 import { SallePaymentsView } from '@/components/dashboard/SallePaymentsView';
 import { UserAccountActions } from '@/components/dashboard/UserAccountActions';
 import { SalleContentPanel } from '@/components/dashboard/SalleContentPanel';
+import { BoutiqueReadOnlyView } from '@/components/dashboard/BoutiqueReadOnlyView';
 import { formatCurrency } from '@/lib/utils';
 import type { Salle, GestionnaireProfile, CoachProfile } from '@/types';
 
@@ -187,6 +188,11 @@ export default function SalleDetailPage() {
 
                   <div className="mt-6">
                     <SallePaymentsView salleId={params.id} currency={salle?.country?.currency ?? 'XOF'} />
+                  </div>
+
+                  <div className="mt-6">
+                    <h3 className="mb-3 font-display text-lg font-semibold text-ink-900">Boutique</h3>
+                    <BoutiqueReadOnlyView salleId={params.id} />
                   </div>
                 </>
               ),
