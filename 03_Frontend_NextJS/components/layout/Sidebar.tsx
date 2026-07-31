@@ -20,6 +20,7 @@ import {
   LogOut,
   Mail,
   ShoppingBag,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
@@ -63,6 +64,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Réservations', href: '/bookings', icon: CalendarCheck },
     { label: 'Paiements', href: '/payments', icon: CreditCard },
     { label: 'Boutique', href: '/boutique', icon: ShoppingBag },
+    { label: 'Finances', href: '/finances', icon: Wallet },
     { label: 'Marketing', href: '/marketing', icon: Megaphone },
     { label: 'Statistiques', href: '/statistiques', icon: BarChart3 },
   ],

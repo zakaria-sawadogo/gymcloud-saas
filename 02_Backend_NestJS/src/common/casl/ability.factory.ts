@@ -10,6 +10,7 @@ export type Subjects =
   | 'AdherentAbonnement'
   | 'Payment'
   | 'Product'
+  | 'Expense'
   | 'Booking'
   | 'AccessLog'
   | 'MarketingCampaign'
@@ -56,6 +57,7 @@ export class AbilityFactory {
         can('read', 'Adherent');
         can('read', 'Payment');
         can('read', 'Product'); // §14.x — supervision de la boutique, pas la vente au comptoir (rôle GESTIONNAIRE)
+        can('read', 'Expense'); // §14.x — supervision de GymCloud Finances, pas la saisie (rôle GESTIONNAIRE)
         can('read', 'SaasSubscription');
         can('update', 'SaasSubscription'); // changement/renouvellement de SON PROPRE plan (§9.12) — vérifié en service
         can('read', 'AccessLog'); // nécessaire au tableau de bord consolidé (§11)
@@ -79,6 +81,7 @@ export class AbilityFactory {
         can('manage', 'AdherentAbonnement');
         can('manage', 'Payment');
         can('manage', 'Product'); // §14.x — boutique, restriction fine (add-on actif) en service
+        can('manage', 'Expense'); // §14.x — GymCloud Finances, restriction fine (add-on actif) en service
         can('manage', 'Booking');
         can('manage', 'AccessLog');
         can('manage', 'MarketingCampaign');

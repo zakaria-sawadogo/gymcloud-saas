@@ -251,6 +251,18 @@ async function main() {
     },
   });
 
+  await prisma.saasAddon.upsert({
+    where: { code: 'FINANCES' },
+    update: {},
+    create: {
+      id: randomUUID(),
+      code: 'FINANCES',
+      name: 'GymCloud Finances',
+      description: 'Suivi des dépenses par catégorie, vue revenus/dépenses/résultat net, export pour votre comptable. Un outil de suivi, pas un logiciel de comptabilité.',
+      price: 15000,
+    },
+  });
+
   console.log('Seed — premier compte SUPER_ADMIN...');
 
   // Problème de démarrage classique : impossible de créer un

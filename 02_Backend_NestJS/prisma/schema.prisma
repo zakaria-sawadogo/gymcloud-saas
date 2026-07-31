@@ -531,6 +531,7 @@ model Salle {
   payments        Payment[]
   products        Product[]
   productSales    ProductSale[]
+  expenses        Expense[]
   accessLogs      AccessLog[]
   bookings        Booking[]
   coursCollectifs CoursCollectif[]
@@ -968,6 +969,29 @@ model Payment {
 /// journalier...), distinct des abonnements/paiements d'adhérents.
 /// N'a de sens que si l'add-on BOUTIQUE est actif pour la salle —
 /// vérifié en service, pas ici.
+/// §14.x — Add-on "GymCloud Finances" : suivi des dépenses par
+/// catégorie, pour donner une vue revenus - dépenses = résultat net.
+/// Volontairement un OUTIL DE SUIVI, pas un logiciel de comptabilité
+/// SYSCOHADA-conforme — l'export existe pour transmettre à un vrai
+/// comptable, jamais pour remplacer son travail.
+model Expense {
+  id              String   @id @default(uuid())
+  salleId         String
+  salle           Salle    @relation(fields: [salleId], references: [id])
+  category        String // loyer, salaires, électricité/eau, équipement, maintenance, marketing, autres — libre, pas un enum figé
+  amount          Decimal  @db.Decimal(12, 2)
+  description     String?
+  receiptUrl      String? // photo du justificatif, même mécanisme que les photos produits boutique
+  isRecurring     Boolean  @default(false) // simple étiquette pour retrouver/dupliquer facilement, pas une génération automatique
+  date            DateTime // date réelle de la dépense, distincte de createdAt
+  createdByUserId String
+
+  createdAt DateTime @default(now())
+
+  @@index([salleId, date])
+  @@map("expenses")
+}
+
 model Product {
   id       String  @id @default(uuid())
   salleId  String

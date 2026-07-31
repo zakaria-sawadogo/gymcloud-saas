@@ -22,6 +22,7 @@ import { PlatformSettingsModule } from './modules/platform-settings/platform-set
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { BoutiqueModule } from './modules/boutique/boutique.module';
+import { FinancesModule } from './modules/finances/finances.module';
 import { MarketingModule } from './modules/marketing/marketing.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
 import { CountriesModule } from './modules/countries/countries.module';
@@ -54,6 +55,7 @@ import { SalleContentModule } from './modules/salle-content/salle-content.module
     BookingsModule,
     PaymentsModule,
     BoutiqueModule,
+    FinancesModule,
     MarketingModule,
     ReportingModule,
     CountriesModule,
