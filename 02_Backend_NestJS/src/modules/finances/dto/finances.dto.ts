@@ -25,6 +25,14 @@ export class CreateExpenseDto {
   @IsBoolean()
   isRecurring?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Uniquement significatif si isRecurring=true. false = montant fixe (loyer...), régénérée automatiquement chaque mois. true (défaut) = montant variable (électricité...), juste un rappel.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  recurringAmountVaries?: boolean;
+
   @ApiPropertyOptional({ description: 'Réservé propriétaire/SUPER_ADMIN — invisible pour un gestionnaire' })
   @IsOptional()
   @IsBoolean()
@@ -61,5 +69,21 @@ export class UpdateExpenseDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
+  recurringAmountVaries?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
   isConfidential?: boolean;
+}
+
+export class SetBudgetDto {
+  @ApiProperty()
+  @IsString()
+  category!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(0)
+  monthlyLimit!: number;
 }

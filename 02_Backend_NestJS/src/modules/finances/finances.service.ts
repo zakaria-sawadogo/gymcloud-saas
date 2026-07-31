@@ -3,8 +3,9 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { StorageService } from '../../common/storage/storage.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { TenantContext } from '../../common/decorators/current-user.decorator';
-import { CreateExpenseDto, UpdateExpenseDto } from './dto/finances.dto';
+import { CreateExpenseDto, UpdateExpenseDto, SetBudgetDto } from './dto/finances.dto';
 
 /**
  * §14.x — "GymCloud Finances" : suivi des dépenses par catégorie et
@@ -19,6 +20,7 @@ export class FinancesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly storage: StorageService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async assertHasFinancesAccess(salleId: string) {
@@ -77,6 +79,7 @@ export class FinancesService {
         description: dto.description,
         date: new Date(dto.date),
         isRecurring: dto.isRecurring ?? false,
+        recurringAmountVaries: dto.recurringAmountVaries ?? true,
         isConfidential,
         createdByUserId: actor.userId,
       },
@@ -111,6 +114,7 @@ export class FinancesService {
         description: original.description,
         date: new Date(),
         isRecurring: original.isRecurring,
+        recurringAmountVaries: original.recurringAmountVaries,
         isConfidential: original.isConfidential,
         createdByUserId: actor.userId,
       },
@@ -150,6 +154,7 @@ export class FinancesService {
         ...(dto.description !== undefined ? { description: dto.description } : {}),
         ...(dto.date !== undefined ? { date: new Date(dto.date) } : {}),
         ...(dto.isRecurring !== undefined ? { isRecurring: dto.isRecurring } : {}),
+        ...(dto.recurringAmountVaries !== undefined ? { recurringAmountVaries: dto.recurringAmountVaries } : {}),
         // §14.x — un gestionnaire ne peut jamais rendre une dépense
         // confidentielle (ni l'inverse, puisqu'il ne peut de toute
         // façon pas atteindre celles qui le sont déjà).
@@ -218,8 +223,33 @@ export class FinancesService {
     if (actor.roleCode === 'GESTIONNAIRE') {
       throw new ForbiddenException('Cette vue est réservée au propriétaire de la salle');
     }
-    const { start, end } = this.monthRange(year, month);
+    const current = await this.computeMonthlyFinancials(salleId, year, month);
 
+    // §14.x — comparaison au mois précédent : contexte immédiat sans
+    // effort de lecture supplémentaire.
+    const prevDate = new Date(year, month - 2, 1);
+    const previous = await this.computeMonthlyFinancials(salleId, prevDate.getFullYear(), prevDate.getMonth() + 1);
+    const variationPct =
+      previous.resultatNet !== 0
+        ? Math.round(((current.resultatNet - previous.resultatNet) / Math.abs(previous.resultatNet)) * 100)
+        : null;
+
+    // §14.x — budget indicatif par catégorie : simple alerte si
+    // dépassé, jamais un blocage.
+    const budgets = await this.prisma.expenseBudget.findMany({ where: { salleId } });
+    const budgetAlerts = budgets
+      .map((b: { category: string; monthlyLimit: unknown }) => {
+        const spent = current.depensesParCategorie[b.category] ?? 0;
+        const limit = Number(b.monthlyLimit);
+        return { category: b.category, spent, limit, isOverBudget: spent > limit };
+      })
+      .filter((b: { isOverBudget: boolean }) => b.isOverBudget);
+
+    return { year, month, ...current, resultatNetPrecedent: previous.resultatNet, variationPct, budgetAlerts };
+  }
+
+  private async computeMonthlyFinancials(salleId: string, year: number, month: number) {
+    const { start, end } = this.monthRange(year, month);
     const [payments, productSales, expenses] = await Promise.all([
       this.prisma.payment.findMany({
         where: { salleId, status: 'VALIDE', createdAt: { gte: start, lte: end } },
@@ -251,8 +281,6 @@ export class FinancesService {
     }
 
     return {
-      year,
-      month,
       revenusAbonnements,
       revenusBoutique,
       totalRevenus,
@@ -260,6 +288,31 @@ export class FinancesService {
       depensesParCategorie: Object.fromEntries(byCategory),
       resultatNet: totalRevenus - totalDepenses,
     };
+  }
+
+  /**
+   * §14.x — Graphique d'évolution : agrège les mêmes chiffres que
+   * getNetResult sur plusieurs mois consécutifs — réservé
+   * propriétaire/SUPER_ADMIN, même raison que getNetResult.
+   */
+  async getMonthlyTrend(salleId: string, monthsBack: number, actor: TenantContext) {
+    await this.assertHasFinancesAccess(salleId);
+    if (actor.roleCode === 'GESTIONNAIRE') {
+      throw new ForbiddenException('Cette vue est réservée au propriétaire de la salle');
+    }
+    const now = new Date();
+    const months: { year: number; month: number }[] = [];
+    for (let i = monthsBack - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+    }
+    const results = await Promise.all(
+      months.map(async ({ year, month }) => {
+        const data = await this.computeMonthlyFinancials(salleId, year, month);
+        return { year, month, totalRevenus: data.totalRevenus, totalDepenses: data.totalDepenses, resultatNet: data.resultatNet };
+      }),
+    );
+    return results;
   }
 
   /**
@@ -271,18 +324,30 @@ export class FinancesService {
   async getBoutiqueRevenueSummary(salleId: string, year: number, month: number) {
     await this.assertHasFinancesAccess(salleId);
     const { start, end } = this.monthRange(year, month);
-    const productSales = await this.prisma.productSale.findMany({
+    const revenusBoutique = await this.sumBoutiqueRevenue(salleId, start, end);
+    const productSales = await this.prisma.productSale.count({ where: { salleId, createdAt: { gte: start, lte: end } } });
+
+    // §14.x — comparaison au mois précédent : contexte immédiat sans
+    // effort de lecture supplémentaire.
+    const prevDate = new Date(year, month - 2, 1);
+    const prevRange = this.monthRange(prevDate.getFullYear(), prevDate.getMonth() + 1);
+    const revenusBoutiquePrecedent = await this.sumBoutiqueRevenue(salleId, prevRange.start, prevRange.end);
+    const variationPct =
+      revenusBoutiquePrecedent > 0
+        ? Math.round(((revenusBoutique - revenusBoutiquePrecedent) / revenusBoutiquePrecedent) * 100)
+        : null;
+
+    return { year, month, revenusBoutique, ventesCount: productSales, revenusBoutiquePrecedent, variationPct };
+  }
+
+  private async sumBoutiqueRevenue(salleId: string, start: Date, end: Date): Promise<number> {
+    const sales = await this.prisma.productSale.findMany({
       where: { salleId, createdAt: { gte: start, lte: end } },
       select: { totalAmount: true },
     });
-    const revenusBoutique = productSales.reduce(
-      (sum: number, s: { totalAmount: unknown }) => sum + Number(s.totalAmount),
-      0,
-    );
-    return { year, month, revenusBoutique, ventesCount: productSales.length };
+    return sales.reduce((sum: number, s: { totalAmount: unknown }) => sum + Number(s.totalAmount), 0);
   }
 
-  /**
   /**
    * §14.x — Export CSV, réservé propriétaire/SUPER_ADMIN — jamais au
    * gestionnaire, même si le contenu était filtré : un fichier qu'on
@@ -354,5 +419,133 @@ export class FinancesService {
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(expensesSheetData), 'Dépenses');
 
     return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  }
+
+  /**
+   * §14.x — Appelé chaque nuit : pour chaque salle, régénère
+   * automatiquement les dépenses récurrentes à MONTANT FIXE (loyer...)
+   * si aucune entrée n'existe encore ce mois-ci pour cette catégorie —
+   * reprend le montant de la plus récente. Les dépenses à montant
+   * VARIABLE (électricité...) ne sont jamais générées automatiquement,
+   * juste rappelées (voir remindVariableRecurringExpenses).
+   */
+  async generateFixedRecurringExpenses() {
+    const salles = await this.prisma.salle.findMany({ where: { status: 'ACTIF' }, select: { id: true } });
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    let generated = 0;
+
+    for (const salle of salles) {
+      const recentFixed = await this.prisma.expense.findMany({
+        where: { salleId: salle.id, isRecurring: true, recurringAmountVaries: false },
+        orderBy: { date: 'desc' },
+      });
+      const seenCategories = new Set<string>();
+      for (const template of recentFixed) {
+        if (seenCategories.has(template.category)) continue; // seule la plus récente par catégorie sert de modèle
+        seenCategories.add(template.category);
+
+        const alreadyThisMonth = await this.prisma.expense.findFirst({
+          where: { salleId: salle.id, category: template.category, isRecurring: true, date: { gte: monthStart } },
+        });
+        if (alreadyThisMonth) continue;
+
+        await this.prisma.expense.create({
+          data: {
+            id: randomUUID(),
+            salleId: salle.id,
+            category: template.category,
+            amount: template.amount,
+            description: template.description,
+            date: monthStart,
+            isRecurring: true,
+            recurringAmountVaries: false,
+            isConfidential: template.isConfidential,
+            createdByUserId: template.createdByUserId,
+          },
+        });
+        generated++;
+      }
+    }
+    return { generated };
+  }
+
+  /**
+   * §14.x — Appelé chaque nuit à partir du 5 du mois : pour toute
+   * dépense récurrente à montant VARIABLE dont aucune entrée n'existe
+   * encore ce mois-ci, notifie le propriétaire (jamais le
+   * gestionnaire, même si c'est lui qui l'a saisie à l'origine — un
+   * rappel touchant potentiellement des catégories confidentielles).
+   */
+  async remindVariableRecurringExpenses() {
+    const now = new Date();
+    if (now.getDate() < 5) return { reminded: 0 };
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const salles = await this.prisma.salle.findMany({
+      where: { status: 'ACTIF' },
+      select: { id: true, name: true, proprietaire: { select: { userId: true } } },
+    });
+    let reminded = 0;
+
+    for (const salle of salles) {
+      const recentVariable = await this.prisma.expense.findMany({
+        where: { salleId: salle.id, isRecurring: true, recurringAmountVaries: true },
+        orderBy: { date: 'desc' },
+      });
+      const seenCategories = new Set<string>();
+      const missingCategories: string[] = [];
+      for (const template of recentVariable) {
+        if (seenCategories.has(template.category)) continue;
+        seenCategories.add(template.category);
+        const alreadyThisMonth = await this.prisma.expense.findFirst({
+          where: { salleId: salle.id, category: template.category, isRecurring: true, date: { gte: monthStart } },
+        });
+        if (!alreadyThisMonth) missingCategories.push(template.category);
+      }
+      if (missingCategories.length > 0 && salle.proprietaire) {
+        await this.notifications.create(
+          salle.proprietaire.userId,
+          'Dépenses récurrentes à saisir',
+          `${salle.name} — pensez à saisir ce mois-ci : ${missingCategories.join(', ')}.`,
+        );
+        reminded++;
+      }
+    }
+    return { reminded };
+  }
+
+  /**
+   * §14.x — Budgets indicatifs par catégorie : une simple alerte si
+   * dépassé, jamais un blocage ni une règle comptable. Réservé
+   * propriétaire/SUPER_ADMIN — c'est le pilotage global de la salle.
+   */
+  async listBudgets(salleId: string, actor: TenantContext) {
+    await this.assertHasFinancesAccess(salleId);
+    if (actor.roleCode === 'GESTIONNAIRE') {
+      throw new ForbiddenException('Cette vue est réservée au propriétaire de la salle');
+    }
+    return this.prisma.expenseBudget.findMany({ where: { salleId }, orderBy: { category: 'asc' } });
+  }
+
+  async setBudget(salleId: string, dto: SetBudgetDto, actor: TenantContext) {
+    await this.assertHasFinancesAccess(salleId);
+    if (actor.roleCode === 'GESTIONNAIRE') {
+      throw new ForbiddenException('Cette action est réservée au propriétaire de la salle');
+    }
+    return this.prisma.expenseBudget.upsert({
+      where: { salleId_category: { salleId, category: dto.category } },
+      update: { monthlyLimit: dto.monthlyLimit },
+      create: { id: randomUUID(), salleId, category: dto.category, monthlyLimit: dto.monthlyLimit },
+    });
+  }
+
+  async deleteBudget(salleId: string, category: string, actor: TenantContext) {
+    if (actor.roleCode === 'GESTIONNAIRE') {
+      throw new ForbiddenException('Cette action est réservée au propriétaire de la salle');
+    }
+    await this.prisma.expenseBudget
+      .delete({ where: { salleId_category: { salleId, category } } })
+      .catch(() => null);
+    return { success: true };
   }
 }

@@ -532,6 +532,7 @@ model Salle {
   products        Product[]
   productSales    ProductSale[]
   expenses        Expense[]
+  expenseBudgets  ExpenseBudget[]
   accessLogs      AccessLog[]
   bookings        Booking[]
   coursCollectifs CoursCollectif[]
@@ -983,6 +984,7 @@ model Expense {
   description     String?
   receiptUrl      String? // photo du justificatif, même mécanisme que les photos produits boutique
   isRecurring     Boolean  @default(false) // simple étiquette pour retrouver/dupliquer facilement, pas une génération automatique
+  recurringAmountVaries Boolean @default(true) // §14.x — si false ET isRecurring : montant fixe (loyer...), régénérée automatiquement chaque mois ; si true : montant variable (électricité...), juste un rappel
   isConfidential  Boolean  @default(false) // §14.x — salaires, loyer... saisis par le propriétaire, jamais visibles ni comptés pour un gestionnaire
   date            DateTime // date réelle de la dépense, distincte de createdAt
   createdByUserId String
@@ -991,6 +993,22 @@ model Expense {
 
   @@index([salleId, date])
   @@map("expenses")
+}
+
+/// §14.x — Plafond mensuel indicatif par catégorie de dépense —
+/// alerte simple si dépassé, jamais un blocage ni une règle comptable.
+model ExpenseBudget {
+  id          String @id @default(uuid())
+  salleId     String
+  salle       Salle  @relation(fields: [salleId], references: [id])
+  category    String
+  monthlyLimit Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([salleId, category])
+  @@map("expense_budgets")
 }
 
 model Product {

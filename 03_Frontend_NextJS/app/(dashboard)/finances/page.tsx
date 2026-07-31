@@ -25,6 +25,7 @@ interface Expense {
   description: string | null;
   date: string;
   isRecurring: boolean;
+  recurringAmountVaries: boolean;
   receiptUrl: string | null;
 }
 
@@ -157,7 +158,7 @@ function FinancesView({ salleId, currency }: { salleId: string; currency: string
                   <ReceiptUpload salleId={salleId} expenseId={e.id} receiptUrl={e.receiptUrl} onUploaded={refetchExpenses} />
                   <div>
                     <p className="font-medium text-ink-900">
-                      {e.category} {e.isRecurring && <span className="text-xs text-ink-400">(récurrente)</span>}
+                      {e.category} {e.isRecurring && <span className="text-xs text-ink-400">({e.recurringAmountVaries ? 'récurrente, variable' : 'récurrente, auto'})</span>}
                     </p>
                     <p className="text-sm text-ink-500">
                       {formatDate(e.date)} {e.description && `· ${e.description}`}
@@ -237,6 +238,7 @@ function ExpenseFormModal({
   const [description, setDescription] = useState(expense?.description ?? '');
   const [date, setDate] = useState(expense?.date.split('T')[0] ?? new Date().toISOString().split('T')[0]);
   const [isRecurring, setIsRecurring] = useState(expense?.isRecurring ?? false);
+  const [recurringAmountVaries, setRecurringAmountVaries] = useState(expense?.recurringAmountVaries ?? true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -244,7 +246,7 @@ function ExpenseFormModal({
     setIsSubmitting(true);
     setError(null);
     try {
-      const payload = { category, amount: Number(amount), description: description || undefined, date, isRecurring };
+      const payload = { category, amount: Number(amount), description: description || undefined, date, isRecurring, recurringAmountVaries };
       if (isEditing) {
         await apiClient.patch(`/salles/${salleId}/finances/expenses/${expense.id}`, payload);
       } else {
@@ -276,10 +278,36 @@ function ExpenseFormModal({
       <Field label="Description (optionnel)">
         <Input value={description} onChange={(e) => setDescription(e.target.value)} />
       </Field>
-      <label className="mb-4 flex items-center gap-2 text-sm text-ink-700">
+      <label className="mb-2 flex items-center gap-2 text-sm text-ink-700">
         <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} />
-        Dépense récurrente (loyer, salaires...) — pourra être dupliquée chaque mois
+        Dépense récurrente (revient chaque mois)
       </label>
+      {isRecurring && (
+        <div className="mb-4 ml-6 space-y-2 rounded-lg bg-ink-50 p-3">
+          <label className="flex items-start gap-2 text-sm text-ink-700">
+            <input
+              type="radio"
+              checked={!recurringAmountVaries}
+              onChange={() => setRecurringAmountVaries(false)}
+              className="mt-0.5"
+            />
+            <span>
+              <strong>Montant fixe</strong> (loyer...) — régénérée automatiquement chaque mois, sans ressaisie
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-ink-700">
+            <input
+              type="radio"
+              checked={recurringAmountVaries}
+              onChange={() => setRecurringAmountVaries(true)}
+              className="mt-0.5"
+            />
+            <span>
+              <strong>Montant variable</strong> (électricité...) — juste un rappel, à ressaisir chaque mois
+            </span>
+          </label>
+        </div>
+      )}
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       <div className="flex gap-2">
         <Button variant="ghost" onClick={onClose} className="flex-1">

@@ -16,7 +16,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FinancesService } from './finances.service';
-import { CreateExpenseDto, UpdateExpenseDto } from './dto/finances.dto';
+import { CreateExpenseDto, UpdateExpenseDto, SetBudgetDto } from './dto/finances.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
 
@@ -112,6 +112,46 @@ export class FinancesController {
     @Query('month') month: string,
   ) {
     return this.financesService.getBoutiqueRevenueSummary(salleId, Number(year), Number(month));
+  }
+
+  @Get('trend')
+  @RequirePermission('read', 'Expense')
+  @ApiOperation({ summary: "Évolution mensuelle (revenus/dépenses/résultat net) — réservé propriétaire/SUPER_ADMIN" })
+  getMonthlyTrend(
+    @Param('salleId') salleId: string,
+    @Query('months') months: string,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.financesService.getMonthlyTrend(salleId, Number(months) || 6, user);
+  }
+
+  @Get('budgets')
+  @RequirePermission('read', 'Expense')
+  @ApiOperation({ summary: 'Budgets indicatifs par catégorie — réservé propriétaire/SUPER_ADMIN' })
+  listBudgets(@Param('salleId') salleId: string, @CurrentUser() user: TenantContext) {
+    return this.financesService.listBudgets(salleId, user);
+  }
+
+  @Post('budgets')
+  @RequirePermission('manage', 'Expense')
+  @ApiOperation({ summary: 'Définir un budget mensuel pour une catégorie' })
+  setBudget(
+    @Param('salleId') salleId: string,
+    @Body() dto: SetBudgetDto,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.financesService.setBudget(salleId, dto, user);
+  }
+
+  @Delete('budgets')
+  @RequirePermission('manage', 'Expense')
+  @ApiOperation({ summary: "Retirer le budget d'une catégorie" })
+  deleteBudget(
+    @Param('salleId') salleId: string,
+    @Query('category') category: string,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.financesService.deleteBudget(salleId, category, user);
   }
 
   @Get('expenses/export')
