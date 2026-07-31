@@ -28,13 +28,9 @@ interface Expense {
   receiptUrl: string | null;
 }
 
-interface NetResult {
-  revenusAbonnements: number;
+interface BoutiqueRevenueSummary {
   revenusBoutique: number;
-  totalRevenus: number;
-  totalDepenses: number;
-  depensesParCategorie: Record<string, number>;
-  resultatNet: number;
+  ventesCount: number;
 }
 
 export default function FinancesPage() {
@@ -59,14 +55,14 @@ function FinancesView({ salleId, currency }: { salleId: string; currency: string
     error: expensesError,
     refetch: refetchExpenses,
   } = useApi<Expense[]>(`/salles/${salleId}/finances/expenses?year=${year}&month=${month}`, [year, month]);
-  const { data: netResult, refetch: refetchNetResult } = useApi<NetResult>(
-    `/salles/${salleId}/finances/net-result?year=${year}&month=${month}`,
+  const { data: revenueSummary, refetch: refetchRevenue } = useApi<BoutiqueRevenueSummary>(
+    `/salles/${salleId}/finances/boutique-revenue?year=${year}&month=${month}`,
     [year, month],
   );
 
   const refetchAll = () => {
     refetchExpenses();
-    refetchNetResult();
+    refetchRevenue();
   };
 
   const handleDuplicate = async (expenseId: string) => {
@@ -132,43 +128,17 @@ function FinancesView({ salleId, currency }: { salleId: string; currency: string
         Outil de suivi pour piloter votre activité — pas un logiciel de comptabilité.
       </p>
 
-      {netResult && (
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+      {revenueSummary && (
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card>
-            <p className="text-sm text-ink-500">Revenus (abonnements)</p>
-            <p className="mt-1 text-xl font-semibold text-ink-900">{formatCurrency(netResult.revenusAbonnements, currency)}</p>
+            <p className="text-sm text-ink-500">Revenus boutique (ce mois)</p>
+            <p className="mt-1 text-xl font-semibold text-ink-900">{formatCurrency(revenueSummary.revenusBoutique, currency)}</p>
           </Card>
           <Card>
-            <p className="text-sm text-ink-500">Revenus (boutique)</p>
-            <p className="mt-1 text-xl font-semibold text-ink-900">{formatCurrency(netResult.revenusBoutique, currency)}</p>
-          </Card>
-          <Card>
-            <p className="text-sm text-ink-500">Total dépenses</p>
-            <p className="mt-1 text-xl font-semibold text-red-600">{formatCurrency(netResult.totalDepenses, currency)}</p>
-          </Card>
-          <Card>
-            <p className="text-sm text-ink-500">Résultat net</p>
-            <p className={`mt-1 text-xl font-semibold ${netResult.resultatNet >= 0 ? 'text-primary-600' : 'text-red-600'}`}>
-              {formatCurrency(netResult.resultatNet, currency)}
-            </p>
+            <p className="text-sm text-ink-500">Ventes enregistrées</p>
+            <p className="mt-1 text-xl font-semibold text-ink-900">{revenueSummary.ventesCount}</p>
           </Card>
         </div>
-      )}
-
-      {netResult && Object.keys(netResult.depensesParCategorie).length > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Dépenses par catégorie</CardTitle>
-          </CardHeader>
-          <div className="space-y-1.5">
-            {Object.entries(netResult.depensesParCategorie).map(([category, amount]) => (
-              <div key={category} className="flex justify-between text-sm">
-                <span className="text-ink-700">{category}</span>
-                <span className="font-medium text-ink-900">{formatCurrency(amount, currency)}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
       )}
 
       <Card className="p-0">

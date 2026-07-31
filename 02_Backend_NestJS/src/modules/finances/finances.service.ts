@@ -207,8 +207,17 @@ export class FinancesService {
    * pour un mois donné. Jamais présenté comme un état financier
    * officiel — juste une vue de pilotage.
    */
+  /**
+   * §14.x — Réservé propriétaire/SUPER_ADMIN : revenus d'abonnement,
+   * dépenses et résultat net donnent une vue complète de la rentabilité
+   * de la salle, jamais destinée à un gestionnaire (voir
+   * getBoutiqueRevenueSummary pour son équivalent restreint).
+   */
   async getNetResult(salleId: string, year: number, month: number, actor: TenantContext) {
     await this.assertHasFinancesAccess(salleId);
+    if (actor.roleCode === 'GESTIONNAIRE') {
+      throw new ForbiddenException('Cette vue est réservée au propriétaire de la salle');
+    }
     const { start, end } = this.monthRange(year, month);
 
     const [payments, productSales, expenses] = await Promise.all([
@@ -221,15 +230,7 @@ export class FinancesService {
         select: { totalAmount: true },
       }),
       this.prisma.expense.findMany({
-        where: {
-          salleId,
-          date: { gte: start, lte: end },
-          // §14.x — la répartition par catégorie ne doit jamais laisser
-          // deviner l'existence ou le montant d'une dépense
-          // confidentielle à un gestionnaire, même sans le détail ligne
-          // par ligne.
-          ...(actor.roleCode === 'GESTIONNAIRE' ? { isConfidential: false } : {}),
-        },
+        where: { salleId, date: { gte: start, lte: end } },
         select: { category: true, amount: true },
       }),
     ]);
@@ -262,14 +263,31 @@ export class FinancesService {
   }
 
   /**
-   * §14.x — Export CSV simple (date, catégorie, montant, description)
-   * à transmettre à un comptable — jamais un état financier officiel.
+   * §14.x — Équivalent restreint pour un gestionnaire : uniquement les
+   * revenus boutique (qu'il enregistre lui-même via les ventes au
+   * comptoir), jamais les revenus d'abonnement, dépenses ou résultat
+   * net qui donneraient une vue complète de la rentabilité de la salle.
    */
+  async getBoutiqueRevenueSummary(salleId: string, year: number, month: number) {
+    await this.assertHasFinancesAccess(salleId);
+    const { start, end } = this.monthRange(year, month);
+    const productSales = await this.prisma.productSale.findMany({
+      where: { salleId, createdAt: { gte: start, lte: end } },
+      select: { totalAmount: true },
+    });
+    const revenusBoutique = productSales.reduce(
+      (sum: number, s: { totalAmount: unknown }) => sum + Number(s.totalAmount),
+      0,
+    );
+    return { year, month, revenusBoutique, ventesCount: productSales.length };
+  }
+
   /**
-   * §14.x — L'export, contrairement à la simple consultation, est
-   * réservé au propriétaire (et SUPER_ADMIN) — jamais au gestionnaire,
-   * même si le contenu était filtré : un fichier qu'on peut emporter
-   * mérite une restriction plus stricte qu'un simple filtre d'affichage.
+  /**
+   * §14.x — Export CSV, réservé propriétaire/SUPER_ADMIN — jamais au
+   * gestionnaire, même si le contenu était filtré : un fichier qu'on
+   * peut emporter mérite une restriction plus stricte qu'un simple
+   * filtre d'affichage.
    */
   async exportExpensesCsv(salleId: string, year: number, month: number, actor: TenantContext): Promise<string> {
     if (actor.roleCode === 'GESTIONNAIRE') {
@@ -285,5 +303,56 @@ export class FinancesService {
       })
       .join('\n');
     return header + rows;
+  }
+
+  /**
+   * §14.x — Réservé propriétaire/SUPER_ADMIN, comme l'export CSV —
+   * un fichier téléchargeable est plus sensible qu'un simple écran de
+   * consultation filtré.
+   */
+  async exportGestionnaireExcel(salleId: string, year: number, month: number, actor: TenantContext): Promise<Buffer> {
+    await this.assertHasFinancesAccess(salleId);
+    if (actor.roleCode === 'GESTIONNAIRE') {
+      throw new ForbiddenException('Cet export est réservé au propriétaire de la salle');
+    }
+    const { start, end } = this.monthRange(year, month);
+
+    const [productSales, expenses] = await Promise.all([
+      this.prisma.productSale.findMany({
+        where: { salleId, createdAt: { gte: start, lte: end } },
+        include: { product: { select: { name: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.listExpenses(salleId, year, month, actor),
+    ]);
+
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.utils.book_new();
+
+    const revenueSheetData = [
+      ['Date', 'Produit', 'Quantité', 'Montant'],
+      ...productSales.map((s: { createdAt: Date; product: { name: string }; quantity: number; totalAmount: unknown }) => [
+        s.createdAt.toISOString().split('T')[0],
+        s.product.name,
+        s.quantity,
+        Number(s.totalAmount),
+      ]),
+      [],
+      ['Total', '', '', productSales.reduce((sum: number, s: { totalAmount: unknown }) => sum + Number(s.totalAmount), 0)],
+    ];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(revenueSheetData), 'Revenus boutique');
+
+    const expensesSheetData = [
+      ['Date', 'Catégorie', 'Montant', 'Description'],
+      ...expenses.map((e: { date: Date; category: string; amount: unknown; description: string | null }) => [
+        e.date.toISOString().split('T')[0],
+        e.category,
+        Number(e.amount),
+        e.description ?? '',
+      ]),
+    ];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(expensesSheetData), 'Dépenses');
+
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
   }
 }

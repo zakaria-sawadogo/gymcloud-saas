@@ -93,7 +93,7 @@ export class FinancesController {
 
   @Get('net-result')
   @RequirePermission('read', 'Expense')
-  @ApiOperation({ summary: 'Revenus - dépenses = résultat net, pour un mois donné' })
+  @ApiOperation({ summary: 'Revenus - dépenses = résultat net, pour un mois donné — réservé propriétaire/SUPER_ADMIN' })
   getNetResult(
     @Param('salleId') salleId: string,
     @Query('year') year: string,
@@ -103,9 +103,20 @@ export class FinancesController {
     return this.financesService.getNetResult(salleId, Number(year), Number(month), user);
   }
 
+  @Get('boutique-revenue')
+  @RequirePermission('read', 'Expense')
+  @ApiOperation({ summary: "Revenus boutique seuls — équivalent restreint pour le gestionnaire" })
+  getBoutiqueRevenueSummary(
+    @Param('salleId') salleId: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
+  ) {
+    return this.financesService.getBoutiqueRevenueSummary(salleId, Number(year), Number(month));
+  }
+
   @Get('expenses/export')
   @RequirePermission('read', 'Expense')
-  @ApiOperation({ summary: 'Export CSV des dépenses du mois — à transmettre à un comptable' })
+  @ApiOperation({ summary: 'Export CSV des dépenses du mois — réservé propriétaire/SUPER_ADMIN' })
   async exportCsv(
     @Param('salleId') salleId: string,
     @Query('year') year: string,
@@ -119,5 +130,23 @@ export class FinancesController {
       'Content-Disposition': `attachment; filename="depenses-${year}-${month}.csv"`,
     });
     res.send('\uFEFF' + csv); // BOM — pour un affichage correct des accents dans Excel
+  }
+
+  @Get('expenses/export-excel')
+  @RequirePermission('read', 'Expense')
+  @ApiOperation({ summary: "État Excel pour le gestionnaire — revenus boutique + dépenses non confidentielles uniquement" })
+  async exportExcel(
+    @Param('salleId') salleId: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @CurrentUser() user: TenantContext,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.financesService.exportGestionnaireExcel(salleId, Number(year), Number(month), user);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="etat-${year}-${month}.xlsx"`,
+    });
+    res.send(buffer);
   }
 }
