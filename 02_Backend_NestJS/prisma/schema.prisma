@@ -983,6 +983,7 @@ model Expense {
   description     String?
   receiptUrl      String? // photo du justificatif, même mécanisme que les photos produits boutique
   isRecurring     Boolean  @default(false) // simple étiquette pour retrouver/dupliquer facilement, pas une génération automatique
+  isConfidential  Boolean  @default(false) // §14.x — salaires, loyer... saisis par le propriétaire, jamais visibles ni comptés pour un gestionnaire
   date            DateTime // date réelle de la dépense, distincte de createdAt
   createdByUserId String
 

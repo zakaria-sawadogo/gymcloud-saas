@@ -1,8 +1,9 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { StorageService } from '../../common/storage/storage.service';
+import { TenantContext } from '../../common/decorators/current-user.decorator';
 import { CreateExpenseDto, UpdateExpenseDto } from './dto/finances.dto';
 
 /**
@@ -44,17 +45,29 @@ export class FinancesService {
     return { start, end };
   }
 
-  async listExpenses(salleId: string, year: number, month: number) {
+  async listExpenses(salleId: string, year: number, month: number, actor: TenantContext) {
     await this.assertHasFinancesAccess(salleId);
     const { start, end } = this.monthRange(year, month);
     return this.prisma.expense.findMany({
-      where: { salleId, date: { gte: start, lte: end } },
+      where: {
+        salleId,
+        date: { gte: start, lte: end },
+        // §14.x — un gestionnaire ne voit jamais les dépenses
+        // confidentielles (salaires, loyer...) saisies par le
+        // propriétaire ; le propriétaire et le SUPER_ADMIN voient tout.
+        ...(actor.roleCode === 'GESTIONNAIRE' ? { isConfidential: false } : {}),
+      },
       orderBy: { date: 'desc' },
     });
   }
 
-  async createExpense(salleId: string, dto: CreateExpenseDto, actorUserId: string) {
+  async createExpense(salleId: string, dto: CreateExpenseDto, actor: TenantContext) {
     await this.assertHasFinancesAccess(salleId);
+    // §14.x — seul un propriétaire (ou SUPER_ADMIN) peut marquer une
+    // dépense confidentielle ; un gestionnaire qui tenterait de le
+    // faire est silencieusement ramené à false, jamais une erreur qui
+    // révélerait l'existence de cette option.
+    const isConfidential = actor.roleCode === 'GESTIONNAIRE' ? false : (dto.isConfidential ?? false);
     const expense = await this.prisma.expense.create({
       data: {
         id: randomUUID(),
@@ -64,11 +77,12 @@ export class FinancesService {
         description: dto.description,
         date: new Date(dto.date),
         isRecurring: dto.isRecurring ?? false,
-        createdByUserId: actorUserId,
+        isConfidential,
+        createdByUserId: actor.userId,
       },
     });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       action: 'expense.create',
       entityType: 'Expense',
       entityId: expense.id,
@@ -84,9 +98,10 @@ export class FinancesService {
    * PAS de génération automatique : le gestionnaire garde la main sur
    * chaque montant, qui peut varier d'un mois à l'autre.
    */
-  async duplicateExpense(expenseId: string, actorUserId: string) {
+  async duplicateExpense(expenseId: string, actor: TenantContext) {
     const original = await this.prisma.expense.findUniqueOrThrow({ where: { id: expenseId } });
     await this.assertHasFinancesAccess(original.salleId);
+    this.assertVisibleTo(original, actor);
     const duplicate = await this.prisma.expense.create({
       data: {
         id: randomUUID(),
@@ -96,11 +111,12 @@ export class FinancesService {
         description: original.description,
         date: new Date(),
         isRecurring: original.isRecurring,
-        createdByUserId: actorUserId,
+        isConfidential: original.isConfidential,
+        createdByUserId: actor.userId,
       },
     });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       action: 'expense.duplicate',
       entityType: 'Expense',
       entityId: duplicate.id,
@@ -110,9 +126,22 @@ export class FinancesService {
     return duplicate;
   }
 
-  async updateExpense(expenseId: string, dto: UpdateExpenseDto, actorUserId: string) {
+  /**
+   * §14.x — Un gestionnaire qui tenterait d'agir sur une dépense
+   * confidentielle (deviné son ID, par exemple) reçoit la même erreur
+   * "introuvable" que si elle n'existait pas — jamais une erreur
+   * distincte qui révélerait son existence.
+   */
+  private assertVisibleTo(expense: { isConfidential: boolean }, actor: TenantContext) {
+    if (expense.isConfidential && actor.roleCode === 'GESTIONNAIRE') {
+      throw new NotFoundException('Dépense introuvable');
+    }
+  }
+
+  async updateExpense(expenseId: string, dto: UpdateExpenseDto, actor: TenantContext) {
     const expense = await this.prisma.expense.findUniqueOrThrow({ where: { id: expenseId } });
     await this.assertHasFinancesAccess(expense.salleId);
+    this.assertVisibleTo(expense, actor);
     const updated = await this.prisma.expense.update({
       where: { id: expenseId },
       data: {
@@ -121,10 +150,16 @@ export class FinancesService {
         ...(dto.description !== undefined ? { description: dto.description } : {}),
         ...(dto.date !== undefined ? { date: new Date(dto.date) } : {}),
         ...(dto.isRecurring !== undefined ? { isRecurring: dto.isRecurring } : {}),
+        // §14.x — un gestionnaire ne peut jamais rendre une dépense
+        // confidentielle (ni l'inverse, puisqu'il ne peut de toute
+        // façon pas atteindre celles qui le sont déjà).
+        ...(dto.isConfidential !== undefined && actor.roleCode !== 'GESTIONNAIRE'
+          ? { isConfidential: dto.isConfidential }
+          : {}),
       },
     });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       action: 'expense.update',
       entityType: 'Expense',
       entityId: expenseId,
@@ -133,12 +168,13 @@ export class FinancesService {
     return updated;
   }
 
-  async deleteExpense(expenseId: string, actorUserId: string) {
+  async deleteExpense(expenseId: string, actor: TenantContext) {
     const expense = await this.prisma.expense.findUniqueOrThrow({ where: { id: expenseId } });
     await this.assertHasFinancesAccess(expense.salleId);
+    this.assertVisibleTo(expense, actor);
     await this.prisma.expense.delete({ where: { id: expenseId } });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       action: 'expense.delete',
       entityType: 'Expense',
       entityId: expenseId,
@@ -150,10 +186,11 @@ export class FinancesService {
   async uploadReceipt(
     expenseId: string,
     file: { buffer: Buffer; originalname: string; mimetype: string },
-    actorUserId: string,
+    actor: TenantContext,
   ) {
     const expense = await this.prisma.expense.findUniqueOrThrow({ where: { id: expenseId } });
     await this.assertHasFinancesAccess(expense.salleId);
+    this.assertVisibleTo(expense, actor);
     const receiptUrl = await this.storage.uploadFile(
       file.buffer,
       `expenses/${expenseId}`,
@@ -170,7 +207,7 @@ export class FinancesService {
    * pour un mois donné. Jamais présenté comme un état financier
    * officiel — juste une vue de pilotage.
    */
-  async getNetResult(salleId: string, year: number, month: number) {
+  async getNetResult(salleId: string, year: number, month: number, actor: TenantContext) {
     await this.assertHasFinancesAccess(salleId);
     const { start, end } = this.monthRange(year, month);
 
@@ -184,7 +221,15 @@ export class FinancesService {
         select: { totalAmount: true },
       }),
       this.prisma.expense.findMany({
-        where: { salleId, date: { gte: start, lte: end } },
+        where: {
+          salleId,
+          date: { gte: start, lte: end },
+          // §14.x — la répartition par catégorie ne doit jamais laisser
+          // deviner l'existence ou le montant d'une dépense
+          // confidentielle à un gestionnaire, même sans le détail ligne
+          // par ligne.
+          ...(actor.roleCode === 'GESTIONNAIRE' ? { isConfidential: false } : {}),
+        },
         select: { category: true, amount: true },
       }),
     ]);
@@ -220,8 +265,8 @@ export class FinancesService {
    * §14.x — Export CSV simple (date, catégorie, montant, description)
    * à transmettre à un comptable — jamais un état financier officiel.
    */
-  async exportExpensesCsv(salleId: string, year: number, month: number): Promise<string> {
-    const expenses = await this.listExpenses(salleId, year, month);
+  async exportExpensesCsv(salleId: string, year: number, month: number, actor: TenantContext): Promise<string> {
+    const expenses = await this.listExpenses(salleId, year, month, actor);
     const header = 'Date,Catégorie,Montant,Description\n';
     const rows = expenses
       .map((e: { date: Date; category: string; amount: unknown; description: string | null }) => {

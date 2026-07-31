@@ -57,7 +57,7 @@ export class AbilityFactory {
         can('read', 'Adherent');
         can('read', 'Payment');
         can('read', 'Product'); // §14.x — supervision de la boutique, pas la vente au comptoir (rôle GESTIONNAIRE)
-        can('read', 'Expense'); // §14.x — supervision de GymCloud Finances, pas la saisie (rôle GESTIONNAIRE)
+        can('manage', 'Expense'); // §14.x — le propriétaire saisit lui-même les dépenses confidentielles (salaires, loyer...) — restriction fine en service
         can('read', 'SaasSubscription');
         can('update', 'SaasSubscription'); // changement/renouvellement de SON PROPRE plan (§9.12) — vérifié en service
         can('read', 'AccessLog'); // nécessaire au tableau de bord consolidé (§11)

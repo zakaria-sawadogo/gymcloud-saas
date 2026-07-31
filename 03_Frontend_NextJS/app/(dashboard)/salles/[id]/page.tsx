@@ -19,6 +19,7 @@ import { SallePaymentsView } from '@/components/dashboard/SallePaymentsView';
 import { UserAccountActions } from '@/components/dashboard/UserAccountActions';
 import { SalleContentPanel } from '@/components/dashboard/SalleContentPanel';
 import { BoutiqueReadOnlyView } from '@/components/dashboard/BoutiqueReadOnlyView';
+import { ProprietaireFinancesView } from '@/components/dashboard/ProprietaireFinancesView';
 import { formatCurrency } from '@/lib/utils';
 import type { Salle, GestionnaireProfile, CoachProfile } from '@/types';
 
@@ -243,6 +244,11 @@ export default function SalleDetailPage() {
                     id: 'boutique',
                     label: 'Boutique',
                     content: <BoutiqueReadOnlyView salleId={params.id} currency={salle?.country?.currency ?? 'XOF'} />,
+                  },
+                  {
+                    id: 'finances',
+                    label: 'GymCloud Finances',
+                    content: <ProprietaireFinancesView salleId={params.id} currency={salle?.country?.currency ?? 'XOF'} />,
                   },
                 ]
               : []),

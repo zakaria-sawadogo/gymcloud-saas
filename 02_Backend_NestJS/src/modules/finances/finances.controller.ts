@@ -28,13 +28,14 @@ export class FinancesController {
 
   @Get('expenses')
   @RequirePermission('read', 'Expense')
-  @ApiOperation({ summary: 'Dépenses du mois (§14.x)' })
+  @ApiOperation({ summary: 'Dépenses du mois (§14.x) — un gestionnaire ne voit jamais les confidentielles' })
   listExpenses(
     @Param('salleId') salleId: string,
     @Query('year') year: string,
     @Query('month') month: string,
+    @CurrentUser() user: TenantContext,
   ) {
-    return this.financesService.listExpenses(salleId, Number(year), Number(month));
+    return this.financesService.listExpenses(salleId, Number(year), Number(month), user);
   }
 
   @Post('expenses')
@@ -45,14 +46,14 @@ export class FinancesController {
     @Body() dto: CreateExpenseDto,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.financesService.createExpense(salleId, dto, user.userId);
+    return this.financesService.createExpense(salleId, dto, user);
   }
 
   @Post('expenses/:expenseId/duplicate')
   @RequirePermission('manage', 'Expense')
   @ApiOperation({ summary: 'Dupliquer une dépense récurrente pour le mois courant' })
   duplicateExpense(@Param('expenseId') expenseId: string, @CurrentUser() user: TenantContext) {
-    return this.financesService.duplicateExpense(expenseId, user.userId);
+    return this.financesService.duplicateExpense(expenseId, user);
   }
 
   @Patch('expenses/:expenseId')
@@ -63,14 +64,14 @@ export class FinancesController {
     @Body() dto: UpdateExpenseDto,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.financesService.updateExpense(expenseId, dto, user.userId);
+    return this.financesService.updateExpense(expenseId, dto, user);
   }
 
   @Delete('expenses/:expenseId')
   @RequirePermission('manage', 'Expense')
   @ApiOperation({ summary: 'Supprimer une dépense' })
   deleteExpense(@Param('expenseId') expenseId: string, @CurrentUser() user: TenantContext) {
-    return this.financesService.deleteExpense(expenseId, user.userId);
+    return this.financesService.deleteExpense(expenseId, user);
   }
 
   @Patch('expenses/:expenseId/receipt')
@@ -87,7 +88,7 @@ export class FinancesController {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
       throw new BadRequestException('Format non supporté — utilisez JPEG, PNG ou WebP');
     }
-    return this.financesService.uploadReceipt(expenseId, file, user.userId);
+    return this.financesService.uploadReceipt(expenseId, file, user);
   }
 
   @Get('net-result')
@@ -97,8 +98,9 @@ export class FinancesController {
     @Param('salleId') salleId: string,
     @Query('year') year: string,
     @Query('month') month: string,
+    @CurrentUser() user: TenantContext,
   ) {
-    return this.financesService.getNetResult(salleId, Number(year), Number(month));
+    return this.financesService.getNetResult(salleId, Number(year), Number(month), user);
   }
 
   @Get('expenses/export')
@@ -108,9 +110,10 @@ export class FinancesController {
     @Param('salleId') salleId: string,
     @Query('year') year: string,
     @Query('month') month: string,
+    @CurrentUser() user: TenantContext,
     @Res() res: Response,
   ) {
-    const csv = await this.financesService.exportExpensesCsv(salleId, Number(year), Number(month));
+    const csv = await this.financesService.exportExpensesCsv(salleId, Number(year), Number(month), user);
     res.set({
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="depenses-${year}-${month}.csv"`,

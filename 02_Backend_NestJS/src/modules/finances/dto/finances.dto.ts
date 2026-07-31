@@ -24,6 +24,11 @@ export class CreateExpenseDto {
   @IsOptional()
   @IsBoolean()
   isRecurring?: boolean;
+
+  @ApiPropertyOptional({ description: 'Réservé propriétaire/SUPER_ADMIN — invisible pour un gestionnaire' })
+  @IsOptional()
+  @IsBoolean()
+  isConfidential?: boolean;
 }
 
 export class UpdateExpenseDto {
@@ -52,4 +57,9 @@ export class UpdateExpenseDto {
   @IsOptional()
   @IsBoolean()
   isRecurring?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isConfidential?: boolean;
 }
