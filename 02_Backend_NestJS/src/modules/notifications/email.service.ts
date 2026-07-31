@@ -25,6 +25,11 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly apiKey = process.env.RESEND_API_KEY;
   private readonly fromAddress = process.env.EMAIL_FROM_ADDRESS ?? 'notifications@gymcloud.sahelsystem.com';
+  // §14.x — L'adresse d'envoi (domaine vérifié Resend) n'est
+  // généralement pas surveillée activement : le "Répondre à" redirige
+  // vers le vrai contact support, pour qu'une réponse directe du
+  // propriétaire arrive bien quelque part.
+  private readonly replyToAddress = process.env.EMAIL_REPLY_TO ?? 'gymcloudsys@gmail.com';
 
   constructor() {
     if (!this.apiKey) {
@@ -35,6 +40,10 @@ export class EmailService {
   async send(to: string, subject: string, body: string, fromName = 'GymCloud'): Promise<boolean> {
     if (!this.apiKey) return false;
     try {
+      const footer = `<hr style="margin-top:24px;border:none;border-top:1px solid #E5E7E8;">
+        <p style="color:#71767A;font-size:12px;margin-top:12px;">
+          Vous pouvez répondre directement à cet e-mail — votre message nous parviendra à ${this.replyToAddress}.
+        </p>`;
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -44,8 +53,9 @@ export class EmailService {
         body: JSON.stringify({
           from: `${fromName} <${this.fromAddress}>`,
           to: [to],
+          reply_to: this.replyToAddress,
           subject,
-          html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+          html: `<p>${body.replace(/\n/g, '<br>')}</p>${footer}`,
         }),
       });
       if (!res.ok) {
