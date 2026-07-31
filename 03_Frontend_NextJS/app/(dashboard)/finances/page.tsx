@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Wallet, Download, Pencil, Copy, Trash2, Camera } from 'lucide-react';
+import { Plus, Wallet, Pencil, Copy, Trash2, Camera } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
-import { apiClient, ApiClientError, tokenStorage } from '@/lib/api-client';
+import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -69,25 +69,6 @@ function FinancesView({ salleId, currency }: { salleId: string; currency: string
     refetchNetResult();
   };
 
-  const handleExport = async () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
-    const token = tokenStorage.getAccessToken();
-    const res = await fetch(`${apiUrl}/salles/${salleId}/finances/expenses/export?year=${year}&month=${month}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) {
-      alert("Impossible de télécharger l'export");
-      return;
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `depenses-${year}-${month}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleDuplicate = async (expenseId: string) => {
     try {
       await apiClient.post(`/salles/${salleId}/finances/expenses/${expenseId}/duplicate`);
@@ -140,10 +121,6 @@ function FinancesView({ salleId, currency }: { salleId: string; currency: string
               </option>
             ))}
           </Select>
-          <Button variant="ghost" onClick={handleExport}>
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
           <Button onClick={() => setIsCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             Nouvelle dépense
@@ -152,8 +129,7 @@ function FinancesView({ salleId, currency }: { salleId: string; currency: string
       </div>
 
       <p className="mb-6 text-sm text-ink-500">
-        Outil de suivi pour piloter votre activité — pas un logiciel de comptabilité. L&apos;export existe pour
-        transmettre à votre comptable.
+        Outil de suivi pour piloter votre activité — pas un logiciel de comptabilité.
       </p>
 
       {netResult && (

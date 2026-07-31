@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Wallet, Pencil, Trash2, Lock } from 'lucide-react';
+import { Plus, Wallet, Pencil, Trash2, Lock, Download } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
-import { apiClient, ApiClientError } from '@/lib/api-client';
+import { apiClient, ApiClientError, tokenStorage } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -77,6 +77,25 @@ export function ProprietaireFinancesView({ salleId, currency }: { salleId: strin
     }
   };
 
+  const handleExport = async () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
+    const token = tokenStorage.getAccessToken();
+    const res = await fetch(`${apiUrl}/salles/${salleId}/finances/expenses/export?year=${year}&month=${month}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      alert("Impossible de télécharger l'export");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `depenses-${year}-${month}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (isLoading) return <div className="h-48 animate-pulse rounded-xl bg-ink-50" />;
 
   if (error) {
@@ -111,6 +130,10 @@ export function ProprietaireFinancesView({ salleId, currency }: { salleId: strin
               </option>
             ))}
           </Select>
+          <Button size="sm" variant="ghost" onClick={handleExport}>
+            <Download className="h-4 w-4" />
+            Export CSV
+          </Button>
           <Button size="sm" onClick={() => setIsCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             Nouvelle dépense

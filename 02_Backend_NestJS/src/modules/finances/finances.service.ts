@@ -265,7 +265,16 @@ export class FinancesService {
    * §14.x — Export CSV simple (date, catégorie, montant, description)
    * à transmettre à un comptable — jamais un état financier officiel.
    */
+  /**
+   * §14.x — L'export, contrairement à la simple consultation, est
+   * réservé au propriétaire (et SUPER_ADMIN) — jamais au gestionnaire,
+   * même si le contenu était filtré : un fichier qu'on peut emporter
+   * mérite une restriction plus stricte qu'un simple filtre d'affichage.
+   */
   async exportExpensesCsv(salleId: string, year: number, month: number, actor: TenantContext): Promise<string> {
+    if (actor.roleCode === 'GESTIONNAIRE') {
+      throw new ForbiddenException('Cet export est réservé au propriétaire de la salle');
+    }
     const expenses = await this.listExpenses(salleId, year, month, actor);
     const header = 'Date,Catégorie,Montant,Description\n';
     const rows = expenses
