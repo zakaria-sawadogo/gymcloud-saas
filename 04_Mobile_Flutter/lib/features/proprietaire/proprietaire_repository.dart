@@ -111,4 +111,84 @@ class ProprietaireRepository {
 
   Future<Map<String, dynamic>> getBoutiqueSalesByProduct(String salleId, {String period = 'day'}) =>
       _api.get<Map<String, dynamic>>('/salles/$salleId/boutique/sales-by-product', query: {'period': period});
+
+  // ── GymCloud Finances (§14.x) — accès complet, contrairement à la
+  // boutique : c'est le seul moyen de saisir une dépense
+  // confidentielle (salaires, loyer...), jamais visible pour un
+  // gestionnaire. ─────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getFinancesExpenses(String salleId, {required int year, required int month}) async {
+    final data = await _api.get<List<dynamic>>(
+      '/salles/$salleId/finances/expenses',
+      query: {'year': '$year', 'month': '$month'},
+    );
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> getFinancesNetResult(String salleId, {required int year, required int month}) =>
+      _api.get<Map<String, dynamic>>(
+        '/salles/$salleId/finances/net-result',
+        query: {'year': '$year', 'month': '$month'},
+      );
+
+  Future<Map<String, dynamic>> createFinancesExpense({
+    required String salleId,
+    required String category,
+    required num amount,
+    String? description,
+    required String date,
+    bool isRecurring = false,
+    bool recurringAmountVaries = true,
+    bool isConfidential = false,
+  }) =>
+      _api.post<Map<String, dynamic>>(
+        '/salles/$salleId/finances/expenses',
+        data: {
+          'category': category,
+          'amount': amount,
+          if (description != null) 'description': description,
+          'date': date,
+          'isRecurring': isRecurring,
+          'recurringAmountVaries': recurringAmountVaries,
+          'isConfidential': isConfidential,
+        },
+      );
+
+  Future<Map<String, dynamic>> updateFinancesExpense({
+    required String salleId,
+    required String expenseId,
+    String? category,
+    num? amount,
+    String? description,
+    String? date,
+    bool? isRecurring,
+    bool? recurringAmountVaries,
+    bool? isConfidential,
+  }) =>
+      _api.patch<Map<String, dynamic>>(
+        '/salles/$salleId/finances/expenses/$expenseId',
+        data: {
+          if (category != null) 'category': category,
+          if (amount != null) 'amount': amount,
+          if (description != null) 'description': description,
+          if (date != null) 'date': date,
+          if (isRecurring != null) 'isRecurring': isRecurring,
+          if (recurringAmountVaries != null) 'recurringAmountVaries': recurringAmountVaries,
+          if (isConfidential != null) 'isConfidential': isConfidential,
+        },
+      );
+
+  Future<void> deleteFinancesExpense(String salleId, String expenseId) =>
+      _api.delete<dynamic>('/salles/$salleId/finances/expenses/$expenseId');
+
+  Future<List<Map<String, dynamic>>> getFinancesBudgets(String salleId) async {
+    final data = await _api.get<List<dynamic>>('/salles/$salleId/finances/budgets');
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<void> setFinancesBudget(String salleId, String category, num monthlyLimit) =>
+      _api.post<dynamic>('/salles/$salleId/finances/budgets', data: {'category': category, 'monthlyLimit': monthlyLimit});
+
+  Future<void> deleteFinancesBudget(String salleId, String category) =>
+      _api.delete<dynamic>('/salles/$salleId/finances/budgets?category=${Uri.encodeComponent(category)}');
 }

@@ -151,4 +151,68 @@ class GestionnaireRepository {
 
   Future<Map<String, dynamic>> getBoutiqueSalesByProduct(String salleId, {String period = 'day'}) =>
       _api.get<Map<String, dynamic>>('/salles/$salleId/boutique/sales-by-product', query: {'period': period});
+
+  // ── GymCloud Finances (§14.x) — gestionnaire : uniquement les
+  // revenus boutique + ses propres dépenses non confidentielles.
+  // Jamais net-result/trend/budgets ni export (réservés propriétaire).
+
+  Future<List<Map<String, dynamic>>> getFinancesExpenses(String salleId, {required int year, required int month}) async {
+    final data = await _api.get<List<dynamic>>(
+      '/salles/$salleId/finances/expenses',
+      query: {'year': '$year', 'month': '$month'},
+    );
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> getBoutiqueRevenueSummary(String salleId, {required int year, required int month}) =>
+      _api.get<Map<String, dynamic>>(
+        '/salles/$salleId/finances/boutique-revenue',
+        query: {'year': '$year', 'month': '$month'},
+      );
+
+  Future<Map<String, dynamic>> createFinancesExpense({
+    required String salleId,
+    required String category,
+    required num amount,
+    String? description,
+    required String date,
+    bool isRecurring = false,
+    bool recurringAmountVaries = true,
+  }) =>
+      _api.post<Map<String, dynamic>>(
+        '/salles/$salleId/finances/expenses',
+        data: {
+          'category': category,
+          'amount': amount,
+          if (description != null) 'description': description,
+          'date': date,
+          'isRecurring': isRecurring,
+          'recurringAmountVaries': recurringAmountVaries,
+        },
+      );
+
+  Future<Map<String, dynamic>> updateFinancesExpense({
+    required String salleId,
+    required String expenseId,
+    String? category,
+    num? amount,
+    String? description,
+    String? date,
+    bool? isRecurring,
+    bool? recurringAmountVaries,
+  }) =>
+      _api.patch<Map<String, dynamic>>(
+        '/salles/$salleId/finances/expenses/$expenseId',
+        data: {
+          if (category != null) 'category': category,
+          if (amount != null) 'amount': amount,
+          if (description != null) 'description': description,
+          if (date != null) 'date': date,
+          if (isRecurring != null) 'isRecurring': isRecurring,
+          if (recurringAmountVaries != null) 'recurringAmountVaries': recurringAmountVaries,
+        },
+      );
+
+  Future<void> deleteFinancesExpense(String salleId, String expenseId) =>
+      _api.delete<dynamic>('/salles/$salleId/finances/expenses/$expenseId');
 }

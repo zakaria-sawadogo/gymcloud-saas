@@ -5,6 +5,7 @@ import 'screens/adherents_list_screen.dart';
 import 'screens/pending_payments_screen.dart';
 import 'screens/prospects_screen.dart';
 import 'screens/boutique_screen.dart';
+import 'screens/finances_screen.dart';
 
 class GestionnaireApp extends StatefulWidget {
   const GestionnaireApp({super.key});
@@ -24,6 +25,7 @@ class _GestionnaireAppState extends State<GestionnaireApp> {
     const PendingPaymentsScreen(),
     const ProspectsScreen(),
     const BoutiqueScreen(),
+    const FinancesScreen(),
   ];
 
   void _onTap(int index) {
@@ -53,6 +55,7 @@ class _GestionnaireAppState extends State<GestionnaireApp> {
           BottomNavigationBarItem(icon: Icon(Icons.payments_outlined), activeIcon: Icon(Icons.payments), label: 'Paiements'),
           BottomNavigationBarItem(icon: Icon(Icons.groups_outlined), activeIcon: Icon(Icons.groups), label: 'Prospects'),
           BottomNavigationBarItem(icon: Icon(Icons.shopping_bag_outlined), activeIcon: Icon(Icons.shopping_bag), label: 'Boutique'),
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), activeIcon: Icon(Icons.account_balance_wallet), label: 'Finances'),
         ],
       ),
     );

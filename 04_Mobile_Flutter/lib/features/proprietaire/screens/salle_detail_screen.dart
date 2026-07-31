@@ -5,6 +5,7 @@ import '../../../core/widgets/stat_card.dart';
 import '../proprietaire_repository.dart';
 import 'team_management_screen.dart';
 import 'boutique_summary_screen.dart';
+import 'finances_screen.dart';
 
 /// Drill-down vers le détail d'une salle spécifique — mêmes
 /// indicateurs que le tableau de bord Gestionnaire, en lecture seule
@@ -64,6 +65,16 @@ class _SalleDetailScreenState extends State<SalleDetailScreen> {
               context,
               MaterialPageRoute(
                 builder: (_) => BoutiqueSummaryScreen(salleId: widget.salleId, salleName: widget.salleName),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            tooltip: 'Finances',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProprietaireFinancesScreen(salleId: widget.salleId, salleName: widget.salleName),
               ),
             ),
           ),
