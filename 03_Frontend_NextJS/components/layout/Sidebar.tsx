@@ -107,72 +107,90 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   ],
 };
 
-export function Sidebar() {
+export function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
   const navItems = user ? (NAV_BY_ROLE[user.roleCode] ?? []) : [];
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r border-ink-100 bg-white">
-      <div className="flex items-center gap-2 px-5 py-5">
-        <div className="h-8 w-8 rounded-lg bg-primary-500" />
-        <span className="font-display text-lg font-semibold text-ink-900">GymCloud</span>
-      </div>
-
-      {user?.salle && (
-        <div className="mx-4 mb-2 rounded-lg bg-ink-50 px-3 py-2">
-          <p className="truncate text-xs font-medium text-ink-800">{user.salle.name}</p>
-        </div>
+    <>
+      {/* §14.x — voile de fond sur mobile uniquement, ferme le tiroir
+          au clic en dehors — invisible et inerte sur desktop (md:hidden). */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 md:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
       )}
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex h-screen w-60 flex-col border-r border-ink-100 bg-white transition-transform duration-200 md:relative md:z-0 md:translate-x-0',
+          isOpen ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        <div className="flex items-center gap-2 px-5 py-5">
+          <div className="h-8 w-8 rounded-lg bg-primary-500" />
+          <span className="font-display text-lg font-semibold text-ink-900">GymCloud</span>
+        </div>
 
-      <nav className="flex-1 space-y-1 px-3">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                isActive ? 'bg-primary-50 text-primary-700' : 'text-ink-600 hover:bg-ink-50',
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="border-t border-ink-100 p-3">
-        {user && (
-          <div className="mb-2 px-2">
-            <p className="truncate text-sm font-medium text-ink-900">
-              {user.firstName} {user.lastName}
-            </p>
-            <p className="truncate text-xs text-ink-400">{user.roleCode}</p>
+        {user?.salle && (
+          <div className="mx-4 mb-2 rounded-lg bg-ink-50 px-3 py-2">
+            <p className="truncate text-xs font-medium text-ink-800">{user.salle.name}</p>
           </div>
         )}
-        <Link
-          href="/parametres"
-          className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-            pathname === '/parametres' ? 'bg-primary-50 text-primary-700' : 'text-ink-600 hover:bg-ink-50',
+
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  isActive ? 'bg-primary-50 text-primary-700' : 'text-ink-600 hover:bg-ink-50',
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-ink-100 p-3">
+          {user && (
+            <div className="mb-2 px-2">
+              <p className="truncate text-sm font-medium text-ink-900">
+                {user.firstName} {user.lastName}
+              </p>
+              <p className="truncate text-xs text-ink-400">{user.roleCode}</p>
+            </div>
           )}
-        >
-          <Settings className="h-4 w-4" />
-          Paramètres
-        </Link>
-        <button
-          onClick={logout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50"
-        >
-          <LogOut className="h-4 w-4" />
-          Se déconnecter
-        </button>
-      </div>
-    </aside>
+          <Link
+            href="/parametres"
+            onClick={onClose}
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              pathname === '/parametres' ? 'bg-primary-50 text-primary-700' : 'text-ink-600 hover:bg-ink-50',
+            )}
+          >
+            <Settings className="h-4 w-4" />
+            Paramètres
+          </Link>
+          <button
+            onClick={logout}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50"
+          >
+            <LogOut className="h-4 w-4" />
+            Se déconnecter
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
