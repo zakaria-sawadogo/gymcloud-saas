@@ -277,6 +277,15 @@ export class PublicService {
     return this.prisma.saasAddon.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
   }
 
+  /** §3.2, §9.5 — Pays actifs, pour le sélecteur du formulaire de demande d'abonnement du site vitrine. */
+  async getPublicCountries() {
+    return this.prisma.country.findMany({
+      where: { active: true },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async getPublicPlans() {
     return this.prisma.saasPlan.findMany({
       where: { status: 'ACTIF' },
@@ -316,6 +325,7 @@ export class PublicService {
         message: dto.message,
         desiredPlanId: dto.desiredPlanId,
         desiredAddonCodes: dto.desiredAddonCodes ?? [],
+        countryId: dto.countryId,
       },
     });
 

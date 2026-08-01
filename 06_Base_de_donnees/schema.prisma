@@ -37,6 +37,7 @@ model Country {
   saasPricing   SaasCountryPricing[]
   users         User[] // rôles internes rattachés à un pays (§14.4, ex. SUPERVISEUR_PAYS)
   salleCreationRequests SalleCreationRequest[]
+  subscriptionRequests SaasSubscriptionRequest[]
 
   @@map("countries")
 }
@@ -1347,6 +1348,8 @@ model SaasSubscriptionRequest {
   desiredPlanId String?
   desiredPlan   SaasPlan? @relation(fields: [desiredPlanId], references: [id])
   desiredAddonCodes String[] @default([]) // codes d'add-ons souhaités (ex: "SITE_SALLE") — le SUPER_ADMIN les active manuellement à la création du compte
+  countryId String?
+  country   Country? @relation(fields: [countryId], references: [id])
 
   status            SaasSubscriptionRequestStatus @default(NOUVELLE)
   processedByUserId String?

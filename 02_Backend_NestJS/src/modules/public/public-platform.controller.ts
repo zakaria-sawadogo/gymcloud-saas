@@ -29,6 +29,12 @@ export class PublicPlatformController {
     return this.publicService.getPublicAddons();
   }
 
+  @Get('countries')
+  @ApiOperation({ summary: "Pays actifs — pour le sélecteur du formulaire de demande d'abonnement" })
+  getCountries() {
+    return this.publicService.getPublicCountries();
+  }
+
   @Get('contact')
   @ApiOperation({ summary: 'Coordonnées de contact affichées sur le site vitrine (pied de page)' })
   getContact() {

@@ -82,16 +82,14 @@ export class RequestSubscriptionDto {
   @MaxLength(30)
   phone!: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsEmail()
-  email?: string;
+  email!: string;
 
-  @ApiPropertyOptional({ description: 'Nom de la salle/entreprise envisagée' })
-  @IsOptional()
+  @ApiProperty({ description: 'Nom de la salle/entreprise envisagée' })
   @IsString()
   @MaxLength(120)
-  companyName?: string;
+  companyName!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -99,10 +97,13 @@ export class RequestSubscriptionDto {
   @MaxLength(80)
   city?: string;
 
-  @ApiPropertyOptional({ description: 'Plan qui intéresse le prospect, si connu' })
-  @IsOptional()
+  @ApiProperty({ description: 'Pays où sera implantée la salle' })
   @IsUUID()
-  desiredPlanId?: string;
+  countryId!: string;
+
+  @ApiProperty({ description: 'Plan qui intéresse le prospect' })
+  @IsUUID()
+  desiredPlanId!: string;
 
   @ApiPropertyOptional({ description: 'Codes des add-ons qui intéressent le prospect (ex: ["SITE_SALLE"])', type: [String] })
   @IsOptional()

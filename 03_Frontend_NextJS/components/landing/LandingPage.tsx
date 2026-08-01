@@ -102,6 +102,7 @@ export function LandingPage() {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [addons, setAddons] = useState<PublicAddon[]>([]);
+  const [countries, setCountries] = useState<{ id: string; name: string; code: string }[]>([]);
   const [selectedAddonCodes, setSelectedAddonCodes] = useState<string[]>([]);
   const [contact, setContact] = useState<{ supportEmail: string; supportPhone: string }>({
     supportEmail: 'gymcloudsys@gmail.com',
@@ -117,6 +118,7 @@ export function LandingPage() {
   const emailRef = useRef<HTMLInputElement>(null);
   const companyNameRef = useRef<HTMLInputElement>(null);
   const cityRef = useRef<HTMLInputElement>(null);
+  const countryIdRef = useRef<HTMLSelectElement>(null);
   const planIdRef = useRef<HTMLSelectElement>(null);
   const messageRef = useRef<HTMLTextAreaElement>(null);
 
@@ -142,16 +144,24 @@ export function LandingPage() {
   }, []);
 
   // Add-ons publics — affichés dans la section tarifs et sélectionnables
-  // dans le formulaire de demande, au même titre que le plan.
+  // dans le formulaire de demande, au même titre que le plan. Jamais
+  // pré-cochés : un choix positif du prospect, pas une case qu'il faut
+  // penser à décocher.
   useEffect(() => {
     fetch(`${API_URL}/public/addons`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data: PublicAddon[]) => {
-        setAddons(data);
-        setSelectedAddonCodes(data.map((a) => a.code)); // pré-cochés par défaut
-      })
+      .then((data: PublicAddon[]) => setAddons(data))
       .catch(() => {
         /* silencieux — la section reste simplement vide si l'API n'est pas joignable */
+      });
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_URL}/public/countries`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: { id: string; name: string; code: string }[]) => setCountries(data))
+      .catch(() => {
+        /* silencieux — le champ reste simplement vide si l'API n'est pas joignable */
       });
   }, []);
 
@@ -197,10 +207,11 @@ export function LandingPage() {
       firstName: firstNameRef.current?.value.trim() ?? '',
       lastName: lastNameRef.current?.value.trim() ?? '',
       phone: phoneRef.current?.value.trim() ?? '',
-      email: emailRef.current?.value.trim() || undefined,
-      companyName: companyNameRef.current?.value.trim() || undefined,
+      email: emailRef.current?.value.trim() ?? '',
+      companyName: companyNameRef.current?.value.trim() ?? '',
       city: cityRef.current?.value.trim() || undefined,
-      desiredPlanId: planIdRef.current?.value || undefined,
+      countryId: countryIdRef.current?.value ?? '',
+      desiredPlanId: planIdRef.current?.value ?? '',
       desiredAddonCodes: selectedAddonCodes.length > 0 ? selectedAddonCodes : undefined,
       message: messageRef.current?.value.trim() || undefined,
     };
@@ -601,87 +612,6 @@ export function LandingPage() {
           </section>
         )}
 
-        <section style={{ paddingTop: '0' }}>
-          <div className={c('wrap')}>
-            <div className={c('section-head', 'reveal')}>
-              <span className={c('kicker')}>Sous le capot</span>
-              <h2>Un vrai tableau de bord, pas un tableur.</h2>
-              <p>Revenus, salles, abonnements qui expirent, encaissements à valider — tout au même endroit, mis à jour en temps réel.</p>
-            </div>
-
-            <div className={c('dash-mockup', 'reveal')}>
-              <div className={c('dash-chrome')}>
-                <span className={c('dash-dot')} style={{ background: '#FF5F57' }} />
-                <span className={c('dash-dot')} style={{ background: '#FEBC2E' }} />
-                <span className={c('dash-dot')} style={{ background: '#28C840' }} />
-                <span className={c('dash-url')}>app.gymcloud.africa/vue-globale</span>
-              </div>
-              <div className={c('dash-body')}>
-                <div className={c('dash-stats')}>
-                  <div className={c('dash-stat')}>
-                    <span className={c('dash-stat-label')}>Revenus ce mois</span>
-                    <span className={c('dash-stat-value')}>
-                      2 840 000 <small>XOF</small>
-                    </span>
-                    <span className={c('dash-stat-delta')}>+ 12% vs mois dernier</span>
-                  </div>
-                  <div className={c('dash-stat')}>
-                    <span className={c('dash-stat-label')}>Adhérents actifs</span>
-                    <span className={c('dash-stat-value')}>1 247</span>
-                    <span className={c('dash-stat-delta')}>3 salles</span>
-                  </div>
-                  <div className={c('dash-stat')}>
-                    <span className={c('dash-stat-label')}>Abonnements SaaS</span>
-                    <span className={c('dash-stat-value')}>
-                      98% <small>à jour</small>
-                    </span>
-                    <span className={c('dash-stat-delta', 'dash-stat-delta--warn')}>1 validation en attente</span>
-                  </div>
-                </div>
-
-                <div className={c('dash-grid')}>
-                  <div className={c('dash-chart')}>
-                    <span className={c('dash-panel-label')}>Revenus — 7 derniers jours</span>
-                    <div className={c('dash-bars')}>
-                      <div className={c('dash-bar')} style={cssVar({ '--h': '38%' })} />
-                      <div className={c('dash-bar')} style={cssVar({ '--h': '52%' })} />
-                      <div className={c('dash-bar')} style={cssVar({ '--h': '41%' })} />
-                      <div className={c('dash-bar')} style={cssVar({ '--h': '67%' })} />
-                      <div className={c('dash-bar')} style={cssVar({ '--h': '58%' })} />
-                      <div className={c('dash-bar')} style={cssVar({ '--h': '79%' })} />
-                      <div className={c('dash-bar', 'dash-bar--now')} style={cssVar({ '--h': '64%' })} />
-                    </div>
-                  </div>
-                  <div className={c('dash-activity')}>
-                    <span className={c('dash-panel-label')}>Activité récente</span>
-                    <div className={c('dash-activity-item')}>
-                      <span className={c('dash-activity-dot')} />
-                      <div>
-                        <p>Paiement encaissé — Fatou D.</p>
-                        <span>Il y a 4 min · Mobile Money</span>
-                      </div>
-                    </div>
-                    <div className={c('dash-activity-item')}>
-                      <span className={c('dash-activity-dot')} />
-                      <div>
-                        <p>Accès autorisé — Ibrahim T.</p>
-                        <span>Il y a 11 min · Salle Ouaga 2000</span>
-                      </div>
-                    </div>
-                    <div className={c('dash-activity-item')}>
-                      <span className={c('dash-activity-dot', 'dash-activity-dot--warn')} />
-                      <div>
-                        <p>Abonnement expire dans 2 jours — Awa K.</p>
-                        <span>Il y a 20 min</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* MODULES */}
         <section id="modules" style={{ background: 'var(--paper-dim)' }}>
           <div className={c('wrap')}>
@@ -801,24 +731,38 @@ export function LandingPage() {
                   </div>
                   <div className={c('demo-form-row')}>
                     <input ref={phoneRef} type="tel" placeholder="Téléphone" required />
-                    <input ref={emailRef} type="email" placeholder="E-mail (optionnel)" />
+                    <input ref={emailRef} type="email" placeholder="E-mail" required />
                   </div>
                   <div className={c('demo-form-row')}>
-                    <input ref={companyNameRef} type="text" placeholder="Nom de votre salle (optionnel)" />
+                    <input ref={companyNameRef} type="text" placeholder="Nom de votre salle" required />
                     <input ref={cityRef} type="text" placeholder="Ville (optionnel)" />
                   </div>
-                  <select ref={planIdRef} defaultValue="">
-                    <option value="">Plan qui vous intéresse (optionnel)</option>
-                    {plans.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} — {Math.round(p.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF/mois
+                  <div className={c('demo-form-row')}>
+                    <select ref={countryIdRef} defaultValue="" required>
+                      <option value="" disabled>
+                        Pays
                       </option>
-                    ))}
-                  </select>
+                      {countries.map((country) => (
+                        <option key={country.id} value={country.id}>
+                          {country.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select ref={planIdRef} defaultValue="" required>
+                      <option value="" disabled>
+                        Plan qui vous intéresse
+                      </option>
+                      {plans.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — {Math.round(p.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF/mois
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   {addons.length > 0 && (
                     <div style={{ marginTop: '4px' }}>
                       <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '10px' }}>
-                        Add-ons qui vous intéressent (optionnel, pré-cochés) :
+                        Add-ons qui vous intéressent (optionnel) :
                       </p>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {addons.map((a) => {
