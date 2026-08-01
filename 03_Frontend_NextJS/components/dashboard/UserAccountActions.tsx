@@ -9,9 +9,10 @@ import type { UserAccountStatus } from '@/types';
 
 /**
  * §4.2 — Actions de cycle de vie d'un compte, communes à gestionnaires,
- * coachs et adhérents. Un seul bouton pertinent affiché selon le
- * statut actuel plutôt qu'un menu chargé : ACTIF → Suspendre ;
- * SUSPENDU → Réactiver + Désactiver ; DESACTIVE → Réactiver.
+ * coachs, adhérents et personnel interne. ACTIF → Suspendre ET
+ * Désactiver (confirmation requise) sont proposés directement, sans
+ * étape intermédiaire obligatoire ; SUSPENDU → Réactiver + Désactiver ;
+ * DESACTIVE → Réactiver.
  */
 export function UserAccountActions({
   status,
@@ -47,10 +48,21 @@ export function UserAccountActions({
       {status !== 'DESACTIVE' && <StatusBadge status={status} />}
 
       {status === 'ACTIF' && (
-        <Button size="sm" variant="ghost" isLoading={isLoading} onClick={() => call(suspendPath)}>
-          <Ban className="h-3.5 w-3.5" />
-          Suspendre
-        </Button>
+        <>
+          <Button size="sm" variant="ghost" isLoading={isLoading} onClick={() => call(suspendPath)}>
+            <Ban className="h-3.5 w-3.5" />
+            Suspendre
+          </Button>
+          {confirmingDeactivate ? (
+            <Button size="sm" variant="ghost" isLoading={isLoading} onClick={() => call(deactivatePath)}>
+              Confirmer ?
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={() => setConfirmingDeactivate(true)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </>
       )}
 
       {status === 'SUSPENDU' && (

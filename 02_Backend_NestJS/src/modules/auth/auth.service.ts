@@ -13,6 +13,7 @@ interface JwtPayload {
   roleCode: string;
   salleId: string | null;
   proprietaireId: string | null;
+  additionalRoleCodes?: string[];
 }
 
 /**
@@ -46,6 +47,7 @@ export class AuthService {
         gestionnaireProfile: true,
         coachProfile: true,
         adherentProfile: true,
+        additionalRoles: { include: { role: true } },
       },
     });
 
@@ -79,7 +81,13 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    return this.issueTokens(user.id, user.role.code, salleId, user.proprietaireProfile?.id ?? null);
+    return this.issueTokens(
+      user.id,
+      user.role.code,
+      salleId,
+      user.proprietaireProfile?.id ?? null,
+      user.additionalRoles.map((ar: { role: { code: string } }) => ar.role.code),
+    );
   }
 
   async refresh(refreshToken: string) {
@@ -100,7 +108,13 @@ export class AuthService {
       throw new UnauthorizedException('Session expirée, veuillez vous reconnecter');
     }
 
-    return this.issueTokens(payload.sub, payload.roleCode, payload.salleId, payload.proprietaireId);
+    return this.issueTokens(
+      payload.sub,
+      payload.roleCode,
+      payload.salleId,
+      payload.proprietaireId,
+      payload.additionalRoleCodes ?? [],
+    );
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
@@ -246,8 +260,9 @@ export class AuthService {
     roleCode: string,
     salleId: string | null,
     proprietaireId: string | null,
+    additionalRoleCodes: string[] = [],
   ) {
-    const payload: JwtPayload = { sub: userId, roleCode, salleId, proprietaireId };
+    const payload: JwtPayload = { sub: userId, roleCode, salleId, proprietaireId, additionalRoleCodes };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_ACCESS_SECRET,

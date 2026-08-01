@@ -22,6 +22,7 @@ import type { InternalUser, Role, Country } from '@/types';
 export default function PersonnelInternePage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingRoleFor, setEditingRoleFor] = useState<InternalUser | null>(null);
+  const [managingRolesFor, setManagingRolesFor] = useState<InternalUser | null>(null);
   const { data: users, isLoading, error, refetch } = useApi<InternalUser[]>('/internal-users');
 
   return (
@@ -68,9 +69,19 @@ export default function PersonnelInternePage() {
                     {u.firstName} {u.lastName}
                   </td>
                   <td className="px-5 py-3">
-                    <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
-                      {u.role.name}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
+                        {u.role.name}
+                      </span>
+                      {u.additionalRoles.map((ar) => (
+                        <span
+                          key={ar.role.id}
+                          className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600"
+                        >
+                          + {ar.role.name}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-5 py-3 text-ink-600">{u.phone}</td>
                   <td className="px-5 py-3 text-ink-600">{u.country?.name ?? '—'}</td>
@@ -86,6 +97,9 @@ export default function PersonnelInternePage() {
                       />
                       <Button size="sm" variant="ghost" onClick={() => setEditingRoleFor(u)}>
                         Modifier le rôle
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setManagingRolesFor(u)}>
+                        Rôles cumulés
                       </Button>
                     </div>
                   </td>
@@ -111,6 +125,16 @@ export default function PersonnelInternePage() {
           onClose={() => setEditingRoleFor(null)}
           onUpdated={() => {
             setEditingRoleFor(null);
+            refetch();
+          }}
+        />
+      )}
+
+      {managingRolesFor && (
+        <ManageAdditionalRolesModal
+          user={managingRolesFor}
+          onClose={() => setManagingRolesFor(null)}
+          onUpdated={() => {
             refetch();
           }}
         />
@@ -169,6 +193,83 @@ function UpdateRoleModal({
           Confirmer le changement de rôle
         </Button>
       </form>
+    </Modal>
+  );
+}
+
+/**
+ * §2.2, §14.x — Rôles internes cumulés : en plus du rôle principal
+ * (jamais à sa place), coché/décoché indépendamment. Chaque
+ * bascule prend effet immédiatement (la session en cours est
+ * invalidée côté backend pour forcer une reconnexion avec les droits
+ * à jour).
+ */
+function ManageAdditionalRolesModal({
+  user,
+  onClose,
+  onUpdated,
+}: {
+  user: InternalUser;
+  onClose: () => void;
+  onUpdated: () => void;
+}) {
+  const { data: roles } = useApi<Role[]>('/roles?scope=INTERNAL');
+  const [additionalRoleIds, setAdditionalRoleIds] = useState<string[]>(
+    user.additionalRoles.map((ar) => ar.role.id),
+  );
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = async (roleId: string, isChecked: boolean) => {
+    setTogglingId(roleId);
+    setError(null);
+    try {
+      if (isChecked) {
+        await apiClient.delete(`/internal-users/${user.id}/additional-roles/${roleId}`);
+        setAdditionalRoleIds((ids) => ids.filter((id) => id !== roleId));
+      } else {
+        await apiClient.post(`/internal-users/${user.id}/additional-roles`, { roleId });
+        setAdditionalRoleIds((ids) => [...ids, roleId]);
+      }
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const otherRoles = (roles ?? []).filter((r) => r.id !== user.role.id);
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Rôles cumulés — ${user.firstName} ${user.lastName}`}>
+      <p className="mb-4 text-sm text-ink-500">
+        Le rôle principal ({user.role.name}) ne change pas ici — cochez les rôles supplémentaires à cumuler en plus.
+      </p>
+      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      <div className="mb-4 space-y-2">
+        {otherRoles.map((r) => {
+          const isChecked = additionalRoleIds.includes(r.id);
+          return (
+            <label
+              key={r.id}
+              className="flex items-center justify-between gap-2 rounded-lg bg-ink-50 px-3 py-2 text-sm"
+            >
+              <span className="text-ink-900">{r.name}</span>
+              <input
+                type="checkbox"
+                checked={isChecked}
+                disabled={togglingId === r.id}
+                onChange={() => toggle(r.id, isChecked)}
+              />
+            </label>
+          );
+        })}
+        {otherRoles.length === 0 && <p className="text-sm text-ink-400">Aucun autre rôle interne disponible.</p>}
+      </div>
+      <Button variant="ghost" onClick={onClose} className="w-full">
+        Fermer
+      </Button>
     </Modal>
   );
 }

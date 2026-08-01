@@ -463,6 +463,7 @@ export interface InternalUser {
   createdAt: string;
   role: { id: string; name: string; code: string };
   country?: { name: string };
+  additionalRoles: { role: { id: string; name: string; code: string } }[];
 }
 
 // ── API générique ─────────────────────────────────────────────

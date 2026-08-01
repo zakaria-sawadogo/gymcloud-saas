@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Patch, Param } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, Delete, Param } from '@nestjs/common';
 import { IsString, IsEmail, IsOptional, IsUUID } from 'class-validator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UsersService } from './users.service';
@@ -39,6 +39,12 @@ export class UpdateInternalUserRoleDto {
   roleId!: string;
 }
 
+export class AdditionalRoleDto {
+  @ApiProperty({ description: 'ID du rôle supplémentaire à portée INTERNAL' })
+  @IsUUID()
+  roleId!: string;
+}
+
 /**
  * §2.2 — Personnel interne GymCloud (Support, Finance, Commercial,
  * Marketing, Superviseur Pays...), distinct des comptes clients
@@ -74,6 +80,31 @@ export class InternalUsersController {
     @CurrentUser() user: TenantContext,
   ) {
     return this.usersService.updateInternalUserRole(userId, dto.roleId, user);
+  }
+
+  @Post(':userId/additional-roles')
+  @RequirePermission('manage', 'Role')
+  @ApiOperation({
+    summary:
+      'Cumuler un rôle interne supplémentaire (§2.2, §14.x) — en plus du rôle principal, jamais à sa place. SUPER_ADMIN uniquement.',
+  })
+  addAdditionalRole(
+    @Param('userId') userId: string,
+    @Body() dto: AdditionalRoleDto,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.usersService.addAdditionalRole(userId, dto.roleId, user);
+  }
+
+  @Delete(':userId/additional-roles/:roleId')
+  @RequirePermission('manage', 'Role')
+  @ApiOperation({ summary: 'Retirer un rôle supplémentaire cumulé — SUPER_ADMIN uniquement' })
+  removeAdditionalRole(
+    @Param('userId') userId: string,
+    @Param('roleId') roleId: string,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.usersService.removeAdditionalRole(userId, roleId, user);
   }
 
   @Patch(':userId/suspend')

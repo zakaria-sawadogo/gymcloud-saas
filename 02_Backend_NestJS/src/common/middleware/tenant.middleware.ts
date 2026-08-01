@@ -9,6 +9,7 @@ export interface TenantContext {
   salleId: string | null;
   proprietaireId: string | null; // renseigné uniquement pour le rôle PROPRIETAIRE
   isGlobalAccess: boolean;
+  additionalRoleCodes: string[]; // §14.x — rôles internes cumulés, en plus du rôle principal
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -108,6 +109,7 @@ export class TenantMiddleware implements NestMiddleware {
         salleId,
         proprietaireId: payload.proprietaireId ?? null,
         isGlobalAccess,
+        additionalRoleCodes: payload.additionalRoleCodes ?? [],
       };
 
       // Injection du contexte dans la session PostgreSQL pour les policies RLS

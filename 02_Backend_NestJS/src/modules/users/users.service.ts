@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomUUID } from 'crypto';
@@ -748,6 +749,7 @@ export class UsersService {
         createdAt: true,
         role: true,
         country: true,
+        additionalRoles: { include: { role: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -796,6 +798,76 @@ export class UsersService {
     });
 
     return updated;
+  }
+
+  /**
+   * §2.2, §14.x — Cumule un rôle interne SUPPLÉMENTAIRE, en plus du
+   * rôle principal (jamais un remplacement) — ex: RESPONSABLE_SUPPORT
+   * qui prend AUSSI RESPONSABLE_FINANCE. Exclusivement SUPER_ADMIN,
+   * mêmes garde-fous que updateInternalUserRole (rôle interne
+   * uniquement, des deux côtés).
+   */
+  async addAdditionalRole(userId: string, additionalRoleId: string, actor: TenantContext) {
+    if (actor.roleCode !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN peut modifier les rôles du personnel interne (§2.2)');
+    }
+
+    const targetUser = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
+    if (!targetUser) throw new NotFoundException('Utilisateur introuvable');
+    if (targetUser.role.scope !== 'INTERNAL') {
+      throw new ForbiddenException('Ce compte n\'est pas un compte de personnel interne');
+    }
+    if (targetUser.roleId === additionalRoleId) {
+      throw new BadRequestException('Ce rôle est déjà le rôle principal de cette personne');
+    }
+
+    const additionalRole = await this.prisma.role.findUniqueOrThrow({ where: { id: additionalRoleId } });
+    if (additionalRole.scope !== 'INTERNAL') {
+      throw new ForbiddenException('Le rôle supplémentaire doit aussi être un rôle interne GymCloud (§2.2)');
+    }
+
+    await this.prisma.userAdditionalRole.upsert({
+      where: { userId_roleId: { userId, roleId: additionalRoleId } },
+      update: {},
+      create: { id: randomUUID(), userId, roleId: additionalRoleId },
+    });
+
+    // Les rôles cumulés conditionnent les permissions (CASL) — invalider
+    // les sessions en cours pour forcer une reconnexion avec les droits
+    // à jour, même principe que updateInternalUserRole.
+    await this.prisma.refreshToken.updateMany({ where: { userId }, data: { revoked: true } });
+
+    await this.audit.log({
+      userId: actor.userId,
+      action: 'internal_user.additional_role_added',
+      entityType: 'User',
+      entityId: userId,
+      metadata: { additionalRoleId },
+    });
+
+    return this.prisma.userAdditionalRole.findMany({ where: { userId }, include: { role: true } });
+  }
+
+  async removeAdditionalRole(userId: string, additionalRoleId: string, actor: TenantContext) {
+    if (actor.roleCode !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN peut modifier les rôles du personnel interne (§2.2)');
+    }
+
+    await this.prisma.userAdditionalRole
+      .delete({ where: { userId_roleId: { userId, roleId: additionalRoleId } } })
+      .catch(() => null); // déjà retiré — pas une erreur
+
+    await this.prisma.refreshToken.updateMany({ where: { userId }, data: { revoked: true } });
+
+    await this.audit.log({
+      userId: actor.userId,
+      action: 'internal_user.additional_role_removed',
+      entityType: 'User',
+      entityId: userId,
+      metadata: { additionalRoleId },
+    });
+
+    return this.prisma.userAdditionalRole.findMany({ where: { userId }, include: { role: true } });
   }
 
   /**

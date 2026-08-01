@@ -62,6 +62,7 @@ model Role {
 
   permissions RolePermission[]
   users       User[]
+  additionalFor UserAdditionalRole[]
 
   @@map("roles")
 }
@@ -145,9 +146,28 @@ model User {
   notifications   Notification[]
   auditLogs       AuditLog[]
   loginHistory    LoginHistory[]
+  additionalRoles UserAdditionalRole[]
 
   @@index([roleId])
   @@map("users")
+}
+
+/// §2.2, §14.x — Rôles internes GymCloud cumulables : le rôle
+/// principal (User.roleId) ne change jamais de sens ni de mécanique
+/// (JWT, CASL, RLS...) — celui-ci s'ajoute EN PLUS, pour cumuler des
+/// permissions supplémentaires sans toucher au système d'auth
+/// existant. Uniquement pertinent pour le personnel interne
+/// GymCloud, jamais pour PROPRIETAIRE/GESTIONNAIRE/COACH/ADHERENT.
+model UserAdditionalRole {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+  @@map("user_additional_roles")
 }
 
 model RefreshToken {

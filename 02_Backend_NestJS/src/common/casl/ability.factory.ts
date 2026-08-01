@@ -40,13 +40,33 @@ export type AppAbility = MongoAbility<[Actions, Subjects]>;
  * lignes en base. La table `Permission`/`RolePermission` reste utile
  * comme métadonnées descriptives (affichage, audit) mais n'est plus la
  * source d'autorité pour ces 6 rôles connus.
+ *
+ * §14.x — Un utilisateur du personnel interne GymCloud peut désormais
+ * cumuler des rôles supplémentaires (UserAdditionalRole) EN PLUS de
+ * son rôle principal — createForUser applique les règles de CHAQUE
+ * rôle (principal + additionnels) au même builder CASL, qui les
+ * additionne naturellement (jamais de perte de droit entre rôles
+ * cumulés).
  */
 @Injectable()
 export class AbilityFactory {
   async createForUser(context: TenantContext): Promise<AppAbility> {
     const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
-    switch (context.roleCode) {
+    this.applyRoleRules(context.roleCode, can, cannot);
+    for (const additionalRole of context.additionalRoleCodes) {
+      this.applyRoleRules(additionalRole, can, cannot);
+    }
+
+    return build();
+  }
+
+  private applyRoleRules(
+    roleCode: string,
+    can: AbilityBuilder<AppAbility>['can'],
+    cannot: AbilityBuilder<AppAbility>['cannot'],
+  ) {
+    switch (roleCode) {
       case 'SUPER_ADMIN':
         can('manage', 'all');
         break;
@@ -188,7 +208,5 @@ export class AbilityFactory {
         // permissions incorrectes.
         break;
     }
-
-    return build();
   }
 }
