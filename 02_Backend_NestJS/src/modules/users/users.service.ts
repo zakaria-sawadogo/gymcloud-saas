@@ -238,6 +238,19 @@ export class UsersService {
       this.prisma.auditLog.deleteMany({ where: { salleId: { in: salleIds } } }),
       this.prisma.notification.deleteMany({ where: { userId: { in: allUserIds } } }),
 
+      // §14.x — ajoutés après la première écriture de cette cascade
+      // (Boutique, Finances, demande de salle) — jamais inclus alors
+      // que leurs clés étrangères bloquent la suppression de la salle
+      // ou du propriétaire (bug réel corrigé). productSale AVANT
+      // product (le premier référence le second), salleCreationRequest
+      // AVANT salle (référence createdSalleId) ET avant proprietaire
+      // (référence proprietaireId, obligatoire).
+      this.prisma.productSale.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.product.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.expense.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.expenseBudget.deleteMany({ where: { salleId: { in: salleIds } } }),
+      this.prisma.salleCreationRequest.deleteMany({ where: { proprietaireId } }),
+
       // Salles supprimées AVANT la souscription SaaS (dépendance directe salles.subscriptionId)
       this.prisma.salle.deleteMany({ where: { id: { in: salleIds } } }),
 
