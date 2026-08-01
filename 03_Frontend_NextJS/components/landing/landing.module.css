@@ -87,7 +87,7 @@
     padding:16px 0;font-size:17px;color:var(--paper);border-bottom:1px solid var(--line);
     font-family:'Space Grotesk';font-weight:500;
   }
-  .mobile-menu .nav-cta{margin-top:22px;justify-content:center;}
+  .mobile-menu .nav-cta{margin-top:22px;justify-content:center;color:var(--ink) !important;}
   @media(max-width:860px){
     .nav-links{display:none;}
     .nav-login{display:none;}
