@@ -736,9 +736,16 @@ export class UsersService {
   }
 
   /** Liste tous les comptes internes GymCloud (tous rôles à portée INTERNAL confondus). */
+  /**
+   * §2.2, §14.x — Un compte désactivé disparaît de cette liste (mais
+   * pas de la base — historique/audit conservés) : "supprimer" pour
+   * le SUPER_ADMIN qui l'utilise au quotidien, sans les risques d'une
+   * suppression définitive (jetons de rafraîchissement, logs d'audit,
+   * rôles cumulés qui référencent encore ce compte).
+   */
   async listInternalUsers() {
     return this.prisma.user.findMany({
-      where: { role: { scope: 'INTERNAL' } },
+      where: { role: { scope: 'INTERNAL' }, status: { not: 'DESACTIVE' } },
       select: {
         id: true,
         firstName: true,

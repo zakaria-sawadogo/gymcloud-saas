@@ -54,26 +54,21 @@ export class PublicService {
         socialLinks: true,
         openingHours: true,
         country: { select: { currency: true } },
-        subscription: {
-          select: {
-            saasPlan: { select: { modules: true } },
-          },
-        },
         addons: { select: { status: true, addon: { select: { code: true } } } },
       },
     });
-    const hasSitePublicModule = salle?.subscription.saasPlan.modules.includes('site_public') ?? false;
     const hasSiteSalleAddon =
       salle?.addons.some(
         (sa: { status: string; addon: { code: string } }) => sa.addon.code === 'SITE_SALLE' && sa.status === 'ACTIF',
       ) ?? false;
-    // §9.3 — Accessible si le plan inclut le module historique "site_public"
-    // OU si l'add-on "SITE_SALLE" a été explicitement activé — sans ça,
-    // aucun accès au site public, quel que soit le plan souscrit.
-    if (!salle || (!hasSitePublicModule && !hasSiteSalleAddon)) {
+    // §9.3, §14.x — Accessible UNIQUEMENT si l'add-on "SITE_SALLE" est
+    // actif — le site public n'est jamais inclus dans un plan, même
+    // historiquement : c'est exclusivement un add-on (retiré du seed
+    // et de ce contournement, qui existait par erreur).
+    if (!salle || !hasSiteSalleAddon) {
       throw new NotFoundException('Salle introuvable');
     }
-    const { subscription, addons, country, ...publicFields } = salle;
+    const { addons, country, ...publicFields } = salle;
     return { ...publicFields, currency: country?.currency ?? 'XOF' };
   }
 
