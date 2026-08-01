@@ -64,7 +64,7 @@
   .nav-links a:hover{opacity:1;}
   .nav-cta{
     display:inline-flex;align-items:center;gap:8px;
-    background:linear-gradient(135deg, var(--signal-bright), var(--signal));color:var(--ink);
+    background:linear-gradient(135deg, var(--signal-bright), var(--signal));color:var(--ink) !important;
     padding:10px 20px;border-radius:100px;
     font-size:14px;font-weight:600;
     transition:transform .15s, box-shadow .15s;
@@ -87,7 +87,7 @@
     padding:16px 0;font-size:17px;color:var(--paper);border-bottom:1px solid var(--line);
     font-family:'Space Grotesk';font-weight:500;
   }
-  .mobile-menu .nav-cta{margin-top:22px;justify-content:center;color:var(--ink) !important;}
+  .mobile-menu .nav-cta{margin-top:22px;justify-content:center;}
   @media(max-width:860px){
     .nav-links{display:none;}
     .nav-login{display:none;}
