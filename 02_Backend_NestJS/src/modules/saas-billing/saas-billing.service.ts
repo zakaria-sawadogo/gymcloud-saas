@@ -93,22 +93,6 @@ export class SaasBillingService {
     return this.prisma.saasAddon.findMany({ orderBy: { name: 'asc' } });
   }
 
-  /**
-   * §9.3, §9.8 — Somme des add-ons réellement activés sur cette
-   * souscription, recalculée à chaque facturation (jamais figée) :
-   * si le SUPER_ADMIN change le prix d'un add-on, la prochaine
-   * facture reflète le nouveau tarif automatiquement.
-   */
-  private async computeAddonsAmount(subscriptionId: string): Promise<number> {
-    const attached = await this.prisma.saasSubscriptionAddon.findMany({
-      where: { subscriptionId },
-      include: { addon: { select: { price: true, active: true } } },
-    });
-    return attached
-      .filter((a: { addon: { active: boolean } }) => a.addon.active)
-      .reduce((sum: number, a: { addon: { price: unknown } }) => sum + Number(a.addon.price), 0);
-  }
-
   async listSubscriptionAddons(subscriptionId: string) {
     return this.prisma.saasSubscriptionAddon.findMany({
       where: { subscriptionId },
@@ -244,13 +228,15 @@ export class SaasBillingService {
   }
 
   /**
-   * §9.3 — Renouvellement automatique des add-ons arrivés à
+   * §9.3, §14.x — Renouvellement automatique des add-ons arrivés à
    * échéance : génère une nouvelle facture à régler (même durée
    * qu'avant), à valider par le SUPER_ADMIN — même mécanisme que
    * l'activation initiale. L'add-on repasse EN_ATTENTE le temps du
    * règlement plutôt que de couper l'accès brutalement au jour près,
    * cohérent avec le mode dégradé déjà appliqué à l'abonnement
-   * lui-même (voir processSubscriptionLifecycle).
+   * lui-même (voir processSubscriptionLifecycle). Si le propriétaire
+   * a explicitement décoché la reconduction (autoRenew=false),
+   * l'add-on expire simplement — jamais de nouvelle facture.
    */
   async processAddonRenewals() {
     const expired = await this.prisma.saasSubscriptionAddon.findMany({
@@ -259,9 +245,31 @@ export class SaasBillingService {
     });
 
     let renewed = 0;
+    let expiredCount = 0;
     for (const item of expired) {
-      const totalAmount = Math.round(Number(item.addon.price) * item.durationMonths * 100) / 100;
       const now = new Date();
+
+      if (!item.autoRenew) {
+        await this.prisma.saasSubscriptionAddon.update({
+          where: { subscriptionId_addonId: { subscriptionId: item.subscriptionId, addonId: item.addonId } },
+          data: { status: 'EXPIRE' },
+        });
+        const proprietaire = await this.prisma.saasSubscription.findUnique({
+          where: { id: item.subscriptionId },
+          select: { proprietaire: { select: { userId: true } } },
+        });
+        if (proprietaire) {
+          await this.notifications.create(
+            proprietaire.proprietaire.userId,
+            'Add-on expiré',
+            `L'add-on "${item.addon.name}" a expiré — vous aviez choisi de ne pas le reconduire.`,
+          );
+        }
+        expiredCount++;
+        continue;
+      }
+
+      const totalAmount = Math.round(Number(item.addon.price) * item.durationMonths * 100) / 100;
 
       await this.prisma.saasSubscriptionAddon.update({
         where: { subscriptionId_addonId: { subscriptionId: item.subscriptionId, addonId: item.addonId } },
@@ -302,7 +310,7 @@ export class SaasBillingService {
       renewed++;
     }
 
-    return { renewed };
+    return { renewed, expired: expiredCount };
   }
 
   async detachAddon(subscriptionId: string, addonId: string, actorUserId: string, actor?: TenantContext) {
@@ -318,6 +326,34 @@ export class SaasBillingService {
       metadata: { addonId },
     });
     return this.listSubscriptionAddons(subscriptionId);
+  }
+
+  /**
+   * §14.x — Le propriétaire décoche la reconduction automatique d'un
+   * add-on actif : contrairement à detachAddon (coupe immédiatement),
+   * l'add-on reste utilisable jusqu'à sa date de fin actuelle, puis
+   * expire au lieu d'être refacturé.
+   */
+  async setAddonAutoRenew(
+    subscriptionId: string,
+    addonId: string,
+    autoRenew: boolean,
+    actorUserId: string,
+    actor?: TenantContext,
+  ) {
+    await this.assertOwnsSubscription(subscriptionId, actor);
+    const updated = await this.prisma.saasSubscriptionAddon.update({
+      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      data: { autoRenew },
+    });
+    await this.audit.log({
+      userId: actorUserId,
+      action: autoRenew ? 'saas_subscription.addon_auto_renew_enabled' : 'saas_subscription.addon_auto_renew_disabled',
+      entityType: 'SaasSubscription',
+      entityId: subscriptionId,
+      metadata: { addonId },
+    });
+    return updated;
   }
 
   /**
@@ -837,8 +873,15 @@ export class SaasBillingService {
       subscription.promotionalDiscountPct,
     );
     const taxAmount = (baseAmount * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
-    const addonsAmount = await this.computeAddonsAmount(subscription.id);
-    const addonsTax = (addonsAmount * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
+    // §14.x — les add-ons ne sont JAMAIS mêlés à cette facture : ils
+    // ont leur propre circuit dédié et déjà correct (prix × durée
+    // exacte, via processAddonRenewals/requestAddonActivation), qui
+    // respecte aussi le cycle mensuel/annuel de chaque add-on
+    // indépendamment de celui du plan. Les mélanger ici double-
+    // facturait (plan mensuel) ou sous-facturait (plan annuel) —
+    // le prix "par mois" de l'add-on était ajouté tel quel, sans
+    // proportion avec la durée couverte par CETTE facture (bug réel
+    // corrigé).
 
     return this.prisma.saasInvoice.create({
       data: {
@@ -851,9 +894,9 @@ export class SaasBillingService {
         discountAmount,
         extraSallesCount: 0,
         extraSallesAmount: 0,
-        addonsAmount,
-        taxAmount: taxAmount + addonsTax,
-        totalAmount: Number(baseAmount) + addonsAmount + taxAmount + addonsTax,
+        addonsAmount: 0,
+        taxAmount,
+        totalAmount: Number(baseAmount) + taxAmount,
         currency: 'XOF', // TODO: dériver de Country.currency selon proprietaire.countryId
         status: 'EMISE',
       },
@@ -917,10 +960,10 @@ export class SaasBillingService {
       subscription.promotionalDiscountPct,
     );
     const taxAmount = ((baseAmount + extraSallesAmount) * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
-    const addonsAmount = await this.computeAddonsAmount(subscription.id);
-    const addonsTax = (addonsAmount * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
+    // §14.x — les add-ons restent sur leur propre circuit dédié, voir
+    // le commentaire équivalent dans getOrCreateCurrentInvoice.
 
-    return this.prisma.saasInvoice.create({
+    const invoice = await this.prisma.saasInvoice.create({
       data: {
         id: randomUUID(),
         subscriptionId: subscription.id,
@@ -931,13 +974,15 @@ export class SaasBillingService {
         discountAmount,
         extraSallesCount,
         extraSallesAmount,
-        addonsAmount,
-        taxAmount: taxAmount + addonsTax,
-        totalAmount: baseAmount + extraSallesAmount + addonsAmount + taxAmount + addonsTax,
+        addonsAmount: 0,
+        taxAmount,
+        totalAmount: baseAmount + extraSallesAmount + taxAmount,
         currency: 'XOF', // TODO: dériver de Country.currency selon proprietaire.countryId
         status: 'EMISE',
       },
     });
+
+    return invoice;
   }
 
   // ─────────────────────────────────────────────────────────────

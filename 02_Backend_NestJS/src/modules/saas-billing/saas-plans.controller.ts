@@ -185,6 +185,21 @@ export class SaasPlansController {
     return this.saasBillingService.detachAddon(subscriptionId, addonId, user.userId, user);
   }
 
+  @Patch(':subscriptionId/addons/:addonId/auto-renew')
+  @RequirePermission('update', 'SaasSubscription')
+  @ApiOperation({
+    summary:
+      "Activer/désactiver la reconduction automatique d'un add-on (§14.x) — décoché, il reste actif jusqu'à sa date de fin puis expire au lieu d'être refacturé.",
+  })
+  setAddonAutoRenew(
+    @Param('subscriptionId') subscriptionId: string,
+    @Param('addonId') addonId: string,
+    @Body('autoRenew') autoRenew: boolean,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.saasBillingService.setAddonAutoRenew(subscriptionId, addonId, autoRenew, user.userId, user);
+  }
+
   @Patch(':subscriptionId/addons/:addonId/suspend')
   @RequirePermission('manage', 'SaasSubscription')
   @ApiOperation({ summary: 'Suspension administrative d\'un add-on (impayé, litige...) — réservé SUPER_ADMIN, réversible' })

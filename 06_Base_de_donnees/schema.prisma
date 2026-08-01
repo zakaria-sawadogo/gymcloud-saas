@@ -311,6 +311,11 @@ model SaasSubscriptionAddon {
   durationMonths Int       @default(12) // §9.3 — mois demandés par le propriétaire (ou cycle du plan si pris à la souscription)
   startDate      DateTime? // posé à l'approbation du paiement, jamais avant
   endDate        DateTime? // startDate + durationMonths — sert au renouvellement automatique
+  // §14.x — le propriétaire peut décocher un add-on actif pour ne
+  // pas le reconduire : il reste actif jusqu'à endDate, puis expire
+  // au lieu d'être refacturé (ni via le renouvellement du plan, ni
+  // via son propre cycle).
+  autoRenew      Boolean   @default(true)
 
   subscription SaasSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   addon        SaasAddon        @relation(fields: [addonId], references: [id], onDelete: Cascade)

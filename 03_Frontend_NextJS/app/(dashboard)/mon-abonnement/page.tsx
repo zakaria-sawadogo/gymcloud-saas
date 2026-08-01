@@ -326,6 +326,7 @@ interface SubscriptionAddon {
   status: 'EN_ATTENTE' | 'ACTIF' | 'EXPIRE';
   durationMonths: number;
   endDate: string | null;
+  autoRenew: boolean;
   addon: { id: string; name: string; description: string | null; price: number };
 }
 
@@ -384,6 +385,18 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
     }
   };
 
+  const toggleAutoRenew = async (addonId: string, autoRenew: boolean) => {
+    setTogglingId(addonId);
+    try {
+      await apiClient.patch(`/saas/plans/${subscriptionId}/addons/${addonId}/auto-renew`, { autoRenew });
+      refetchActive();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   return (
     <>
       <Card className="mb-6">
@@ -410,6 +423,18 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
                   <p className="text-sm text-ink-600">{formatCurrency(addon.price)} / mois</p>
                   {current?.status === 'ACTIF' && current.endDate && (
                     <p className="text-xs text-ink-400">Jusqu&apos;au {formatDate(current.endDate)}</p>
+                  )}
+                  {current?.status === 'ACTIF' && (
+                    <label className="mt-1 flex items-center gap-1.5 text-xs text-ink-600">
+                      <input
+                        type="checkbox"
+                        checked={current.autoRenew}
+                        disabled={isBusy}
+                        onChange={(e) => toggleAutoRenew(addon.id, e.target.checked)}
+                      />
+                      Renouveler automatiquement
+                      {!current.autoRenew && <span className="text-ink-400">— expirera le {current.endDate && formatDate(current.endDate)}</span>}
+                    </label>
                   )}
                   {current?.status === 'EN_ATTENTE' && (
                     <p className="text-xs text-ink-400">En attente de validation du paiement</p>
