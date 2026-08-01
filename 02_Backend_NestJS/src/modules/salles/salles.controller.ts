@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SallesService } from './salles.service';
-import { CreateSalleDto, UpdateSalleBrandingDto, UpdateSalleSettingsDto } from './dto/salle.dto';
+import { CreateSalleDto, CreateOwnSalleDto, RejectSalleRequestDto, UpdateSalleBrandingDto, UpdateSalleSettingsDto } from './dto/salle.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CheckQuota } from '../../common/guards/quota.guard';
@@ -19,6 +19,47 @@ export class SallesController {
   @ApiOperation({ summary: 'Créer une salle — exclusivement réservé au SUPER_ADMIN (§3.2)' })
   create(@Body() dto: CreateSalleDto, @CurrentUser() user: TenantContext) {
     return this.sallesService.create(dto, user.userId);
+  }
+
+  @Post('requests')
+  @RequirePermission('read', 'Salle') // PROPRIETAIRE seul — proprietaireId dérivé du contexte, jamais du corps de la requête
+  @ApiOperation({
+    summary:
+      "Le propriétaire DEMANDE une salle supplémentaire (§3.2, §14.x) — jamais créée directement : facture générée (0 si dans le quota, sinon le tarif salle supplémentaire), la salle n'existe qu'après validation SUPER_ADMIN.",
+  })
+  requestAdditional(@Body() dto: CreateOwnSalleDto, @CurrentUser() user: TenantContext) {
+    if (!user.proprietaireId) {
+      throw new ForbiddenException('Réservé aux comptes propriétaire');
+    }
+    return this.sallesService.requestAdditionalSalle(user.proprietaireId, dto, user.userId);
+  }
+
+  @Get('requests/mine')
+  @RequirePermission('read', 'Salle')
+  @ApiOperation({ summary: 'Mes demandes de salle supplémentaire (§14.x)' })
+  myRequests(@CurrentUser() user: TenantContext) {
+    if (!user.proprietaireId) {
+      throw new ForbiddenException('Réservé aux comptes propriétaire');
+    }
+    return this.sallesService.listMySalleRequests(user.proprietaireId);
+  }
+
+  @Get('requests/pending')
+  @RequirePermission('manage', 'Salle') // réservé SUPER_ADMIN
+  @ApiOperation({ summary: 'Demandes de salle en attente de validation — SUPER_ADMIN (§14.x)' })
+  pendingRequests() {
+    return this.sallesService.listPendingSalleRequests();
+  }
+
+  @Patch('requests/:requestId/reject')
+  @RequirePermission('manage', 'Salle') // réservé SUPER_ADMIN
+  @ApiOperation({ summary: 'Rejeter une demande de salle supplémentaire — SUPER_ADMIN' })
+  rejectRequest(
+    @Param('requestId') requestId: string,
+    @Body() dto: RejectSalleRequestDto,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.sallesService.rejectSalleRequest(requestId, dto.note, user.userId);
   }
 
   @Get(':id')

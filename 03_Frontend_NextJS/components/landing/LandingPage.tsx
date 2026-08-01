@@ -967,7 +967,7 @@ export function LandingPage() {
             <div className={c('foot-col')}>
               <h4>Ressources</h4>
               <a href="#faq">Questions fréquentes</a>
-              <a href={`mailto:${contact.supportEmail}`}>Contact</a>
+              <a href={`mailto:${contact.supportEmail}`}>{contact.supportEmail}</a>
               <a href={`tel:${contact.supportPhone.replace(/\s/g, '')}`}>{contact.supportPhone}</a>
             </div>
             <div className={c('foot-col')}>

@@ -36,6 +36,7 @@ model Country {
   proprietaires Proprietaire[]
   saasPricing   SaasCountryPricing[]
   users         User[] // rôles internes rattachés à un pays (§14.4, ex. SUPERVISEUR_PAYS)
+  salleCreationRequests SalleCreationRequest[]
 
   @@map("countries")
 }
@@ -390,6 +391,14 @@ model SaasInvoice {
   pendingAddonId             String?
   pendingAddonDurationMonths Int?
 
+  // §3.2, §14.x — Demande de salle supplémentaire en attente de
+  // validation : si non nul, l'approbation de cette facture crée
+  // AUSSI la salle demandée — même principe que pendingAddonId
+  // ci-dessus. Une salle DANS le quota du plan a un montant à 0 mais
+  // suit le même circuit (vérification systématique, jamais de
+  // création directe par le propriétaire).
+  pendingSalleRequestId String? @unique
+
   historyEntry SaasSubscriptionHistory?
 
   @@index([subscriptionId])
@@ -459,8 +468,46 @@ model Proprietaire {
 
   subscription SaasSubscription?
   salles       Salle[]
+  salleCreationRequests SalleCreationRequest[]
 
   @@map("proprietaires")
+}
+
+/// §3.2, §14.x — Une salle supplémentaire (au-delà de la première) est
+/// traitée comme un add-on dans l'interface, mais suit son propre
+/// circuit : demande → facture (0 si dans le quota du plan, sinon le
+/// tarif "salle supplémentaire") → validation SUPER_ADMIN → SEULEMENT
+/// ALORS la salle est créée. Jamais de création directe par le
+/// propriétaire (bug réel corrigé — /salles/mine créait avant toute
+/// vérification).
+model SalleCreationRequest {
+  id             String   @id @default(uuid())
+  proprietaireId String
+  proprietaire   Proprietaire @relation(fields: [proprietaireId], references: [id])
+  name           String
+  email          String?
+  phone          String
+  address        String
+  city           String
+  countryId      String
+  country        Country  @relation(fields: [countryId], references: [id])
+  status         SalleCreationRequestStatus @default(EN_ATTENTE)
+  createdSalleId String?  @unique
+  createdSalle   Salle?   @relation("SalleCreationRequestToSalle", fields: [createdSalleId], references: [id])
+  rejectionNote  String?
+
+  requestedAt DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([proprietaireId])
+  @@index([status])
+  @@map("salle_creation_requests")
+}
+
+enum SalleCreationRequestStatus {
+  EN_ATTENTE
+  APPROUVEE
+  REJETEE
 }
 
 enum SalleStatus {
@@ -489,6 +536,7 @@ model Salle {
   // Distinct du qrCodeToken individuel de chaque AdherentProfile
   // (celui-là reste scanné par le personnel) — les deux coexistent.
   checkinQrToken String @unique @default(uuid())
+  salleCreationRequest SalleCreationRequest? @relation("SalleCreationRequestToSalle")
 
   // Coordonnées (§3.2)
   email       String?

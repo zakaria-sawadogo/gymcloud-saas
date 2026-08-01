@@ -41,6 +41,47 @@ export class CreateSalleDto {
   countryId!: string;
 }
 
+/**
+ * §3.2 — Identique à CreateSalleDto, mais SANS proprietaireId : quand
+ * le propriétaire crée lui-même une salle supplémentaire, ce champ
+ * est dérivé de son propre contexte d'authentification (jamais du
+ * corps de la requête, pour qu'il ne puisse pas créer une salle pour
+ * un autre propriétaire en modifiant la charge envoyée).
+ */
+export class CreateOwnSalleDto {
+  @ApiProperty()
+  @IsString()
+  name!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiProperty()
+  @IsString()
+  phone!: string;
+
+  @ApiProperty()
+  @IsString()
+  address!: string;
+
+  @ApiProperty()
+  @IsString()
+  city!: string;
+
+  @ApiProperty()
+  @IsUUID()
+  countryId!: string;
+}
+
+export class RejectSalleRequestDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
 export class UpdateSalleBrandingDto {
   @ApiPropertyOptional()
   @IsOptional()

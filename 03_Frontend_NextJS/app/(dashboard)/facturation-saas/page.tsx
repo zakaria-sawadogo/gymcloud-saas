@@ -438,11 +438,13 @@ function PendingValidationSection() {
                 </td>
                 <td className="px-5 py-3 text-ink-600">{inv.declaredAt ? formatDate(inv.declaredAt) : '—'}</td>
                 <td className="px-5 py-3 text-ink-600">
-                  {inv.pendingAddonName
-                    ? `Add-on : ${inv.pendingAddonName}`
-                    : inv.pendingPlanId
-                      ? 'Changement de plan en attente'
-                      : '—'}
+                  {inv.pendingSalleRequest
+                    ? `Salle supplémentaire : ${inv.pendingSalleRequest.name} (${inv.pendingSalleRequest.city})`
+                    : inv.pendingAddonName
+                      ? `Add-on : ${inv.pendingAddonName}`
+                      : inv.pendingPlanId
+                        ? 'Changement de plan en attente'
+                        : '—'}
                 </td>
                 <td className="px-5 py-3 text-right">
                   <div className="flex justify-end gap-2">
@@ -500,7 +502,16 @@ function RejectDeclarationModal({
     setError(null);
     setIsSubmitting(true);
     try {
-      await apiClient.patch(`/saas/invoices/${invoice.id}/reject`, { reason: reason || undefined });
+      // §14.x — une demande de salle a son propre circuit de rejet
+      // (nettoie aussi la SalleCreationRequest, pas seulement la
+      // facture) — distinct du rejet générique d'un paiement déclaré.
+      if (invoice.pendingSalleRequest) {
+        await apiClient.patch(`/salles/requests/${invoice.pendingSalleRequest.id}/reject`, {
+          note: reason || undefined,
+        });
+      } else {
+        await apiClient.patch(`/saas/invoices/${invoice.id}/reject`, { reason: reason || undefined });
+      }
       onRejected();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');

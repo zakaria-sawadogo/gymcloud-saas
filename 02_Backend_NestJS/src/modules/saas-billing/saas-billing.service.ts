@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { TenantContext } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SallesService } from '../salles/salles.service';
 import { randomUUID } from 'crypto';
 
 /**
@@ -24,6 +25,7 @@ export class SaasBillingService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    @Inject(forwardRef(() => SallesService)) private readonly sallesService: SallesService,
   ) {}
 
   async createPlan(data: {
@@ -522,6 +524,180 @@ export class SaasBillingService {
     // TODO(module notifications): notifier le propriétaire du surcoût (§13.20).
 
     return updated;
+  }
+
+  /**
+   * §3.2, §14.x — Demande de salle supplémentaire : contrairement à
+   * registerExtraSalleCharge (qui facture une salle DÉJÀ créée), cette
+   * méthode ne crée JAMAIS la salle elle-même — elle génère une
+   * facture dédiée (0 si dans le quota du plan, sinon le tarif "salle
+   * supplémentaire") et attend la validation SUPER_ADMIN. La salle
+   * n'est créée qu'à l'approbation (voir approveDeclaredPayment /
+   * markInvoicePaid, bloc pendingSalleRequestId).
+   */
+  async requestAdditionalSalle(
+    proprietaireId: string,
+    dto: { name: string; email?: string; phone: string; address: string; city: string; countryId: string },
+    actorUserId: string,
+  ) {
+    const proprietaire = await this.prisma.proprietaire.findUniqueOrThrow({
+      where: { id: proprietaireId },
+      include: { subscription: { include: { saasPlan: true } } },
+    });
+    if (!proprietaire.subscription) {
+      throw new BadRequestException(
+        "Aucune souscription active — impossible de demander une salle supplémentaire avant la première salle.",
+      );
+    }
+    const subscription = proprietaire.subscription;
+
+    const existingPending = await this.prisma.salleCreationRequest.findFirst({
+      where: { proprietaireId, status: 'EN_ATTENTE' },
+    });
+    if (existingPending) {
+      throw new BadRequestException('Une demande de salle est déjà en attente de validation');
+    }
+
+    const isSupplementaire = await this.isNextSalleSupplementaire(subscription.id);
+    const pricing = await this.getEffectivePricing(subscription.saasPlanId, dto.countryId);
+    const totalAmount = isSupplementaire ? Number(pricing.extraSalleFee) : 0;
+
+    const request = await this.prisma.salleCreationRequest.create({
+      data: {
+        id: randomUUID(),
+        proprietaireId,
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        address: dto.address,
+        city: dto.city,
+        countryId: dto.countryId,
+        status: 'EN_ATTENTE',
+      },
+    });
+
+    const now = new Date();
+    await this.prisma.saasInvoice.create({
+      data: {
+        id: randomUUID(),
+        subscriptionId: subscription.id,
+        invoiceNumber: this.generateInvoiceNumber(),
+        periodStart: now,
+        periodEnd: now, // informatif — la vraie période démarre à l'approbation, pas à la demande
+        baseAmount: 0,
+        extraSallesCount: 0,
+        extraSallesAmount: 0,
+        addonsAmount: totalAmount,
+        taxAmount: 0,
+        totalAmount,
+        currency: 'XOF',
+        status: 'EMISE',
+        pendingSalleRequestId: request.id,
+      },
+    });
+
+    const superAdmins = await this.prisma.user.findMany({
+      where: { role: { code: 'SUPER_ADMIN' } },
+      select: { id: true },
+    });
+    await Promise.all(
+      superAdmins.map((u: { id: string }) =>
+        this.notifications.create(
+          u.id,
+          'Demande de salle supplémentaire',
+          `"${dto.name}" (${dto.city}) — ${totalAmount > 0 ? `${totalAmount.toLocaleString('fr-FR')} XOF` : 'incluse dans le plan'} — en attente de validation.`,
+        ),
+      ),
+    );
+
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'salle_creation_request.create',
+      entityType: 'SalleCreationRequest',
+      entityId: request.id,
+      metadata: { proprietaireId, totalAmount, isSupplementaire },
+    });
+
+    return request;
+  }
+
+  async listMySalleRequests(proprietaireId: string) {
+    return this.prisma.salleCreationRequest.findMany({
+      where: { proprietaireId },
+      orderBy: { requestedAt: 'desc' },
+    });
+  }
+
+  async listPendingSalleRequests() {
+    return this.prisma.salleCreationRequest.findMany({
+      where: { status: 'EN_ATTENTE' },
+      include: { proprietaire: { include: { user: true } }, country: true },
+      orderBy: { requestedAt: 'asc' },
+    });
+  }
+
+  /**
+   * §14.x — Rejet explicite par le SUPER_ADMIN, distinct d'un simple
+   * défaut de paiement — nettoie aussi la facture associée pour ne
+   * pas laisser un montant "en attente" fantôme.
+   */
+  async rejectSalleRequest(requestId: string, note: string | undefined, actorUserId: string) {
+    const request = await this.prisma.salleCreationRequest.findUniqueOrThrow({ where: { id: requestId } });
+    if (request.status !== 'EN_ATTENTE') {
+      throw new BadRequestException('Cette demande a déjà été traitée');
+    }
+    await this.prisma.saasInvoice.deleteMany({ where: { pendingSalleRequestId: requestId } });
+    const updated = await this.prisma.salleCreationRequest.update({
+      where: { id: requestId },
+      data: { status: 'REJETEE', rejectionNote: note, processedAt: new Date() },
+    });
+    await this.notifications.create(
+      request.proprietaireId,
+      'Demande de salle refusée',
+      `Votre demande pour "${request.name}" a été refusée.${note ? ` Motif : ${note}` : ''}`,
+    );
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'salle_creation_request.reject',
+      entityType: 'SalleCreationRequest',
+      entityId: requestId,
+      metadata: { note },
+    });
+    return updated;
+  }
+
+  /**
+   * §14.x — Déclenchée depuis approveDeclaredPayment / markInvoicePaid
+   * quand une facture porte pendingSalleRequestId : c'est ICI, et
+   * seulement ici, que la salle est réellement créée — jamais avant.
+   */
+  private async fulfillSalleRequest(requestId: string, actorUserId: string) {
+    const request = await this.prisma.salleCreationRequest.findUniqueOrThrow({ where: { id: requestId } });
+    if (request.status !== 'EN_ATTENTE') return; // déjà traitée — évite une double création
+
+    const salle = await this.sallesService.create(
+      {
+        proprietaireId: request.proprietaireId,
+        name: request.name,
+        email: request.email ?? undefined,
+        phone: request.phone,
+        address: request.address,
+        city: request.city,
+        countryId: request.countryId,
+      },
+      actorUserId,
+    );
+
+    await this.prisma.salleCreationRequest.update({
+      where: { id: requestId },
+      data: { status: 'APPROUVEE', createdSalleId: salle.id, processedAt: new Date() },
+    });
+
+    await this.notifications.create(
+      request.proprietaireId,
+      'Salle créée',
+      `Votre salle "${request.name}" est maintenant active.`,
+    );
   }
 
   /**
@@ -1348,6 +1524,14 @@ export class SaasBillingService {
       }
     }
 
+    if (invoice.pendingSalleRequestId) {
+      await this.fulfillSalleRequest(invoice.pendingSalleRequestId, actorUserId);
+      await this.prisma.saasInvoice.update({
+        where: { id: invoiceId },
+        data: { pendingSalleRequestId: null },
+      });
+    }
+
     // §9.11 — Réactivation automatique si la souscription était en
     // grâce ou suspendue.
     await this.reactivateSubscriptionIfNeeded(invoice, actorUserId);
@@ -1615,7 +1799,10 @@ export class SaasBillingService {
     if (invoice.status === 'PAYEE') {
       throw new BadRequestException('Cette facture est déjà validée');
     }
-    if (!invoice.declaredAt) {
+    // §14.x — une demande de salle DANS le quota (0 XOF) n'a rien à
+    // déclarer : la vérification porte sur la légitimité de la salle
+    // demandée, pas sur un paiement qui n'existe pas.
+    if (!invoice.declaredAt && !invoice.pendingSalleRequestId) {
       throw new BadRequestException('Aucun paiement déclaré par le propriétaire pour cette facture');
     }
 
@@ -1743,6 +1930,14 @@ export class SaasBillingService {
       });
     }
 
+    if (invoice.pendingSalleRequestId) {
+      await this.fulfillSalleRequest(invoice.pendingSalleRequestId, actorUserId);
+      await this.prisma.saasInvoice.update({
+        where: { id: invoiceId },
+        data: { pendingSalleRequestId: null },
+      });
+    }
+
     await this.audit.log({
       userId: actorUserId,
       action: 'saas_invoice.approved',
@@ -1820,7 +2015,14 @@ export class SaasBillingService {
   /** Factures avec une déclaration de paiement en attente de validation SUPER_ADMIN (§9.8, §9.12). */
   async listPendingValidation() {
     const invoices = await this.prisma.saasInvoice.findMany({
-      where: { status: 'EMISE', declaredAt: { not: null } },
+      // §14.x — une demande de salle supplémentaire DANS le quota
+      // (0 XOF) n'a rien à déclarer comme paiement — sans ce OR, elle
+      // ne remonterait jamais dans cette file, alors que la
+      // vérification SUPER_ADMIN reste requise même sans argent en jeu.
+      where: {
+        status: 'EMISE',
+        OR: [{ declaredAt: { not: null } }, { pendingSalleRequestId: { not: null } }],
+      },
       include: {
         subscription: {
           include: { proprietaire: { include: { user: true } }, saasPlan: true },
@@ -1844,9 +2046,29 @@ export class SaasBillingService {
       : [];
     const addonNameById = new Map(addons.map((a: { id: string; name: string }) => [a.id, a.name]));
 
-    return invoices.map((invoice: { pendingAddonId: string | null }) => ({
+    // §14.x — même principe pour une demande de salle : le SUPER_ADMIN
+    // doit voir le nom/ville demandés sans avoir à ouvrir un autre écran.
+    const salleRequestIds = [
+      ...new Set(
+        invoices
+          .map((i: { pendingSalleRequestId: string | null }) => i.pendingSalleRequestId)
+          .filter((id: string | null): id is string => !!id),
+      ),
+    ];
+    const salleRequests = salleRequestIds.length
+      ? await this.prisma.salleCreationRequest.findMany({
+          where: { id: { in: salleRequestIds } },
+          select: { id: true, name: true, city: true },
+        })
+      : [];
+    const salleRequestById = new Map(salleRequests.map((r: { id: string; name: string; city: string }) => [r.id, r]));
+
+    return invoices.map((invoice: { pendingAddonId: string | null; pendingSalleRequestId: string | null }) => ({
       ...invoice,
       pendingAddonName: invoice.pendingAddonId ? (addonNameById.get(invoice.pendingAddonId) ?? null) : null,
+      pendingSalleRequest: invoice.pendingSalleRequestId
+        ? (salleRequestById.get(invoice.pendingSalleRequestId) ?? null)
+        : null,
     }));
   }
 }

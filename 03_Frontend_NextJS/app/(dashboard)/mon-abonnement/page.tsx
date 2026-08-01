@@ -13,7 +13,7 @@ import { Field, Input, Select } from '@/components/ui/Input';
 import { ChangePlanModal } from '@/components/dashboard/ChangePlanModal';
 import { SubscriptionHistoryTable } from '@/components/dashboard/SubscriptionHistoryTable';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import type { SaasSubscription, SaasInvoice, SaasPlan } from '@/types';
+import type { SaasSubscription, SaasInvoice, SaasPlan, Country } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
@@ -346,7 +346,12 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
     error: activeError,
     refetch: refetchActive,
   } = useApi<SubscriptionAddon[]>(`/saas/plans/${subscriptionId}/addons`);
+  const {
+    data: salleRequests,
+    refetch: refetchSalleRequests,
+  } = useApi<{ id: string; name: string; city: string; status: string }[]>('/salles/requests/mine');
   const [requestingAddon, setRequestingAddon] = useState<{ id: string; name: string; price: number } | null>(null);
+  const [isRequestingSalle, setIsRequestingSalle] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   if (isLoadingAddons || isLoadingActive) {
@@ -428,6 +433,11 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
               </div>
             );
           })}
+          <SalleSupplementaireRow
+            requests={salleRequests ?? []}
+            isRequesting={isRequestingSalle}
+            onRequest={() => setIsRequestingSalle(true)}
+          />
         </div>
       </Card>
 
@@ -442,7 +452,141 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
           }}
         />
       )}
+
+      {isRequestingSalle && (
+        <RequestSalleModal
+          onClose={() => setIsRequestingSalle(false)}
+          onRequested={() => {
+            setIsRequestingSalle(false);
+            refetchSalleRequests();
+          }}
+        />
+      )}
     </>
+  );
+}
+
+/**
+ * §3.2, §14.x — Contrairement aux autres add-ons, une salle
+ * supplémentaire n'est jamais créée directement : la demande génère
+ * une facture (0 si dans le quota du plan, sinon le tarif "salle
+ * supplémentaire"), et la salle n'existe qu'après validation
+ * SUPER_ADMIN — même vérification systématique, avec ou sans argent
+ * en jeu.
+ */
+function SalleSupplementaireRow({
+  requests,
+  isRequesting,
+  onRequest,
+}: {
+  requests: { id: string; name: string; city: string; status: string }[];
+  isRequesting: boolean;
+  onRequest: () => void;
+}) {
+  const pending = requests.find((r) => r.status === 'EN_ATTENTE');
+
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+      <div>
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-ink-900">Salle supplémentaire</p>
+          {pending && <StatusBadge status="EN_ATTENTE" />}
+        </div>
+        <p className="text-sm text-ink-500">
+          Ouvrir une salle de plus — gratuite si dans le quota de votre plan, sinon facturée au tarif salle
+          supplémentaire.
+        </p>
+        {pending && (
+          <p className="text-xs text-ink-400">
+            &quot;{pending.name}&quot; ({pending.city}) — en attente de validation
+          </p>
+        )}
+      </div>
+      {!pending && (
+        <Button size="sm" isLoading={isRequesting} onClick={onRequest}>
+          Demander
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function RequestSalleModal({ onClose, onRequested }: { onClose: () => void; onRequested: () => void }) {
+  const { data: countries } = useApi<Country[]>('/countries');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [countryId, setCountryId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await apiClient.post('/salles/requests', {
+        name,
+        email: email || undefined,
+        phone,
+        address,
+        city,
+        countryId,
+      });
+      onRequested();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Demander une salle supplémentaire">
+      <p className="mb-4 text-sm text-ink-500">
+        Une facture sera générée (0 si dans le quota de votre plan) — la salle n&apos;est créée qu&apos;après
+        validation.
+      </p>
+      <Field label="Nom de la salle">
+        <Input value={name} onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field label="Téléphone">
+        <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </Field>
+      <Field label="E-mail (optionnel)">
+        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      </Field>
+      <Field label="Adresse">
+        <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+      </Field>
+      <Field label="Ville">
+        <Input value={city} onChange={(e) => setCity(e.target.value)} />
+      </Field>
+      <Field label="Pays">
+        <Select value={countryId} onChange={(e) => setCountryId(e.target.value)}>
+          <option value="">Sélectionner un pays</option>
+          {(countries ?? []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      <div className="flex gap-2">
+        <Button variant="ghost" onClick={onClose} className="flex-1">
+          Annuler
+        </Button>
+        <Button
+          disabled={!name || !phone || !address || !city || !countryId}
+          isLoading={isSubmitting}
+          onClick={handleSubmit}
+          className="flex-1"
+        >
+          Envoyer la demande
+        </Button>
+      </div>
+    </Modal>
   );
 }
 

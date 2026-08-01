@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException, Inject, forwardRef } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -31,7 +31,7 @@ export class SallesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
-    private readonly saasBilling: SaasBillingService,
+    @Inject(forwardRef(() => SaasBillingService)) private readonly saasBilling: SaasBillingService,
   ) {}
 
   /**
@@ -275,5 +275,30 @@ export class SallesService {
     const salle = await this.prisma.salle.findUniqueOrThrow({ where: { id: salleId } });
     const qrDataUrl = await QRCode.toDataURL(salle.checkinQrToken, { margin: 1, width: 400 });
     return { checkinQrToken: salle.checkinQrToken, qrDataUrl };
+  }
+
+  // ── Demande de salle supplémentaire (§3.2, §14.x) — délègue à
+  // SaasBillingService, qui porte déjà toute la logique de
+  // facturation/quota. La salle n'est JAMAIS créée directement par le
+  // propriétaire — uniquement à l'approbation de la facture liée.
+
+  requestAdditionalSalle(
+    proprietaireId: string,
+    dto: { name: string; email?: string; phone: string; address: string; city: string; countryId: string },
+    actorUserId: string,
+  ) {
+    return this.saasBilling.requestAdditionalSalle(proprietaireId, dto, actorUserId);
+  }
+
+  listMySalleRequests(proprietaireId: string) {
+    return this.saasBilling.listMySalleRequests(proprietaireId);
+  }
+
+  listPendingSalleRequests() {
+    return this.saasBilling.listPendingSalleRequests();
+  }
+
+  rejectSalleRequest(requestId: string, note: string | undefined, actorUserId: string) {
+    return this.saasBilling.rejectSalleRequest(requestId, note, actorUserId);
   }
 }
