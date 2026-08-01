@@ -1570,10 +1570,10 @@ export class SaasBillingService {
         where: { subscriptionId_addonId: { subscriptionId: invoice.subscriptionId, addonId: invoice.pendingAddonId } },
         data: { status: 'ACTIF', startDate, endDate },
       });
-      await this.prisma.saasInvoice.update({
-        where: { id: invoiceId },
-        data: { pendingAddonId: null, pendingAddonDurationMonths: null },
-      });
+      // §14.x — pendingAddonId n'est plus effacé ici : le statut PAYEE
+      // suffit déjà à empêcher toute réactivation accidentelle — le
+      // garder permet à la facture PDF de savoir à quel add-on elle
+      // correspondait, même longtemps après (bug réel corrigé).
 
       const addon = await this.prisma.saasAddon.findUnique({ where: { id: invoice.pendingAddonId } });
       const proprietaire = await this.prisma.saasSubscription.findUnique({
@@ -1968,10 +1968,10 @@ export class SaasBillingService {
         where: { subscriptionId_addonId: { subscriptionId: invoice.subscriptionId, addonId: invoice.pendingAddonId } },
         data: { status: 'ACTIF', startDate, endDate },
       });
-      await this.prisma.saasInvoice.update({
-        where: { id: invoiceId },
-        data: { pendingAddonId: null, pendingAddonDurationMonths: null },
-      });
+      // §14.x — pendingAddonId n'est plus effacé ici : le statut PAYEE
+      // suffit déjà à empêcher toute réactivation accidentelle — le
+      // garder permet à la facture PDF de savoir à quel add-on elle
+      // correspondait, même longtemps après (bug réel corrigé).
 
       const addon = await this.prisma.saasAddon.findUnique({ where: { id: invoice.pendingAddonId } });
       const proprietaire = await this.prisma.saasSubscription.findUnique({

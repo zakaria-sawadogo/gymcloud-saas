@@ -132,7 +132,12 @@ export class InvoicePdfService {
       addRow(`Salles supplémentaires (×${invoice.extraSallesCount})`, money(Number(invoice.extraSallesAmount)));
     }
     if (Number(invoice.addonsAmount) > 0) {
-      addRow('Add-ons', money(Number(invoice.addonsAmount)));
+      const addonLabel = invoice.pendingAddonId
+        ? await this.prisma.saasAddon
+            .findUnique({ where: { id: invoice.pendingAddonId }, select: { name: true } })
+            .then((a: { name: string } | null) => (a ? `Add-on : ${a.name}` : 'Add-ons'))
+        : 'Add-ons';
+      addRow(addonLabel, money(Number(invoice.addonsAmount)));
     }
 
     y += 8;

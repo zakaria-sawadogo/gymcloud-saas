@@ -112,6 +112,7 @@ export interface Salle {
   isSalleSupplementaire: boolean;
   createdAt: string;
   country?: { code: string; name: string; currency: string };
+  proprietaire?: { user: { firstName: string; lastName: string } };
 }
 
 // ── SaaS ──────────────────────────────────────────────────────

@@ -51,6 +51,7 @@ export default function SallesPage() {
             <thead>
               <tr className="border-b border-ink-100 text-left text-xs font-medium uppercase text-ink-400">
                 <th className="px-5 py-3">Nom</th>
+                <th className="px-5 py-3">Propriétaire</th>
                 <th className="px-5 py-3">Ville</th>
                 <th className="px-5 py-3">Téléphone</th>
                 <th className="px-5 py-3">Statut</th>
@@ -68,6 +69,9 @@ export default function SallesPage() {
                         supplémentaire
                       </span>
                     )}
+                  </td>
+                  <td className="px-5 py-3 text-ink-600">
+                    {s.proprietaire ? `${s.proprietaire.user.firstName} ${s.proprietaire.user.lastName}` : '—'}
                   </td>
                   <td className="px-5 py-3 text-ink-600">{s.city}</td>
                   <td className="px-5 py-3 text-ink-600">{s.phone}</td>

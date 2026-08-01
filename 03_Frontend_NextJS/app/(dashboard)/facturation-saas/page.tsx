@@ -66,10 +66,17 @@ export default function FacturationSaasPage() {
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState('');
   const [invoiceToPay, setInvoiceToPay] = useState<SaasInvoice | null>(null);
+  // §14.x — la liste principale et "Validations en attente" sont deux
+  // sections indépendantes (données et refetch séparés) : sans ce
+  // compteur partagé, encaisser une facture ici ne rafraîchissait
+  // jamais l'autre section, qui continuait d'afficher un état périmé
+  // (bug réel corrigé).
+  const [refreshKey, setRefreshKey] = useState(0);
+  const bumpRefresh = () => setRefreshKey((k) => k + 1);
 
   const { data: invoices, isLoading, error, refetch } = useApi<SaasInvoice[]>(
     `/saas/invoices${statusFilter ? `?status=${statusFilter}` : ''}`,
-    [statusFilter],
+    [statusFilter, refreshKey],
   );
 
   const totalEnAttente = (invoices ?? [])
@@ -104,7 +111,7 @@ export default function FacturationSaasPage() {
 
       {user?.roleCode === 'PROPRIETAIRE' && <MyAddonsSection />}
 
-      <PendingValidationSection />
+      <PendingValidationSection refreshKey={refreshKey} onChanged={bumpRefresh} />
 
       <Card className="p-0">
         {isLoading ? (
@@ -196,6 +203,7 @@ export default function FacturationSaasPage() {
           onEncaisse={() => {
             setInvoiceToPay(null);
             refetch();
+            bumpRefresh();
           }}
         />
       )}
@@ -377,8 +385,11 @@ function MyAddonsSection() {
   );
 }
 
-function PendingValidationSection() {
-  const { data: pending, isLoading, refetch } = useApi<SaasInvoice[]>('/saas/invoices/pending-validation');
+function PendingValidationSection({ refreshKey, onChanged }: { refreshKey: number; onChanged: () => void }) {
+  const { data: pending, isLoading, refetch } = useApi<SaasInvoice[]>(
+    '/saas/invoices/pending-validation',
+    [refreshKey],
+  );
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [rejectingInvoice, setRejectingInvoice] = useState<SaasInvoice | null>(null);
 
@@ -387,6 +398,7 @@ function PendingValidationSection() {
     try {
       await apiClient.patch(`/saas/invoices/${invoiceId}/approve`);
       refetch();
+      onChanged();
     } catch (err) {
       alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
     } finally {
@@ -477,6 +489,7 @@ function PendingValidationSection() {
           onRejected={() => {
             setRejectingInvoice(null);
             refetch();
+            onChanged();
           }}
         />
       )}

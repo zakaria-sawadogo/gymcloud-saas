@@ -140,7 +140,10 @@ export class SallesService {
   }
 
   async findAll() {
-    return this.prisma.salle.findMany({ orderBy: { createdAt: 'desc' } });
+    return this.prisma.salle.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { proprietaire: { include: { user: { select: { firstName: true, lastName: true } } } } },
+    });
   }
 
   /**
