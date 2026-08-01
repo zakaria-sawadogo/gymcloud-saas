@@ -441,6 +441,18 @@ function AddonsSection() {
       </p>
       <Card>
         <div className="divide-y divide-ink-100">
+          <div className="flex items-center justify-between gap-4 py-3 first:pt-0">
+            <div>
+              <p className="font-medium text-ink-900">Salle supplémentaire</p>
+              <p className="text-sm text-ink-500">
+                Fonctionne différemment des autres add-ons — demande + validation, jamais de création directe. Tarif
+                configuré par plan (champ &quot;Salle supplémentaire&quot; sur chaque carte de plan ci-dessus), pas ici.
+              </p>
+            </div>
+            <span className="rounded-full bg-ink-50 px-2.5 py-1 text-xs font-medium text-ink-500">
+              Configuré par plan
+            </span>
+          </div>
           {(addons ?? []).map((addon) =>
             editingId === addon.id ? (
               <div key={addon.id} className="py-4 first:pt-0 last:pb-0">
