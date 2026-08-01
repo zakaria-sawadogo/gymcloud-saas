@@ -35,3 +35,7 @@ docker image prune -f
 
 echo "✓ Déploiement terminé."
 docker compose ps
+
+echo ""
+echo "→ Vérification post-déploiement..."
+bash "$COMPOSE_DIR/smoke-test.sh" || echo "⚠ Certaines vérifications ont échoué — voir le détail ci-dessus."

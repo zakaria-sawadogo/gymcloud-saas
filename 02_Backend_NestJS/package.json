@@ -9,6 +9,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"src/**/*.ts\" --fix",
+    "type-check": "tsc --noEmit",
     "test": "jest",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -67,6 +68,19 @@
     "@types/compression": "^1.7.5",
     "@types/multer": "^1.4.12",
     "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "@types/jest": "^29.5.14",
     "eslint": "^8.57.0"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
   }
 }
