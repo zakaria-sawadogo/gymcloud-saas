@@ -93,26 +93,31 @@ export class SaasBillingService {
     return this.prisma.saasAddon.findMany({ orderBy: { name: 'asc' } });
   }
 
-  async listSubscriptionAddons(subscriptionId: string) {
+  /**
+   * §14.x — Add-ons par salle : chaque salle d'un propriétaire peut
+   * avoir des add-ons différents, chacun facturé séparément — deux
+   * salles activant "Boutique" paient deux fois le tarif, chacune
+   * gérant SON propre catalogue produits/dépenses (déjà par salle
+   * ailleurs dans l'app, incohérent de ne pas l'être ici aussi).
+   */
+  async listSalleAddons(salleId: string) {
     return this.prisma.saasSubscriptionAddon.findMany({
-      where: { subscriptionId },
+      where: { salleId },
       include: { addon: true },
     });
   }
 
-  /**
-   * §9.3, §2.8 — Un add-on n'est jamais inclus automatiquement : c'est
-   * le propriétaire (sur SA PROPRE souscription uniquement) ou le
-   * SUPER_ADMIN qui l'active explicitement. Idempotent — activer un
-   * add-on déjà actif ne fait rien de plus.
-   */
-  /**
-   * §9.3, §9.8 — Un add-on activé en cours d'abonnement est facturé à
-   * part, au prorata des jours restants sur la période en cours —
-   * jamais reporté silencieusement sur la prochaine facture complète,
-   * pour que le propriétaire voie immédiatement ce qu'il doit pour ce
-   * qu'il vient d'activer.
-   */
+  private async assertOwnsSalle(salleId: string, actor?: TenantContext) {
+    if (!actor || actor.isGlobalAccess) return;
+    const salle = await this.prisma.salle.findUniqueOrThrow({
+      where: { id: salleId },
+      select: { proprietaireId: true },
+    });
+    if (salle.proprietaireId !== actor.proprietaireId) {
+      throw new ForbiddenException('Vous ne pouvez modifier que les add-ons de vos propres salles');
+    }
+  }
+
   /**
    * §9.3 — Activation directe, sans validation : réservée aux cas où
    * le SUPER_ADMIN active lui-même l'add-on en créant le compte
@@ -121,71 +126,78 @@ export class SaasBillingService {
    * propriétaire lui-même — voir requestAddonActivation pour ça.
    */
   async attachAddonDirect(
-    subscriptionId: string,
+    salleId: string,
     addonId: string,
     durationMonths: number,
     actorUserId: string,
   ) {
+    const salle = await this.prisma.salle.findUniqueOrThrow({ where: { id: salleId }, select: { subscriptionId: true } });
     const startDate = new Date();
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + durationMonths);
 
     await this.prisma.saasSubscriptionAddon.upsert({
-      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      where: { salleId_addonId: { salleId, addonId } },
       update: { status: 'ACTIF', durationMonths, startDate, endDate },
-      create: { subscriptionId, addonId, status: 'ACTIF', durationMonths, startDate, endDate },
+      create: { salleId, subscriptionId: salle.subscriptionId, addonId, status: 'ACTIF', durationMonths, startDate, endDate },
     });
     await this.audit.log({
       userId: actorUserId,
+      salleId,
       action: 'saas_subscription.addon_attached_direct',
-      entityType: 'SaasSubscription',
-      entityId: subscriptionId,
+      entityType: 'Salle',
+      entityId: salleId,
       metadata: { addonId, durationMonths },
     });
-    return this.listSubscriptionAddons(subscriptionId);
+    return this.listSalleAddons(salleId);
   }
 
   /**
-   * §9.3 — Demande d'activation d'un add-on par le propriétaire :
-   * jamais activé immédiatement. Crée une facture à régler, avec le
-   * même mécanisme que les factures SaaS classiques (déclaration de
-   * paiement puis validation SUPER_ADMIN — voir approveDeclaredPayment
-   * ci-dessous) — c'est cette validation, et seulement elle, qui
-   * active l'add-on, pour la durée demandée.
+   * §9.3 — Demande d'activation d'un add-on par le propriétaire, pour
+   * UNE salle précise : jamais activé immédiatement. Crée une facture
+   * à régler (rattachée à la souscription du propriétaire, qui reste
+   * l'unité de facturation), avec le même mécanisme que les factures
+   * SaaS classiques — c'est cette validation, et seulement elle, qui
+   * active l'add-on, pour la durée demandée, sur CETTE salle.
    */
   async requestAddonActivation(
-    subscriptionId: string,
+    salleId: string,
     addonId: string,
     durationMonths: number,
     actorUserId: string,
     actor?: TenantContext,
   ) {
-    await this.assertOwnsSubscription(subscriptionId, actor);
+    await this.assertOwnsSalle(salleId, actor);
+
+    const salle = await this.prisma.salle.findUniqueOrThrow({
+      where: { id: salleId },
+      select: { name: true, subscriptionId: true },
+    });
 
     const existing = await this.prisma.saasSubscriptionAddon.findUnique({
-      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      where: { salleId_addonId: { salleId, addonId } },
     });
     if (existing?.status === 'EN_ATTENTE') {
-      throw new BadRequestException('Une demande est déjà en attente de validation pour cet add-on');
+      throw new BadRequestException('Une demande est déjà en attente de validation pour cet add-on sur cette salle');
     }
     if (existing?.status === 'ACTIF') {
-      throw new BadRequestException('Cet add-on est déjà actif');
+      throw new BadRequestException('Cet add-on est déjà actif sur cette salle');
     }
 
     const addon = await this.prisma.saasAddon.findUniqueOrThrow({ where: { id: addonId } });
     const totalAmount = Math.round(Number(addon.price) * durationMonths * 100) / 100;
 
     await this.prisma.saasSubscriptionAddon.upsert({
-      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      where: { salleId_addonId: { salleId, addonId } },
       update: { status: 'EN_ATTENTE', durationMonths, requestedAt: new Date() },
-      create: { subscriptionId, addonId, status: 'EN_ATTENTE', durationMonths },
+      create: { salleId, subscriptionId: salle.subscriptionId, addonId, status: 'EN_ATTENTE', durationMonths },
     });
 
     const now = new Date();
     const invoice = await this.prisma.saasInvoice.create({
       data: {
         id: randomUUID(),
-        subscriptionId,
+        subscriptionId: salle.subscriptionId,
         invoiceNumber: this.generateInvoiceNumber(),
         periodStart: now,
         periodEnd: now, // informatif — la vraie période démarre à l'approbation, pas à la demande
@@ -199,6 +211,7 @@ export class SaasBillingService {
         status: 'EMISE',
         pendingAddonId: addonId,
         pendingAddonDurationMonths: durationMonths,
+        pendingAddonSalleId: salleId,
       },
     });
 
@@ -211,20 +224,21 @@ export class SaasBillingService {
         this.notifications.create(
           u.id,
           "Demande d'activation d'add-on",
-          `Add-on "${addon.name}" demandé (${durationMonths} mois, ${totalAmount.toLocaleString('fr-FR')} XOF) — en attente de paiement/validation.`,
+          `Add-on "${addon.name}" demandé pour "${salle.name}" (${durationMonths} mois, ${totalAmount.toLocaleString('fr-FR')} XOF) — en attente de paiement/validation.`,
         ),
       ),
     );
 
     await this.audit.log({
       userId: actorUserId,
+      salleId,
       action: 'saas_subscription.addon_requested',
-      entityType: 'SaasSubscription',
-      entityId: subscriptionId,
+      entityType: 'Salle',
+      entityId: salleId,
       metadata: { addonId, durationMonths, totalAmount, invoiceId: invoice.id },
     });
 
-    return { invoice, addons: await this.listSubscriptionAddons(subscriptionId) };
+    return { invoice, addons: await this.listSalleAddons(salleId) };
   }
 
   /**
@@ -241,7 +255,7 @@ export class SaasBillingService {
   async processAddonRenewals() {
     const expired = await this.prisma.saasSubscriptionAddon.findMany({
       where: { status: 'ACTIF', endDate: { lte: new Date() } },
-      include: { addon: true },
+      include: { addon: true, salle: { select: { name: true, proprietaireId: true } } },
     });
 
     let renewed = 0;
@@ -251,18 +265,18 @@ export class SaasBillingService {
 
       if (!item.autoRenew) {
         await this.prisma.saasSubscriptionAddon.update({
-          where: { subscriptionId_addonId: { subscriptionId: item.subscriptionId, addonId: item.addonId } },
+          where: { salleId_addonId: { salleId: item.salleId, addonId: item.addonId } },
           data: { status: 'EXPIRE' },
         });
-        const proprietaire = await this.prisma.saasSubscription.findUnique({
-          where: { id: item.subscriptionId },
-          select: { proprietaire: { select: { userId: true } } },
+        const proprietaire = await this.prisma.proprietaire.findUnique({
+          where: { id: item.salle.proprietaireId },
+          select: { userId: true },
         });
         if (proprietaire) {
           await this.notifications.create(
-            proprietaire.proprietaire.userId,
+            proprietaire.userId,
             'Add-on expiré',
-            `L'add-on "${item.addon.name}" a expiré — vous aviez choisi de ne pas le reconduire.`,
+            `L'add-on "${item.addon.name}" pour "${item.salle.name}" a expiré — vous aviez choisi de ne pas le reconduire.`,
           );
         }
         expiredCount++;
@@ -272,7 +286,7 @@ export class SaasBillingService {
       const totalAmount = Math.round(Number(item.addon.price) * item.durationMonths * 100) / 100;
 
       await this.prisma.saasSubscriptionAddon.update({
-        where: { subscriptionId_addonId: { subscriptionId: item.subscriptionId, addonId: item.addonId } },
+        where: { salleId_addonId: { salleId: item.salleId, addonId: item.addonId } },
         data: { status: 'EN_ATTENTE', requestedAt: now },
       });
 
@@ -293,18 +307,19 @@ export class SaasBillingService {
           status: 'EMISE',
           pendingAddonId: item.addonId,
           pendingAddonDurationMonths: item.durationMonths,
+          pendingAddonSalleId: item.salleId,
         },
       });
 
-      const proprietaire = await this.prisma.saasSubscription.findUnique({
-        where: { id: item.subscriptionId },
-        select: { proprietaire: { select: { userId: true } } },
+      const proprietaire = await this.prisma.proprietaire.findUnique({
+        where: { id: item.salle.proprietaireId },
+        select: { userId: true },
       });
       if (proprietaire) {
         await this.notifications.create(
-          proprietaire.proprietaire.userId,
+          proprietaire.userId,
           "Renouvellement d'add-on à régler",
-          `L'add-on "${item.addon.name}" arrive à échéance — une nouvelle facture de ${totalAmount.toLocaleString('fr-FR')} XOF est en attente de règlement.`,
+          `L'add-on "${item.addon.name}" pour "${item.salle.name}" arrive à échéance — une nouvelle facture de ${totalAmount.toLocaleString('fr-FR')} XOF est en attente de règlement.`,
         );
       }
       renewed++;
@@ -313,19 +328,20 @@ export class SaasBillingService {
     return { renewed, expired: expiredCount };
   }
 
-  async detachAddon(subscriptionId: string, addonId: string, actorUserId: string, actor?: TenantContext) {
-    await this.assertOwnsSubscription(subscriptionId, actor);
+  async detachAddon(salleId: string, addonId: string, actorUserId: string, actor?: TenantContext) {
+    await this.assertOwnsSalle(salleId, actor);
     await this.prisma.saasSubscriptionAddon
-      .delete({ where: { subscriptionId_addonId: { subscriptionId, addonId } } })
+      .delete({ where: { salleId_addonId: { salleId, addonId } } })
       .catch(() => null); // déjà détaché — pas une erreur
     await this.audit.log({
       userId: actorUserId,
+      salleId,
       action: 'saas_subscription.addon_detached',
-      entityType: 'SaasSubscription',
-      entityId: subscriptionId,
+      entityType: 'Salle',
+      entityId: salleId,
       metadata: { addonId },
     });
-    return this.listSubscriptionAddons(subscriptionId);
+    return this.listSalleAddons(salleId);
   }
 
   /**
@@ -335,22 +351,23 @@ export class SaasBillingService {
    * expire au lieu d'être refacturé.
    */
   async setAddonAutoRenew(
-    subscriptionId: string,
+    salleId: string,
     addonId: string,
     autoRenew: boolean,
     actorUserId: string,
     actor?: TenantContext,
   ) {
-    await this.assertOwnsSubscription(subscriptionId, actor);
+    await this.assertOwnsSalle(salleId, actor);
     const updated = await this.prisma.saasSubscriptionAddon.update({
-      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      where: { salleId_addonId: { salleId, addonId } },
       data: { autoRenew },
     });
     await this.audit.log({
       userId: actorUserId,
+      salleId,
       action: autoRenew ? 'saas_subscription.addon_auto_renew_enabled' : 'saas_subscription.addon_auto_renew_disabled',
-      entityType: 'SaasSubscription',
-      entityId: subscriptionId,
+      entityType: 'Salle',
+      entityId: salleId,
       metadata: { addonId },
     });
     return updated;
@@ -364,35 +381,38 @@ export class SaasBillingService {
    * lui-même (permission "manage" réservée SUPER_ADMIN, il n'a que
    * "update").
    */
-  async suspendSubscriptionAddon(subscriptionId: string, addonId: string, actorUserId: string) {
+  async suspendSubscriptionAddon(salleId: string, addonId: string, actorUserId: string) {
     await this.prisma.saasSubscriptionAddon.update({
-      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      where: { salleId_addonId: { salleId, addonId } },
       data: { status: 'SUSPENDU' },
     });
     await this.audit.log({
       userId: actorUserId,
+      salleId,
       action: 'saas_subscription.addon_suspended',
-      entityType: 'SaasSubscription',
-      entityId: subscriptionId,
+      entityType: 'Salle',
+      entityId: salleId,
       metadata: { addonId },
     });
-    return this.listSubscriptionAddons(subscriptionId);
+    return this.listSalleAddons(salleId);
   }
 
-  async reactivateSubscriptionAddon(subscriptionId: string, addonId: string, actorUserId: string) {
+  async reactivateSubscriptionAddon(salleId: string, addonId: string, actorUserId: string) {
     await this.prisma.saasSubscriptionAddon.update({
-      where: { subscriptionId_addonId: { subscriptionId, addonId } },
+      where: { salleId_addonId: { salleId, addonId } },
       data: { status: 'ACTIF' },
     });
     await this.audit.log({
       userId: actorUserId,
+      salleId,
       action: 'saas_subscription.addon_reactivated',
-      entityType: 'SaasSubscription',
-      entityId: subscriptionId,
+      entityType: 'Salle',
+      entityId: salleId,
       metadata: { addonId },
     });
-    return this.listSubscriptionAddons(subscriptionId);
+    return this.listSalleAddons(salleId);
   }
+
 
   private async assertOwnsSubscription(subscriptionId: string, actor?: TenantContext) {
     if (!actor || actor.isGlobalAccess) return;
@@ -1567,7 +1587,7 @@ export class SaasBillingService {
       endDate.setMonth(endDate.getMonth() + (invoice.pendingAddonDurationMonths ?? 12));
 
       await this.prisma.saasSubscriptionAddon.update({
-        where: { subscriptionId_addonId: { subscriptionId: invoice.subscriptionId, addonId: invoice.pendingAddonId } },
+        where: { salleId_addonId: { salleId: invoice.pendingAddonSalleId!, addonId: invoice.pendingAddonId } },
         data: { status: 'ACTIF', startDate, endDate },
       });
       // §14.x — pendingAddonId n'est plus effacé ici : le statut PAYEE
@@ -1965,7 +1985,7 @@ export class SaasBillingService {
       endDate.setMonth(endDate.getMonth() + (invoice.pendingAddonDurationMonths ?? 12));
 
       await this.prisma.saasSubscriptionAddon.update({
-        where: { subscriptionId_addonId: { subscriptionId: invoice.subscriptionId, addonId: invoice.pendingAddonId } },
+        where: { salleId_addonId: { salleId: invoice.pendingAddonSalleId!, addonId: invoice.pendingAddonId } },
         data: { status: 'ACTIF', startDate, endDate },
       });
       // §14.x — pendingAddonId n'est plus effacé ici : le statut PAYEE
@@ -2059,7 +2079,7 @@ export class SaasBillingService {
       // une nouvelle proprement.
       await this.prisma.saasSubscriptionAddon
         .delete({
-          where: { subscriptionId_addonId: { subscriptionId: invoice.subscriptionId, addonId: invoice.pendingAddonId } },
+          where: { salleId_addonId: { salleId: invoice.pendingAddonSalleId!, addonId: invoice.pendingAddonId } },
         })
         .catch(() => null);
     }

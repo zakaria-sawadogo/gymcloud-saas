@@ -131,7 +131,7 @@ export class UsersService {
       const durationMonths = newSubscription?.billingCycle === 'ANNUEL' ? 12 : 1;
       await Promise.all(
         matchingAddons.map((a: { id: string }) =>
-          this.saasBillingService.attachAddonDirect(salle.subscriptionId!, a.id, durationMonths, actor.userId),
+          this.saasBillingService.attachAddonDirect(salle.id, a.id, durationMonths, actor.userId),
         ),
       );
     }

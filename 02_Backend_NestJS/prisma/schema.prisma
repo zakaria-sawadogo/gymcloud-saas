@@ -304,7 +304,8 @@ model SaasSubscription {
 }
 
 model SaasSubscriptionAddon {
-  subscriptionId String
+  salleId        String // §14.x — l'add-on s'active par SALLE, pas globalement pour tout le propriétaire — deux salles d'un même propriétaire peuvent avoir des add-ons différents, chacune facturée séparément
+  subscriptionId String // conservé pour la facturation (une facture reste par souscription/propriétaire), mais l'unicité et l'accès se jouent sur salleId
   addonId        String
   status         SaasSubscriptionAddonStatus @default(EN_ATTENTE)
   requestedAt    DateTime  @default(now())
@@ -317,10 +318,11 @@ model SaasSubscriptionAddon {
   // via son propre cycle).
   autoRenew      Boolean   @default(true)
 
+  salle        Salle            @relation(fields: [salleId], references: [id], onDelete: Cascade)
   subscription SaasSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   addon        SaasAddon        @relation(fields: [addonId], references: [id], onDelete: Cascade)
 
-  @@id([subscriptionId, addonId])
+  @@id([salleId, addonId])
   @@map("saas_subscription_addons")
 }
 
@@ -395,6 +397,10 @@ model SaasInvoice {
   // pendingPlanId ci-dessus.
   pendingAddonId             String?
   pendingAddonDurationMonths Int?
+  // §14.x — l'add-on s'active désormais par salle : sans cette
+  // référence, l'approbation ne saurait pas LAQUELLE des salles du
+  // propriétaire activer si celui-ci en a plusieurs.
+  pendingAddonSalleId        String?
 
   // §3.2, §14.x — Demande de salle supplémentaire en attente de
   // validation : si non nul, l'approbation de cette facture crée
@@ -542,6 +548,7 @@ model Salle {
   // (celui-là reste scanné par le personnel) — les deux coexistent.
   checkinQrToken String @unique @default(uuid())
   salleCreationRequest SalleCreationRequest? @relation("SalleCreationRequestToSalle")
+  addons SaasSubscriptionAddon[]
 
   // Coordonnées (§3.2)
   email       String?

@@ -146,27 +146,27 @@ export class SaasPlansController {
     return this.saasBillingService.updateAddon(id, body, user.userId);
   }
 
-  @Get(':subscriptionId/addons')
-  @RequirePermission('read', 'SaasSubscription')
-  @ApiOperation({ summary: 'Add-ons activés sur cette souscription' })
-  listSubscriptionAddons(@Param('subscriptionId') subscriptionId: string) {
-    return this.saasBillingService.listSubscriptionAddons(subscriptionId);
+  @Get('salles/:salleId/addons')
+  @RequirePermission('read', 'Salle')
+  @ApiOperation({ summary: 'Add-ons activés sur cette salle (§14.x — par salle, pas par propriétaire)' })
+  listSalleAddons(@Param('salleId') salleId: string) {
+    return this.saasBillingService.listSalleAddons(salleId);
   }
 
-  @Post(':subscriptionId/addons/:addonId')
-  @RequirePermission('update', 'SaasSubscription')
+  @Post('salles/:salleId/addons/:addonId')
+  @RequirePermission('update', 'Salle')
   @ApiOperation({
     summary:
-      "Demande d'activation d'un add-on (§9.3) — jamais activé immédiatement : crée une facture à régler, activée seulement à sa validation par le SUPER_ADMIN (mêmes règles que le paiement d'un plan).",
+      "Demande d'activation d'un add-on pour cette salle (§9.3, §14.x) — jamais activé immédiatement : crée une facture à régler, activée seulement à sa validation par le SUPER_ADMIN (mêmes règles que le paiement d'un plan).",
   })
   requestAddon(
-    @Param('subscriptionId') subscriptionId: string,
+    @Param('salleId') salleId: string,
     @Param('addonId') addonId: string,
     @Body() body: { durationMonths?: number },
     @CurrentUser() user: TenantContext,
   ) {
     return this.saasBillingService.requestAddonActivation(
-      subscriptionId,
+      salleId,
       addonId,
       body.durationMonths ?? 12,
       user.userId,
@@ -174,51 +174,51 @@ export class SaasPlansController {
     );
   }
 
-  @Delete(':subscriptionId/addons/:addonId')
-  @RequirePermission('update', 'SaasSubscription')
-  @ApiOperation({ summary: 'Désactiver un add-on sur cette souscription' })
+  @Delete('salles/:salleId/addons/:addonId')
+  @RequirePermission('update', 'Salle')
+  @ApiOperation({ summary: 'Désactiver un add-on sur cette salle' })
   detachAddon(
-    @Param('subscriptionId') subscriptionId: string,
+    @Param('salleId') salleId: string,
     @Param('addonId') addonId: string,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.saasBillingService.detachAddon(subscriptionId, addonId, user.userId, user);
+    return this.saasBillingService.detachAddon(salleId, addonId, user.userId, user);
   }
 
-  @Patch(':subscriptionId/addons/:addonId/auto-renew')
-  @RequirePermission('update', 'SaasSubscription')
+  @Patch('salles/:salleId/addons/:addonId/auto-renew')
+  @RequirePermission('update', 'Salle')
   @ApiOperation({
     summary:
       "Activer/désactiver la reconduction automatique d'un add-on (§14.x) — décoché, il reste actif jusqu'à sa date de fin puis expire au lieu d'être refacturé.",
   })
   setAddonAutoRenew(
-    @Param('subscriptionId') subscriptionId: string,
+    @Param('salleId') salleId: string,
     @Param('addonId') addonId: string,
     @Body('autoRenew') autoRenew: boolean,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.saasBillingService.setAddonAutoRenew(subscriptionId, addonId, autoRenew, user.userId, user);
+    return this.saasBillingService.setAddonAutoRenew(salleId, addonId, autoRenew, user.userId, user);
   }
 
-  @Patch(':subscriptionId/addons/:addonId/suspend')
-  @RequirePermission('manage', 'SaasSubscription')
+  @Patch('salles/:salleId/addons/:addonId/suspend')
+  @RequirePermission('manage', 'Salle')
   @ApiOperation({ summary: 'Suspension administrative d\'un add-on (impayé, litige...) — réservé SUPER_ADMIN, réversible' })
   suspendAddon(
-    @Param('subscriptionId') subscriptionId: string,
+    @Param('salleId') salleId: string,
     @Param('addonId') addonId: string,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.saasBillingService.suspendSubscriptionAddon(subscriptionId, addonId, user.userId);
+    return this.saasBillingService.suspendSubscriptionAddon(salleId, addonId, user.userId);
   }
 
-  @Patch(':subscriptionId/addons/:addonId/reactivate')
-  @RequirePermission('manage', 'SaasSubscription')
+  @Patch('salles/:salleId/addons/:addonId/reactivate')
+  @RequirePermission('manage', 'Salle')
   @ApiOperation({ summary: 'Réactiver un add-on suspendu — réservé SUPER_ADMIN' })
   reactivateAddon(
-    @Param('subscriptionId') subscriptionId: string,
+    @Param('salleId') salleId: string,
     @Param('addonId') addonId: string,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.saasBillingService.reactivateSubscriptionAddon(subscriptionId, addonId, user.userId);
+    return this.saasBillingService.reactivateSubscriptionAddon(salleId, addonId, user.userId);
   }
 }

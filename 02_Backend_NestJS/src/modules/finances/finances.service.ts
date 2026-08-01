@@ -27,11 +27,11 @@ export class FinancesService {
     const salle = await this.prisma.salle.findUnique({
       where: { id: salleId },
       select: {
-        subscription: { select: { addons: { select: { status: true, addon: { select: { code: true } } } } } },
+        addons: { select: { status: true, addon: { select: { code: true } } } },
       },
     });
     const hasAccess =
-      salle?.subscription.addons.some(
+      salle?.addons.some(
         (sa: { status: string; addon: { code: string } }) => sa.addon.code === 'FINANCES' && sa.status === 'ACTIF',
       ) ?? false;
     if (!hasAccess) {

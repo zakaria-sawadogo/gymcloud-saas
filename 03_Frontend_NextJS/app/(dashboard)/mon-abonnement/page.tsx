@@ -53,6 +53,7 @@ export default function MonAbonnementPage() {
     refetch: refetchSubscription,
   } = useApi<SaasSubscription>('/saas/invoices/me/subscription');
   const { data: invoices, refetch: refetchInvoices } = useApi<SaasInvoice[]>('/saas/invoices/me/invoices');
+  const { data: salles } = useApi<{ id: string; name: string }[]>('/salles');
 
   if (isLoading) return <p className="text-sm text-ink-400">Chargement...</p>;
   if (error || !subscription) return <p className="text-sm text-red-600">{error ?? 'Aucune souscription'}</p>;
@@ -93,7 +94,7 @@ export default function MonAbonnementPage() {
         </Button>
       </Card>
 
-      <AddonsPanel subscriptionId={subscription.id} />
+      <AddonsPanel salles={salles ?? []} />
 
       <Card className="p-0">
         <div className="p-5 pb-0">
@@ -337,7 +338,10 @@ interface SubscriptionAddon {
  * prorata (voir SaasBillingService.attachAddon), jamais reporté
  * silencieusement sur la prochaine facture.
  */
-function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
+function AddonsPanel({ salles }: { salles: { id: string; name: string }[] }) {
+  const [selectedSalleId, setSelectedSalleId] = useState<string>('');
+  const salleId = selectedSalleId || salles[0]?.id || '';
+
   const { data: allAddonsRaw, isLoading: isLoadingAddons } = useApi<
     { id: string; name: string; description: string | null; price: number; active: boolean }[]
   >('/saas/plans/addons');
@@ -346,7 +350,7 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
     isLoading: isLoadingActive,
     error: activeError,
     refetch: refetchActive,
-  } = useApi<SubscriptionAddon[]>(`/saas/plans/${subscriptionId}/addons`);
+  } = useApi<SubscriptionAddon[]>(salleId ? `/saas/plans/salles/${salleId}/addons` : null, [salleId]);
   const {
     data: salleRequests,
     refetch: refetchSalleRequests,
@@ -355,6 +359,7 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
   const [isRequestingSalle, setIsRequestingSalle] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
+  if (salles.length === 0) return null;
   if (isLoadingAddons || isLoadingActive) {
     return <Card className="mb-6 h-32 animate-pulse" />;
   }
@@ -376,7 +381,7 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
   const cancelRequest = async (addonId: string) => {
     setTogglingId(addonId);
     try {
-      await apiClient.delete(`/saas/plans/${subscriptionId}/addons/${addonId}`);
+      await apiClient.delete(`/saas/plans/salles/${salleId}/addons/${addonId}`);
       refetchActive();
     } catch (err) {
       alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -388,7 +393,7 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
   const toggleAutoRenew = async (addonId: string, autoRenew: boolean) => {
     setTogglingId(addonId);
     try {
-      await apiClient.patch(`/saas/plans/${subscriptionId}/addons/${addonId}/auto-renew`, { autoRenew });
+      await apiClient.patch(`/saas/plans/salles/${salleId}/addons/${addonId}/auto-renew`, { autoRenew });
       refetchActive();
     } catch (err) {
       alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -400,10 +405,22 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
   return (
     <>
       <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Add-ons disponibles</CardTitle>
-        </CardHeader>
+        <div className="mb-4 flex items-center justify-between">
+          <CardHeader>
+            <CardTitle>Add-ons disponibles</CardTitle>
+          </CardHeader>
+          {salles.length > 1 && (
+            <Select value={salleId} onChange={(e) => setSelectedSalleId(e.target.value)} className="w-56">
+              {salles.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </div>
         <p className="mb-4 text-sm text-ink-500">
+          Les add-ons s&apos;activent par salle — {salles.length > 1 ? 'chacune des vôtres peut avoir des add-ons différents. ' : ''}
           Jamais inclus automatiquement — une demande d&apos;activation crée une facture à régler, activée par notre
           équipe une fois le paiement validé.
         </p>
@@ -468,7 +485,7 @@ function AddonsPanel({ subscriptionId }: { subscriptionId: string }) {
 
       {requestingAddon && (
         <RequestAddonModal
-          subscriptionId={subscriptionId}
+          salleId={salleId}
           addon={requestingAddon}
           onClose={() => setRequestingAddon(null)}
           onRequested={() => {
@@ -621,12 +638,12 @@ function RequestSalleModal({ onClose, onRequested }: { onClose: () => void; onRe
  * réglée et l'add-on activé qu'après validation SUPER_ADMIN.
  */
 function RequestAddonModal({
-  subscriptionId,
+  salleId,
   addon,
   onClose,
   onRequested,
 }: {
-  subscriptionId: string;
+  salleId: string;
   addon: { id: string; name: string; price: number };
   onClose: () => void;
   onRequested: () => void;
@@ -641,7 +658,7 @@ function RequestAddonModal({
     setIsSubmitting(true);
     setError(null);
     try {
-      await apiClient.post(`/saas/plans/${subscriptionId}/addons/${addon.id}`, { durationMonths });
+      await apiClient.post(`/saas/plans/salles/${salleId}/addons/${addon.id}`, { durationMonths });
       onRequested();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');

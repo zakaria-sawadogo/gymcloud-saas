@@ -7,6 +7,15 @@ class ProprietaireRepository {
   Future<Map<String, dynamic>> getConsolidatedDashboard(String proprietaireId) =>
       _api.get<Map<String, dynamic>>('/reporting/proprietaire/$proprietaireId/dashboard');
 
+  /// §14.x — Liste des salles du propriétaire connecté (même endpoint
+  /// que le web, qui distingue déjà le rôle côté serveur) — nécessaire
+  /// pour choisir sur quelle salle activer/gérer un add-on, désormais
+  /// par salle et non plus par propriétaire.
+  Future<List<Map<String, dynamic>>> getMySalles() async {
+    final data = await _api.get<List<dynamic>>('/salles');
+    return data.cast<Map<String, dynamic>>();
+  }
+
   Future<Map<String, dynamic>> getSalleDashboard(String salleId) =>
       _api.get<Map<String, dynamic>>('/reporting/salle/$salleId/dashboard');
 
@@ -28,20 +37,22 @@ class ProprietaireRepository {
     return data.cast<Map<String, dynamic>>();
   }
 
-  /// §9.3 — Add-ons déjà actifs sur cette souscription précise.
-  Future<List<Map<String, dynamic>>> getActiveAddons(String subscriptionId) async {
-    final data = await _api.get<List<dynamic>>('/saas/plans/$subscriptionId/addons');
+  /// §14.x — Add-ons déjà actifs sur cette salle précise (par salle,
+  /// pas par propriétaire — deux salles peuvent différer).
+  Future<List<Map<String, dynamic>>> getActiveAddons(String salleId) async {
+    final data = await _api.get<List<dynamic>>('/saas/plans/salles/$salleId/addons');
     return data.cast<Map<String, dynamic>>();
   }
 
-  /// §9.3, §9.8 — Jamais automatique : le propriétaire active
-  /// explicitement, facturé séparément au prorata (voir
-  /// SaasBillingService.attachAddon côté backend).
-  Future<void> attachAddon(String subscriptionId, String addonId, {int durationMonths = 12}) =>
-      _api.post<dynamic>('/saas/plans/$subscriptionId/addons/$addonId', data: {'durationMonths': durationMonths});
+  /// §9.3, §9.8, §14.x — Jamais automatique : le propriétaire active
+  /// explicitement, pour UNE salle précise, facturé séparément au
+  /// prorata (voir SaasBillingService.requestAddonActivation côté
+  /// backend).
+  Future<void> attachAddon(String salleId, String addonId, {int durationMonths = 12}) =>
+      _api.post<dynamic>('/saas/plans/salles/$salleId/addons/$addonId', data: {'durationMonths': durationMonths});
 
-  Future<void> detachAddon(String subscriptionId, String addonId) =>
-      _api.delete<dynamic>('/saas/plans/$subscriptionId/addons/$addonId');
+  Future<void> detachAddon(String salleId, String addonId) =>
+      _api.delete<dynamic>('/saas/plans/salles/$salleId/addons/$addonId');
 
   // ── Personnel (§2.8, §4.2, §4.4) — le propriétaire crée, suspend,
   // réactive ou désactive gestionnaires et coachs sur ses propres

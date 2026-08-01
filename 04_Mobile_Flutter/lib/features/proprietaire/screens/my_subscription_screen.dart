@@ -21,6 +21,8 @@ class MySubscriptionScreen extends StatefulWidget {
 class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
   late final ProprietaireRepository _repo;
   Map<String, dynamic>? _subscription;
+  List<Map<String, dynamic>> _salles = [];
+  String? _selectedSalleId;
   List<Map<String, dynamic>> _allAddons = [];
   List<Map<String, dynamic>> _activeAddons = [];
   List<Map<String, dynamic>> _invoices = [];
@@ -43,11 +45,15 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
     });
     try {
       final subscription = await _repo.getMySubscription();
+      final salles = await _repo.getMySalles();
       final allAddons = await _repo.getAvailableAddons();
-      final activeAddons = await _repo.getActiveAddons(subscription['id']);
+      final selectedSalleId = _selectedSalleId ?? (salles.isNotEmpty ? salles.first['id'] as String : null);
+      final activeAddons = selectedSalleId != null ? await _repo.getActiveAddons(selectedSalleId) : <Map<String, dynamic>>[];
       final invoices = await _repo.getMyInvoices();
       setState(() {
         _subscription = subscription;
+        _salles = salles;
+        _selectedSalleId = selectedSalleId;
         _allAddons = allAddons;
         _activeAddons = activeAddons;
         _invoices = invoices;
@@ -59,9 +65,23 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
     }
   }
 
+  Future<void> _onSalleChanged(String? salleId) async {
+    if (salleId == null) return;
+    setState(() => _selectedSalleId = salleId);
+    try {
+      final activeAddons = await _repo.getActiveAddons(salleId);
+      setState(() => _activeAddons = activeAddons);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e'), backgroundColor: AppColors.danger));
+      }
+    }
+  }
+
   Future<void> _requestAddon(Map<String, dynamic> addon) async {
-    final subscriptionId = _subscription?['id'];
-    if (subscriptionId == null) return;
+    final salleId = _selectedSalleId;
+    if (salleId == null) return;
 
     final durationMonths = await showDialog<int>(
       context: context,
@@ -71,13 +91,13 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
 
     setState(() => _togglingAddonId = addon['id']);
     try {
-      await _repo.attachAddon(subscriptionId, addon['id'], durationMonths: durationMonths);
+      await _repo.attachAddon(salleId, addon['id'], durationMonths: durationMonths);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Demande envoyée — l'add-on sera activé une fois le paiement validé")),
         );
       }
-      final activeAddons = await _repo.getActiveAddons(subscriptionId);
+      final activeAddons = await _repo.getActiveAddons(salleId);
       setState(() => _activeAddons = activeAddons);
     } catch (e) {
       if (mounted) {
@@ -90,12 +110,12 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
   }
 
   Future<void> _cancelAddon(String addonId) async {
-    final subscriptionId = _subscription?['id'];
-    if (subscriptionId == null) return;
+    final salleId = _selectedSalleId;
+    if (salleId == null) return;
     setState(() => _togglingAddonId = addonId);
     try {
-      await _repo.detachAddon(subscriptionId, addonId);
-      final activeAddons = await _repo.getActiveAddons(subscriptionId);
+      await _repo.detachAddon(salleId, addonId);
+      final activeAddons = await _repo.getActiveAddons(salleId);
       setState(() => _activeAddons = activeAddons);
     } catch (e) {
       if (mounted) {
@@ -176,6 +196,17 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
+                      if (_salles.length > 1) ...[
+                        DropdownButtonFormField<String>(
+                          value: _selectedSalleId,
+                          decoration: const InputDecoration(labelText: 'Salle'),
+                          items: _salles
+                              .map((s) => DropdownMenuItem(value: s['id'] as String, child: Text(s['name'] as String)))
+                              .toList(),
+                          onChanged: _onSalleChanged,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       const Text('Add-ons disponibles', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
                       const SizedBox(height: 4),
                       const Text(

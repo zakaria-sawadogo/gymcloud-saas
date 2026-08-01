@@ -212,6 +212,8 @@ function ManageSubscriptionModal({
   const { data: subscription, isLoading, refetch } = useApi<SaasSubscription>(
     `/saas/invoices/proprietaire/${proprietaireId}/subscription`,
   );
+  const { data: allSalles } = useApi<{ id: string; name: string; proprietaireId: string }[]>('/salles');
+  const salles = (allSalles ?? []).filter((s) => s.proprietaireId === proprietaireId);
 
   if (isLoading || !subscription) {
     return (
@@ -240,7 +242,7 @@ function ManageSubscriptionModal({
 
         <div className="mt-5">
           <h3 className="mb-2 text-sm font-semibold text-ink-900">Add-ons</h3>
-          <ManageAddonsSection subscriptionId={subscription.id} />
+          <ManageAddonsSection salles={salles} />
         </div>
       </Modal>
 
@@ -264,20 +266,22 @@ function ManageSubscriptionModal({
  * par le SUPER_ADMIN (impayé, litige...) — distinct de "détacher"
  * (retire complètement), réversible, conserve la date de fin acquise.
  */
-function ManageAddonsSection({ subscriptionId }: { subscriptionId: string }) {
+function ManageAddonsSection({ salles }: { salles: { id: string; name: string }[] }) {
+  const [selectedSalleId, setSelectedSalleId] = useState<string>('');
+  const salleId = selectedSalleId || salles[0]?.id || '';
+
   const { data: addons, isLoading, refetch } = useApi<
     { addonId: string; status: string; endDate: string | null; addon: { name: string } }[]
-  >(`/saas/plans/${subscriptionId}/addons`);
+  >(salleId ? `/saas/plans/salles/${salleId}/addons` : null, [salleId]);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  if (isLoading) return <p className="text-sm text-ink-400">Chargement...</p>;
-  if (!addons || addons.length === 0) return <p className="text-sm text-ink-400">Aucun add-on activé.</p>;
+  if (salles.length === 0) return <p className="text-sm text-ink-400">Aucune salle pour ce propriétaire.</p>;
 
   const toggle = async (addonId: string, currentStatus: string) => {
     setBusyId(addonId);
     try {
       const action = currentStatus === 'SUSPENDU' ? 'reactivate' : 'suspend';
-      await apiClient.patch(`/saas/plans/${subscriptionId}/addons/${addonId}/${action}`);
+      await apiClient.patch(`/saas/plans/salles/${salleId}/addons/${addonId}/${action}`);
       refetch();
     } catch (err) {
       alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -287,33 +291,51 @@ function ManageAddonsSection({ subscriptionId }: { subscriptionId: string }) {
   };
 
   return (
-    <div className="space-y-2">
-      {addons.map((a) => (
-        <div key={a.addonId} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
-          <div>
-            <p className="text-sm font-medium text-ink-900">{a.addon.name}</p>
-            <p className="text-xs text-ink-400">
-              {a.status === 'ACTIF' && 'Actif'}
-              {a.status === 'SUSPENDU' && 'Suspendu'}
-              {a.status === 'EN_ATTENTE' && 'En attente de validation'}
-              {a.endDate && a.status !== 'EN_ATTENTE' && ` · jusqu'au ${formatDate(a.endDate)}`}
-            </p>
-          </div>
-          {(a.status === 'ACTIF' || a.status === 'SUSPENDU') && (
-            <Button
-              size="sm"
-              variant={a.status === 'SUSPENDU' ? 'primary' : 'secondary'}
-              isLoading={busyId === a.addonId}
-              onClick={() => toggle(a.addonId, a.status)}
-            >
-              {a.status === 'SUSPENDU' ? 'Réactiver' : 'Suspendre'}
-            </Button>
-          )}
+    <div>
+      {salles.length > 1 && (
+        <Select value={salleId} onChange={(e) => setSelectedSalleId(e.target.value)} className="mb-2 w-full">
+          {salles.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </Select>
+      )}
+      {isLoading ? (
+        <p className="text-sm text-ink-400">Chargement...</p>
+      ) : !addons || addons.length === 0 ? (
+        <p className="text-sm text-ink-400">Aucun add-on activé sur cette salle.</p>
+      ) : (
+        <div className="space-y-2">
+          {addons.map((a) => (
+            <div key={a.addonId} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
+              <div>
+                <p className="text-sm font-medium text-ink-900">{a.addon.name}</p>
+                <p className="text-xs text-ink-400">
+                  {a.status === 'ACTIF' && 'Actif'}
+                  {a.status === 'SUSPENDU' && 'Suspendu'}
+                  {a.status === 'EN_ATTENTE' && 'En attente de validation'}
+                  {a.endDate && a.status !== 'EN_ATTENTE' && ` · jusqu'au ${formatDate(a.endDate)}`}
+                </p>
+              </div>
+              {(a.status === 'ACTIF' || a.status === 'SUSPENDU') && (
+                <Button
+                  size="sm"
+                  variant={a.status === 'SUSPENDU' ? 'primary' : 'secondary'}
+                  isLoading={busyId === a.addonId}
+                  onClick={() => toggle(a.addonId, a.status)}
+                >
+                  {a.status === 'SUSPENDU' ? 'Réactiver' : 'Suspendre'}
+                </Button>
+              )}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
+
 
 /**
  * §9.4 — Suppression irréversible d'un propriétaire et de tout ce qui

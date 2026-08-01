@@ -264,11 +264,11 @@ export class SallesService {
     const salle = await this.prisma.salle.findUnique({
       where: { id: salleId },
       select: {
-        subscription: { select: { addons: { select: { status: true, addon: { select: { code: true } } } } } },
+        addons: { select: { status: true, addon: { select: { code: true } } } },
       },
     });
     return (
-      salle?.subscription.addons.some(
+      salle?.addons.some(
         (sa: { status: string; addon: { code: string } }) => sa.addon.code === 'APPLICATION_WEB' && sa.status === 'ACTIF',
       ) ?? false
     );

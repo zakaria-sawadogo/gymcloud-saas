@@ -311,29 +311,23 @@ interface SubscriptionAddon {
  * facture déjà émise.
  */
 function MyAddonsSection() {
-  const { data: subscription, isLoading: isLoadingSub, error: subError } = useApi<{ id: string }>(
-    '/saas/invoices/me/subscription',
-  );
+  const { data: salles, isLoading: isLoadingSalles } = useApi<{ id: string; name: string }[]>('/salles');
+  const [selectedSalleId, setSelectedSalleId] = useState<string>('');
+  const salleId = selectedSalleId || salles?.[0]?.id || '';
+
   const { data: allAddons, isLoading: isLoadingAddons } = useApi<
     { id: string; name: string; description: string | null; price: number }[]
   >('/saas/plans/addons');
   const {
     data: activeAddons,
     refetch: refetchActive,
-  } = useApi<SubscriptionAddon[]>(subscription ? `/saas/plans/${subscription.id}/addons` : null);
+  } = useApi<SubscriptionAddon[]>(salleId ? `/saas/plans/salles/${salleId}/addons` : null, [salleId]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  if (isLoadingSub || isLoadingAddons) {
+  if (isLoadingSalles || isLoadingAddons) {
     return <Card className="mb-6 h-32 animate-pulse" />;
   }
-  if (subError) {
-    return (
-      <Card className="mb-6">
-        <p className="text-sm text-red-600">Impossible de charger vos add-ons : {subError}</p>
-      </Card>
-    );
-  }
-  if (!subscription || !allAddons) return null;
+  if (!salles || salles.length === 0 || !allAddons) return null;
 
   const activeIds = new Set((activeAddons ?? []).map((a) => a.addonId));
 
@@ -341,9 +335,9 @@ function MyAddonsSection() {
     setTogglingId(addonId);
     try {
       if (isActive) {
-        await apiClient.delete(`/saas/plans/${subscription.id}/addons/${addonId}`);
+        await apiClient.delete(`/saas/plans/salles/${salleId}/addons/${addonId}`);
       } else {
-        await apiClient.post(`/saas/plans/${subscription.id}/addons/${addonId}`);
+        await apiClient.post(`/saas/plans/salles/${salleId}/addons/${addonId}`);
       }
       refetchActive();
     } catch (err) {
@@ -355,7 +349,18 @@ function MyAddonsSection() {
 
   return (
     <Card className="mb-6">
-      <h2 className="font-display mb-1 text-base font-semibold text-ink-900">Add-ons disponibles</h2>
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="font-display text-base font-semibold text-ink-900">Add-ons disponibles</h2>
+        {salles.length > 1 && (
+          <Select value={salleId} onChange={(e) => setSelectedSalleId(e.target.value)} className="w-56">
+            {salles.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        )}
+      </div>
       <p className="mb-4 text-sm text-ink-500">
         Jamais inclus automatiquement — activez ceux dont vous avez besoin, répercutés sur votre prochaine facture.
       </p>
@@ -384,6 +389,7 @@ function MyAddonsSection() {
     </Card>
   );
 }
+
 
 function PendingValidationSection({ refreshKey, onChanged }: { refreshKey: number; onChanged: () => void }) {
   const { data: pending, isLoading, refetch } = useApi<SaasInvoice[]>(

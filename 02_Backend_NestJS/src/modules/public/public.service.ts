@@ -57,14 +57,14 @@ export class PublicService {
         subscription: {
           select: {
             saasPlan: { select: { modules: true } },
-            addons: { select: { status: true, addon: { select: { code: true } } } },
           },
         },
+        addons: { select: { status: true, addon: { select: { code: true } } } },
       },
     });
     const hasSitePublicModule = salle?.subscription.saasPlan.modules.includes('site_public') ?? false;
     const hasSiteSalleAddon =
-      salle?.subscription.addons.some(
+      salle?.addons.some(
         (sa: { status: string; addon: { code: string } }) => sa.addon.code === 'SITE_SALLE' && sa.status === 'ACTIF',
       ) ?? false;
     // §9.3 — Accessible si le plan inclut le module historique "site_public"
@@ -73,7 +73,7 @@ export class PublicService {
     if (!salle || (!hasSitePublicModule && !hasSiteSalleAddon)) {
       throw new NotFoundException('Salle introuvable');
     }
-    const { subscription, country, ...publicFields } = salle;
+    const { subscription, addons, country, ...publicFields } = salle;
     return { ...publicFields, currency: country?.currency ?? 'XOF' };
   }
 
@@ -98,11 +98,11 @@ export class PublicService {
     const salleWithAddons = await this.prisma.salle.findUnique({
       where: { id: salle.id },
       select: {
-        subscription: { select: { addons: { select: { status: true, addon: { select: { code: true } } } } } },
+        addons: { select: { status: true, addon: { select: { code: true } } } },
       },
     });
     const hasBoutique =
-      salleWithAddons?.subscription.addons.some(
+      salleWithAddons?.addons.some(
         (sa: { status: string; addon: { code: string } }) => sa.addon.code === 'BOUTIQUE' && sa.status === 'ACTIF',
       ) ?? false;
     if (!hasBoutique) return [];
