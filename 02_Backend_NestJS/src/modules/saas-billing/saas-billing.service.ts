@@ -678,7 +678,10 @@ export class SaasBillingService {
    * pas laisser un montant "en attente" fantôme.
    */
   async rejectSalleRequest(requestId: string, note: string | undefined, actorUserId: string) {
-    const request = await this.prisma.salleCreationRequest.findUniqueOrThrow({ where: { id: requestId } });
+    const request = await this.prisma.salleCreationRequest.findUniqueOrThrow({
+      where: { id: requestId },
+      include: { proprietaire: { select: { userId: true } } },
+    });
     if (request.status !== 'EN_ATTENTE') {
       throw new BadRequestException('Cette demande a déjà été traitée');
     }
@@ -687,11 +690,15 @@ export class SaasBillingService {
       where: { id: requestId },
       data: { status: 'REJETEE', rejectionNote: note, processedAt: new Date() },
     });
-    await this.notifications.create(
-      request.proprietaireId,
-      'Demande de salle refusée',
-      `Votre demande pour "${request.name}" a été refusée.${note ? ` Motif : ${note}` : ''}`,
-    );
+    try {
+      await this.notifications.create(
+        request.proprietaire.userId,
+        'Demande de salle refusée',
+        `Votre demande pour "${request.name}" a été refusée.${note ? ` Motif : ${note}` : ''}`,
+      );
+    } catch {
+      // non bloquant — le rejet est déjà enregistré, seule la notification a échoué
+    }
     await this.audit.log({
       userId: actorUserId,
       action: 'salle_creation_request.reject',
@@ -708,7 +715,10 @@ export class SaasBillingService {
    * seulement ici, que la salle est réellement créée — jamais avant.
    */
   private async fulfillSalleRequest(requestId: string, actorUserId: string) {
-    const request = await this.prisma.salleCreationRequest.findUniqueOrThrow({ where: { id: requestId } });
+    const request = await this.prisma.salleCreationRequest.findUniqueOrThrow({
+      where: { id: requestId },
+      include: { proprietaire: { select: { userId: true } } },
+    });
     if (request.status !== 'EN_ATTENTE') return; // déjà traitée — évite une double création
 
     const salle = await this.sallesService.create(
@@ -729,11 +739,21 @@ export class SaasBillingService {
       data: { status: 'APPROUVEE', createdSalleId: salle.id, processedAt: new Date() },
     });
 
-    await this.notifications.create(
-      request.proprietaireId,
-      'Salle créée',
-      `Votre salle "${request.name}" est maintenant active.`,
-    );
+    // §14.x — la salle est déjà créée et la demande déjà marquée
+    // APPROUVEE à ce stade : un échec de notification (ex: mauvais ID)
+    // ne doit jamais faire remonter une erreur qui empêcherait le
+    // nettoyage de pendingSalleRequestId sur la facture (bug réel
+    // corrigé — request.proprietaireId n'est PAS un ID utilisateur,
+    // c'est proprietaire.userId qu'il fallait utiliser).
+    try {
+      await this.notifications.create(
+        request.proprietaire.userId,
+        'Salle créée',
+        `Votre salle "${request.name}" est maintenant active.`,
+      );
+    } catch {
+      // non bloquant — la salle existe déjà, seule la notification a échoué
+    }
   }
 
   /**
