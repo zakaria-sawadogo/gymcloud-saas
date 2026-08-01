@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Dumbbell } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/Button';
@@ -80,17 +81,17 @@ export default function LoginPage() {
             Se connecter
           </Button>
 
-          <a
+          <Link
             href="/forgot-password"
             className="mt-4 block text-center text-sm text-primary-600 hover:underline"
           >
             Mot de passe oublié ?
-          </a>
+          </Link>
         </form>
 
-        <a href="/" className="mt-6 block text-center text-sm text-ink-400 hover:text-ink-600">
+        <Link href="/" className="mt-6 block text-center text-sm text-ink-400 hover:text-ink-600">
           ← Retour à l'accueil
-        </a>
+        </Link>
       </div>
     </div>
   );
