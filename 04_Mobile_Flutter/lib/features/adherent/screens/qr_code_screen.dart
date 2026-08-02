@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 import 'dart:io';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/config/flavor_config.dart';
@@ -25,6 +26,7 @@ class QrCodeScreen extends StatefulWidget {
 
 class _QrCodeScreenState extends State<QrCodeScreen> {
   String? _qrToken;
+  DateTime? _validUntil;
   bool _isLoading = true;
   bool _isDownloadingCard = false;
 
@@ -39,8 +41,22 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
     if (adherentId == null) return;
     final repo = AdherentRepository(context.read());
     final profile = await repo.getProfile(adherentId);
+    // §14.x — la date de validité doit être visible sur la carte,
+    // pas seulement dans le PDF téléchargeable (bug réel corrigé) —
+    // même logique : le plus récent par date de fin.
+    DateTime? validUntil;
+    try {
+      final history = await repo.getHistory(adherentId);
+      if (history.isNotEmpty) {
+        history.sort((a, b) => b.endDate.compareTo(a.endDate));
+        validUntil = history.first.endDate;
+      }
+    } catch (_) {
+      // silencieux — la carte reste utilisable même sans cette info
+    }
     setState(() {
       _qrToken = profile.qrCodeToken;
+      _validUntil = validUntil;
       _isLoading = false;
     });
   }
@@ -114,6 +130,27 @@ class _QrCodeScreenState extends State<QrCodeScreen> {
                     'Présentez ce code à l\'entrée de la salle',
                     style: TextStyle(color: AppColors.ink400, fontSize: 13),
                   ),
+                  if (_validUntil != null) ...[
+                    const SizedBox(height: 8),
+                    Builder(builder: (context) {
+                      final isExpired = _validUntil!.isBefore(DateTime.now());
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isExpired ? AppColors.danger.withValues(alpha: 0.1) : AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${isExpired ? "Expiré le" : "Valide jusqu'au"} ${DateFormat('dd/MM/yyyy').format(_validUntil!)}',
+                          style: TextStyle(
+                            color: isExpired ? AppColors.danger : AppColors.primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
                   const SizedBox(height: 32),
                   ElevatedButton.icon(
                     onPressed: _isDownloadingCard ? null : _downloadCard,

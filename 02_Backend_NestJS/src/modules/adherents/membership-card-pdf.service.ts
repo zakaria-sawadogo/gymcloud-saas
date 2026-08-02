@@ -36,6 +36,16 @@ export class MembershipCardPdfService {
       throw new ForbiddenException('Vous ne pouvez télécharger que votre propre carte');
     }
 
+    // §14.x — la date de fin de validité de l'abonnement en cours doit
+    // être visible sur la carte (bug réel corrigé — absente
+    // jusqu'ici). On prend le plus récent par date de fin : reflète
+    // l'abonnement courant même si son statut n'a pas encore été
+    // recalculé par le job nocturne (§7.9).
+    const currentAbonnement = await this.prisma.adherentAbonnement.findFirst({
+      where: { adherentId },
+      orderBy: { endDate: 'desc' },
+    });
+
     const qrDataUrl = await QRCode.toDataURL(adherent.qrCodeToken, { margin: 1, width: 300 });
     const qrBuffer = Buffer.from(qrDataUrl.split(',')[1], 'base64');
 
@@ -62,6 +72,15 @@ export class MembershipCardPdfService {
       width: width - 90,
     });
     doc.fontSize(8).fillColor('#C3E5DA').text(adherent.memberCode, 12, 62);
+
+    if (currentAbonnement) {
+      const isExpired = currentAbonnement.endDate < new Date();
+      doc.fontSize(7.5).fillColor(isExpired ? '#FF9B7A' : '#3DFF9A').text(
+        `${isExpired ? 'Expiré le' : 'Valide jusqu\'au'} ${new Intl.DateTimeFormat('fr-FR').format(currentAbonnement.endDate)}`,
+        12,
+        height - 32,
+      );
+    }
     doc.fontSize(7).fillColor('#C3E5DA').text(
       `Membre depuis le ${new Intl.DateTimeFormat('fr-FR').format(adherent.joinedAt)}`,
       12,
