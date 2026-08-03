@@ -80,7 +80,14 @@ export class UsersService {
         userId: user.id,
         companyName: dto.companyName,
         address: dto.address,
-        countryId: dto.countryId,
+        // §14.x — hérite du pays de la salle par défaut (jamais
+        // collecté séparément jusqu'ici, countryId restait donc
+        // toujours null — la taxe par pays retombait silencieusement
+        // à 0 pour TOUT propriétaire créé, quel que soit le taux
+        // configuré sur son pays réel — bug réel corrigé). Le champ
+        // dto.countryId reste accepté pour les cas où le propriétaire
+        // gère depuis un pays différent de sa salle.
+        countryId: dto.countryId ?? dto.salleCountryId,
       },
     });
 
@@ -181,6 +188,26 @@ export class UsersService {
     const proprietaire = await this.prisma.proprietaire.findUnique({ where: { id } });
     if (!proprietaire) throw new NotFoundException('Propriétaire introuvable');
     return proprietaire;
+  }
+
+  /**
+   * §14.x — Modifier les infos d'un propriétaire, notamment son pays
+   * — champ jusqu'ici jamais collecté par le formulaire de création,
+   * ce qui rendait la taxe par pays silencieusement inopérante pour
+   * tout propriétaire créé avant cette correction (countryId restait
+   * null, la taxe retombait donc à 0 quel que soit le taux configuré
+   * sur le pays lui-même — bug réel corrigé).
+   */
+  async updateProprietaire(
+    id: string,
+    dto: { companyName?: string; address?: string; countryId?: string },
+  ) {
+    const proprietaire = await this.prisma.proprietaire.findUnique({ where: { id } });
+    if (!proprietaire) throw new NotFoundException('Propriétaire introuvable');
+    return this.prisma.proprietaire.update({
+      where: { id },
+      data: { companyName: dto.companyName, address: dto.address, countryId: dto.countryId },
+    });
   }
 
   /**

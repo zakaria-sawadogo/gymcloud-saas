@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Plus, UserCog, Ban, RotateCcw, Search, CreditCard, Trash2, Mail } from 'lucide-react';
+import { Plus, UserCog, Ban, RotateCcw, Search, CreditCard, Trash2, Mail, Pencil } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -24,6 +24,7 @@ export default function ProprietairesPage() {
   const [managingSubscriptionFor, setManagingSubscriptionFor] = useState<string | null>(null);
   const [deletingProprietaire, setDeletingProprietaire] = useState<Proprietaire | null>(null);
   const [emailingProprietaire, setEmailingProprietaire] = useState<Proprietaire | null>(null);
+  const [editingProprietaire, setEditingProprietaire] = useState<Proprietaire | null>(null);
   const { data: proprietaires, isLoading, error, refetch } = useApi<Proprietaire[]>('/proprietaires');
 
   const filtered = (proprietaires ?? []).filter((p) => {
@@ -132,6 +133,14 @@ export default function ProprietairesPage() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        title="Modifier (dont le pays, requis pour la taxe)"
+                        onClick={() => setEditingProprietaire(p)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         disabled={!p.user.email}
                         title={p.user.email ? undefined : 'Aucune adresse e-mail enregistrée'}
                         onClick={() => setEmailingProprietaire(p)}
@@ -197,6 +206,17 @@ export default function ProprietairesPage() {
 
       {emailingProprietaire && (
         <SendEmailModal proprietaire={emailingProprietaire} onClose={() => setEmailingProprietaire(null)} />
+      )}
+
+      {editingProprietaire && (
+        <EditProprietaireModal
+          proprietaire={editingProprietaire}
+          onClose={() => setEditingProprietaire(null)}
+          onSaved={() => {
+            setEditingProprietaire(null);
+            refetch();
+          }}
+        />
       )}
     </div>
   );
@@ -408,6 +428,87 @@ function DeleteProprietaireModal({
           Supprimer définitivement
         </Button>
       </div>
+    </Modal>
+  );
+}
+
+/**
+ * §14.x — Modifier les infos d'un propriétaire existant, en
+ * particulier son pays — jamais collecté par le formulaire de
+ * création jusqu'ici (bug réel corrigé), ce qui rendait la taxe par
+ * pays silencieusement inopérante sur ses factures.
+ */
+function EditProprietaireModal({
+  proprietaire,
+  onClose,
+  onSaved,
+}: {
+  proprietaire: Proprietaire;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { data: countries } = useApi<Country[]>('/countries');
+  const [companyName, setCompanyName] = useState(proprietaire.companyName ?? '');
+  const [address, setAddress] = useState(proprietaire.address ?? '');
+  const [countryId, setCountryId] = useState(proprietaire.countryId ?? '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await apiClient.patch(`/proprietaires/${proprietaire.id}`, {
+        companyName: companyName || undefined,
+        address: address || undefined,
+        countryId: countryId || undefined,
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Modifier ${proprietaire.user.firstName} ${proprietaire.user.lastName}`}>
+      <form onSubmit={handleSubmit}>
+        <Field label="Société (optionnel)">
+          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+        </Field>
+        <Field label="Adresse (optionnel)">
+          <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+        </Field>
+        <Field label="Pays">
+          <Select value={countryId} onChange={(e) => setCountryId(e.target.value)}>
+            <option value="">Non renseigné</option>
+            {(countries ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {!proprietaire.countryId && (
+          <p className="-mt-3 mb-4 text-xs text-accent-600">
+            Aucun pays renseigné actuellement — la taxe ne s&apos;applique pas sur ses factures tant que ce champ
+            reste vide.
+          </p>
+        )}
+
+        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <div className="flex gap-2">
+          <Button type="button" variant="ghost" onClick={onClose} className="flex-1">
+            Annuler
+          </Button>
+          <Button type="submit" isLoading={isSubmitting} className="flex-1">
+            Enregistrer
+          </Button>
+        </div>
+      </form>
     </Modal>
   );
 }

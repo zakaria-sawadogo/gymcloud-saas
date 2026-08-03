@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
-import { IsString, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MaxLength } from 'class-validator';
 import { UsersService } from './users.service';
 import { CreateProprietaireDto } from './dto/users.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
@@ -16,6 +16,23 @@ export class SendEmailDto {
   @IsString()
   @MaxLength(5000)
   body!: string;
+}
+
+export class UpdateProprietaireDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  companyName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiProperty({ required: false, description: 'Requis pour que la taxe par pays soit correctement appliquée sur ses factures' })
+  @IsOptional()
+  @IsString()
+  countryId?: string;
 }
 
 @ApiTags('Utilisateurs — Propriétaires')
@@ -59,6 +76,13 @@ export class ProprietairesController {
   @ApiOperation({ summary: 'Envoyer un e-mail ponctuel à ce propriétaire — réservé SUPER_ADMIN (§14.x)' })
   sendEmail(@Param('id') id: string, @Body() dto: SendEmailDto) {
     return this.usersService.sendEmailToProprietaire(id, dto.subject, dto.body);
+  }
+
+  @Patch(':id')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Modifier les infos d\'un propriétaire (dont le pays, requis pour la taxe) (§14.x)' })
+  update(@Param('id') id: string, @Body() dto: UpdateProprietaireDto) {
+    return this.usersService.updateProprietaire(id, dto);
   }
 
   @Delete(':id')
