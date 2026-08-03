@@ -921,6 +921,63 @@ export class SaasBillingService {
   }
 
   /**
+   * §14.x — Programme de parrainage : vérifie si la facture qui vient
+   * d'être marquée payée est la PREMIÈRE facture réellement réglée
+   * d'un propriétaire parrainé — si oui, récompense son parrain d'un
+   * mois gratuit (extension de currentPeriodEnd), jamais avant. Un
+   * filleul qui ne paie jamais ne déclenche donc jamais de
+   * récompense — c'est le but recherché (§14.x, principe validé).
+   * Appelée après CHAQUE passage à PAYEE (markInvoicePaid comme
+   * approveDeclaredPayment) — sans effet si aucun parrainage n'existe
+   * ou si la récompense a déjà été accordée.
+   */
+  private async rewardReferralIfFirstPayment(subscriptionId: string) {
+    const subscription = await this.prisma.saasSubscription.findUnique({
+      where: { id: subscriptionId },
+      select: { proprietaireId: true },
+    });
+    if (!subscription) return;
+
+    const referral = await this.prisma.referral.findUnique({
+      where: { referredProprietaireId: subscription.proprietaireId },
+    });
+    if (!referral || referral.status === 'RECOMPENSE') return;
+
+    const paidCount = await this.prisma.saasInvoice.count({ where: { subscriptionId, status: 'PAYEE' } });
+    if (paidCount !== 1) return; // pas la première facture payée
+
+    const referrerSubscription = await this.prisma.saasSubscription.findUnique({
+      where: { proprietaireId: referral.referrerProprietaireId },
+      select: { id: true, currentPeriodEnd: true },
+    });
+    if (!referrerSubscription) return;
+
+    const newPeriodEnd = new Date(referrerSubscription.currentPeriodEnd);
+    newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+
+    await this.prisma.saasSubscription.update({
+      where: { id: referrerSubscription.id },
+      data: { currentPeriodEnd: newPeriodEnd },
+    });
+    await this.prisma.referral.update({
+      where: { id: referral.id },
+      data: { status: 'RECOMPENSE', rewardedAt: new Date() },
+    });
+
+    const referrerProprietaire = await this.prisma.proprietaire.findUnique({
+      where: { id: referral.referrerProprietaireId },
+      select: { userId: true },
+    });
+    if (referrerProprietaire) {
+      await this.notifications.create(
+        referrerProprietaire.userId,
+        'Parrainage récompensé 🎉',
+        `Votre filleul a réglé sa première facture — un mois gratuit a été ajouté à votre abonnement, jusqu'au ${newPeriodEnd.toLocaleDateString('fr-FR')}.`,
+      );
+    }
+  }
+
+  /**
    * Retourne la facture SaaS de la période courante ; la crée si elle
    * n'existe pas encore (première charge de la période).
    */
@@ -1677,6 +1734,10 @@ export class SaasBillingService {
     // grâce ou suspendue.
     await this.reactivateSubscriptionIfNeeded(invoice, actorUserId);
 
+    // §14.x — vérifie si cette facture déclenche une récompense de
+    // parrainage pour un éventuel parrain.
+    await this.rewardReferralIfFirstPayment(invoice.subscriptionId);
+
     return updated;
   }
 
@@ -2099,6 +2160,10 @@ export class SaasBillingService {
         currentSubscription.saasPlan.name,
       );
     }
+
+    // §14.x — vérifie si cette facture déclenche une récompense de
+    // parrainage pour un éventuel parrain.
+    await this.rewardReferralIfFirstPayment(invoice.subscriptionId);
 
     return updated;
   }

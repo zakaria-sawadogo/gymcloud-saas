@@ -43,6 +43,11 @@ export class CreateProprietaireDto {
   @IsUUID()
   countryId?: string;
 
+  @ApiPropertyOptional({ description: 'Code de parrainage utilisé, si applicable' })
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
+
   // ── Première salle — obligatoire (§3.2) ──────────────────────
   @ApiProperty({ description: 'Nom de la première salle du propriétaire' })
   @IsString()

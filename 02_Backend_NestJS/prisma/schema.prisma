@@ -502,13 +502,47 @@ model Proprietaire {
   address      String?
   countryId    String?
   country      Country? @relation(fields: [countryId], references: [id])
+  // §14.x — code de parrainage, généré à la création (nullable pour
+  // les comptes créés avant cette fonctionnalité — génération
+  // paresseuse à la première consultation dans ce cas, voir
+  // UsersService.getOrCreateReferralCode).
+  referralCode String?  @unique
   createdAt    DateTime @default(now())
 
   subscription SaasSubscription?
   salles       Salle[]
   salleCreationRequests SalleCreationRequest[]
+  referralsGiven    Referral[] @relation("Referrer")
+  referralReceived  Referral?  @relation("Referred")
 
   @@map("proprietaires")
+}
+
+/**
+ * §14.x — Programme de parrainage : un propriétaire (le parrain)
+ * partage son code, un prospect l'utilise à l'inscription. La
+ * récompense n'est accordée qu'à la première facture RÉELLEMENT
+ * payée du filleul — jamais à la simple inscription, pour ne pas
+ * ouvrir la porte à l'auto-parrainage avec de faux comptes.
+ */
+model Referral {
+  id                     String   @id @default(uuid())
+  referrerProprietaireId String
+  referrer   Proprietaire @relation("Referrer", fields: [referrerProprietaireId], references: [id])
+  referredProprietaireId String       @unique
+  referred   Proprietaire @relation("Referred", fields: [referredProprietaireId], references: [id])
+
+  status     ReferralStatus @default(EN_ATTENTE)
+  createdAt  DateTime       @default(now())
+  rewardedAt DateTime?
+
+  @@index([referrerProprietaireId])
+  @@map("referrals")
+}
+
+enum ReferralStatus {
+  EN_ATTENTE // filleul inscrit, pas encore de facture payée
+  RECOMPENSE // premier paiement confirmé, mois offert accordé au parrain
 }
 
 /// §3.2, §14.x — Une salle supplémentaire (au-delà de la première) est
@@ -1356,6 +1390,11 @@ model SaasSubscriptionRequest {
   desiredAddonCodes String[] @default([]) // codes d'add-ons souhaités (ex: "SITE_SALLE") — le SUPER_ADMIN les active manuellement à la création du compte
   countryId String?
   country   Country? @relation(fields: [countryId], references: [id])
+  // §14.x — code de parrainage saisi par le prospect sur le site
+  // vitrine, non validé ici (juste stocké) — la validation et la
+  // création du Referral n'ont lieu qu'à la création effective du
+  // compte par le SUPER_ADMIN.
+  referralCode String?
 
   status            SaasSubscriptionRequestStatus @default(NOUVELLE)
   processedByUserId String?

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, Layers, RefreshCw, Smartphone } from 'lucide-react';
+import { Download, Layers, RefreshCw, Smartphone, Gift, Copy, Check } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError, tokenStorage } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -54,6 +54,7 @@ export default function MonAbonnementPage() {
   } = useApi<SaasSubscription>('/saas/invoices/me/subscription');
   const { data: invoices, refetch: refetchInvoices } = useApi<SaasInvoice[]>('/saas/invoices/me/invoices');
   const { data: salles } = useApi<{ id: string; name: string }[]>('/salles');
+  const { data: referral } = useApi<{ referralCode: string }>('/proprietaires/me/referral');
 
   if (isLoading) return <p className="text-sm text-ink-400">Chargement...</p>;
   if (error || !subscription) return <p className="text-sm text-red-600">{error ?? 'Aucune souscription'}</p>;
@@ -93,6 +94,8 @@ export default function MonAbonnementPage() {
           Changer / renouveler mon plan
         </Button>
       </Card>
+
+      {referral && <ReferralCard referralCode={referral.referralCode} />}
 
       <AddonsPanel salles={salles ?? []} />
 
@@ -338,6 +341,49 @@ interface SubscriptionAddon {
  * prorata (voir SaasBillingService.attachAddon), jamais reporté
  * silencieusement sur la prochaine facture.
  */
+/**
+ * §14.x — Affiche le code de parrainage du propriétaire, avec un
+ * bouton copier. La récompense (un mois offert) n'est accordée que
+ * lorsque le filleul règle réellement sa première facture — voir
+ * SaasBillingService.rewardReferralIfFirstPayment côté backend,
+ * jamais ici : cette carte se contente d'afficher le code.
+ */
+function ReferralCard({ referralCode }: { referralCode: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(referralCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Card className="mb-6">
+      <div className="flex items-start gap-3">
+        <div className="rounded-lg bg-primary-50 p-2">
+          <Gift className="h-5 w-5 text-primary-600" />
+        </div>
+        <div className="flex-1">
+          <p className="font-medium text-ink-900">Programme de parrainage</p>
+          <p className="mt-1 text-sm text-ink-400">
+            Partagez votre code — dès que la personne parrainée règle sa première facture, vous recevez un mois
+            gratuit sur votre abonnement.
+          </p>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="rounded-lg bg-ink-50 px-3 py-2 font-mono text-sm font-semibold text-ink-900">
+              {referralCode}
+            </span>
+            <Button size="sm" variant="ghost" onClick={handleCopy}>
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Copié' : 'Copier'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function AddonsPanel({ salles }: { salles: { id: string; name: string }[] }) {
   const [selectedSalleId, setSelectedSalleId] = useState<string>('');
   const salleId = selectedSalleId || salles[0]?.id || '';

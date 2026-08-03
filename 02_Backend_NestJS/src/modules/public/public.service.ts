@@ -326,6 +326,7 @@ export class PublicService {
         desiredPlanId: dto.desiredPlanId,
         desiredAddonCodes: dto.desiredAddonCodes ?? [],
         countryId: dto.countryId,
+        referralCode: dto.referralCode?.trim().toUpperCase() || undefined,
       },
     });
 

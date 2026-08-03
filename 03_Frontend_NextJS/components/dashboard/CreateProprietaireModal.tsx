@@ -17,6 +17,7 @@ export interface CreateProprietaireInitialData {
   salleCity?: string;
   saasPlanId?: string;
   desiredAddonCodes?: string[];
+  referralCode?: string;
 }
 
 /**
@@ -51,6 +52,7 @@ export function CreateProprietaireModal({
   const [email, setEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [address, setAddress] = useState('');
+  const [referralCode, setReferralCode] = useState('');
 
   // Première salle (obligatoire)
   const [salleName, setSalleName] = useState('');
@@ -79,6 +81,7 @@ export function CreateProprietaireModal({
       setSalleCity(initialData.salleCity ?? '');
       setSaasPlanId(initialData.saasPlanId ?? '');
       setAddonCodes(initialData.desiredAddonCodes ?? []);
+      setReferralCode(initialData.referralCode ?? '');
     }
   }, [isOpen, initialData]);
 
@@ -102,6 +105,7 @@ export function CreateProprietaireModal({
         salleCountryId,
         saasPlanId,
         addonCodes: addonCodes.length > 0 ? addonCodes : undefined,
+        referralCode: referralCode || undefined,
       });
       setResult(res);
     } catch (err) {
@@ -118,6 +122,7 @@ export function CreateProprietaireModal({
     setEmail('');
     setCompanyName('');
     setAddress('');
+    setReferralCode('');
     setSalleName('');
     setSallePhone('');
     setSalleEmail('');
@@ -170,6 +175,13 @@ export function CreateProprietaireModal({
           </Field>
           <Field label="Adresse (optionnel)">
             <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+          </Field>
+          <Field label="Code de parrainage (optionnel)">
+            <Input
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+              placeholder="Ex: JEAN4821"
+            />
           </Field>
 
           <p className="mb-3 mt-5 text-xs font-medium uppercase tracking-wide text-ink-400">

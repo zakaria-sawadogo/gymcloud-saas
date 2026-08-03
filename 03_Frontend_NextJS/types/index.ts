@@ -517,4 +517,5 @@ export interface SaasSubscriptionRequest {
   createdAt: string;
   desiredPlan?: { id: string; name: string; priceMonthly: number };
   desiredAddonCodes?: string[];
+  referralCode?: string;
 }

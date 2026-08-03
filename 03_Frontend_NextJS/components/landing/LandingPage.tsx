@@ -120,6 +120,7 @@ export function LandingPage() {
   const cityRef = useRef<HTMLInputElement>(null);
   const countryIdRef = useRef<HTMLSelectElement>(null);
   const planIdRef = useRef<HTMLSelectElement>(null);
+  const referralCodeRef = useRef<HTMLInputElement>(null);
   const messageRef = useRef<HTMLTextAreaElement>(null);
 
   // Sourdine du scroll fluide pour les ancres internes, uniquement
@@ -213,6 +214,7 @@ export function LandingPage() {
       countryId: countryIdRef.current?.value ?? '',
       desiredPlanId: planIdRef.current?.value ?? '',
       desiredAddonCodes: selectedAddonCodes.length > 0 ? selectedAddonCodes : undefined,
+      referralCode: referralCodeRef.current?.value.trim() || undefined,
       message: messageRef.current?.value.trim() || undefined,
     };
 
@@ -835,6 +837,12 @@ export function LandingPage() {
                       )}
                     </div>
                   )}
+                  <input
+                    ref={referralCodeRef}
+                    type="text"
+                    placeholder="Code de parrainage (optionnel)"
+                    style={{ textTransform: 'uppercase' }}
+                  />
                   <textarea ref={messageRef} placeholder="Un message ? (optionnel)" rows={2} />
 
                   {formStatus === 'error' && <div className={c('demo-form-error')}>{formMessage}</div>}

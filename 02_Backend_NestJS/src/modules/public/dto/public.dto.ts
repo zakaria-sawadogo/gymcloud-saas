@@ -111,6 +111,12 @@ export class RequestSubscriptionDto {
   @IsString({ each: true })
   desiredAddonCodes?: string[];
 
+  @ApiPropertyOptional({ description: 'Code de parrainage saisi par le prospect, non validé ici' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  referralCode?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

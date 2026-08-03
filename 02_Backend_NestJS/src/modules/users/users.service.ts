@@ -61,6 +61,46 @@ export class UsersService {
    * sans avoir à faire transiter un client Prisma transactionnel à
    * travers plusieurs services.
    */
+  /**
+   * §14.x — Génère un code de parrainage court et lisible (ex:
+   * "JEAN4821"), en boucle jusqu'à trouver une valeur libre — la
+   * probabilité de collision est faible mais pas nulle, mieux vaut
+   * vérifier plutôt que supposer sur un champ @unique.
+   */
+  private async generateReferralCode(firstName: string): Promise<string> {
+    const base = firstName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // retire les accents
+      .replace(/[^a-zA-Z]/g, '')
+      .toUpperCase()
+      .slice(0, 6) || 'GYM';
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const suffix = Math.floor(1000 + Math.random() * 9000);
+      const code = `${base}${suffix}`;
+      const existing = await this.prisma.proprietaire.findUnique({ where: { referralCode: code } });
+      if (!existing) return code;
+    }
+    // Filet de sécurité si 10 tentatives échouent (extrêmement
+    // improbable) — un suffixe basé sur le temps est garanti unique.
+    return `${base}${Date.now().toString().slice(-6)}`;
+  }
+
+  /**
+   * §14.x — Génération paresseuse pour les comptes créés avant
+   * l'existence du parrainage (referralCode encore null en base).
+   */
+  async getOrCreateReferralCode(proprietaireId: string): Promise<string> {
+    const proprietaire = await this.prisma.proprietaire.findUniqueOrThrow({
+      where: { id: proprietaireId },
+      include: { user: true },
+    });
+    if (proprietaire.referralCode) return proprietaire.referralCode;
+    const code = await this.generateReferralCode(proprietaire.user.firstName);
+    await this.prisma.proprietaire.update({ where: { id: proprietaireId }, data: { referralCode: code } });
+    return code;
+  }
+
   async createProprietaire(dto: CreateProprietaireDto, actor: TenantContext) {
     if (actor.roleCode !== 'SUPER_ADMIN') {
       throw new ForbiddenException('Seul le SUPER_ADMIN peut créer un propriétaire (§2.8)');
@@ -74,6 +114,7 @@ export class UsersService {
       roleCode: 'PROPRIETAIRE',
     });
 
+    const referralCode = await this.generateReferralCode(dto.firstName);
     const proprietaire = await this.prisma.proprietaire.create({
       data: {
         id: randomUUID(),
@@ -88,6 +129,7 @@ export class UsersService {
         // dto.countryId reste accepté pour les cas où le propriétaire
         // gère depuis un pays différent de sa salle.
         countryId: dto.countryId ?? dto.salleCountryId,
+        referralCode,
       },
     });
 
@@ -167,6 +209,33 @@ export class UsersService {
         'Bienvenue sur GymCloud — votre compte propriétaire',
         `Bonjour ${dto.firstName},\n\nVotre compte propriétaire GymCloud a été créé pour "${dto.salleName}".\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
       );
+    }
+
+    // §14.x — Programme de parrainage : lie le filleul à son parrain
+    // si un code valide a été fourni, et accorde 10% sur SA première
+    // facture (via promotionalDiscountPct, déjà pris en compte par
+    // getOrCreateCurrentInvoice/generateRenewalInvoice). Le parrain,
+    // lui, n'est récompensé (un mois offert) qu'une fois cette
+    // première facture réellement payée — voir markInvoicePaid /
+    // approveDeclaredPayment dans SaasBillingService, jamais ici.
+    if (dto.referralCode && salle.subscriptionId) {
+      const referrer = await this.prisma.proprietaire.findUnique({
+        where: { referralCode: dto.referralCode.trim().toUpperCase() },
+      });
+      // Un propriétaire ne peut pas se parrainer lui-même (impossible
+      // en pratique à ce stade puisque le filleul vient d'être créé,
+      // mais gardé par prudence si ce code est un jour réutilisé
+      // ailleurs) — un code invalide/inconnu est silencieusement
+      // ignoré plutôt que de faire échouer toute la création.
+      if (referrer && referrer.id !== proprietaire.id) {
+        await this.prisma.referral.create({
+          data: { id: randomUUID(), referrerProprietaireId: referrer.id, referredProprietaireId: proprietaire.id },
+        });
+        await this.prisma.saasSubscription.update({
+          where: { id: salle.subscriptionId },
+          data: { promotionalDiscountPct: 10 },
+        });
+      }
     }
 
     return { proprietaire, salle, user, tempPassword };

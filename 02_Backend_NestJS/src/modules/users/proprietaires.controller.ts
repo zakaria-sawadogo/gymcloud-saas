@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { IsString, IsOptional, MaxLength } from 'class-validator';
 import { UsersService } from './users.service';
@@ -53,6 +53,17 @@ export class ProprietairesController {
   @ApiOperation({ summary: 'Liste des propriétaires (§9.4)' })
   list() {
     return this.usersService.listProprietaires();
+  }
+
+  @Get('me/referral')
+  @RequirePermission('read', 'SaasSubscription')
+  @ApiOperation({ summary: 'Mon code de parrainage (PROPRIETAIRE) — généré à la volée si absent (§14.x)' })
+  async myReferralCode(@CurrentUser() user: TenantContext) {
+    if (!user.proprietaireId) {
+      throw new ForbiddenException('Cet endpoint est réservé aux comptes Propriétaire');
+    }
+    const code = await this.usersService.getOrCreateReferralCode(user.proprietaireId);
+    return { referralCode: code };
   }
 
   @Patch(':id/suspend')
