@@ -194,13 +194,19 @@ export class SaasBillingService {
     });
 
     const now = new Date();
+    // §14.x — la période affichée sur la facture doit refléter la
+    // durée réellement achetée, pas une plage à zéro jour (bug réel
+    // corrigé) — même si le démarrage EFFECTIF de l'add-on (startDate
+    // sur SaasSubscriptionAddon) n'a lieu qu'à l'approbation, pas ici.
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + durationMonths);
     const invoice = await this.prisma.saasInvoice.create({
       data: {
         id: randomUUID(),
         subscriptionId: salle.subscriptionId,
         invoiceNumber: this.generateInvoiceNumber(),
         periodStart: now,
-        periodEnd: now, // informatif — la vraie période démarre à l'approbation, pas à la demande
+        periodEnd,
         baseAmount: 0,
         extraSallesCount: 0,
         extraSallesAmount: 0,
@@ -284,6 +290,8 @@ export class SaasBillingService {
       }
 
       const totalAmount = Math.round(Number(item.addon.price) * item.durationMonths * 100) / 100;
+      const renewalPeriodEnd = new Date(now);
+      renewalPeriodEnd.setMonth(renewalPeriodEnd.getMonth() + item.durationMonths);
 
       await this.prisma.saasSubscriptionAddon.update({
         where: { salleId_addonId: { salleId: item.salleId, addonId: item.addonId } },
@@ -296,7 +304,7 @@ export class SaasBillingService {
           subscriptionId: item.subscriptionId,
           invoiceNumber: this.generateInvoiceNumber(),
           periodStart: now,
-          periodEnd: now,
+          periodEnd: renewalPeriodEnd,
           baseAmount: 0,
           extraSallesCount: 0,
           extraSallesAmount: 0,
@@ -912,7 +920,17 @@ export class SaasBillingService {
       subscription.saasPlan.annualDiscountPct,
       subscription.promotionalDiscountPct,
     );
-    const taxAmount = (baseAmount * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
+    // §14.x — le taux de taxe est désormais celui du PAYS du
+    // propriétaire (politique fiscale nationale), plus celui du plan
+    // (qui ne devrait pas varier selon le pays souscrit) — bug réel
+    // corrigé : deux propriétaires du même plan mais de pays
+    // différents payaient jusqu'ici exactement la même taxe.
+    const subWithCountry = await this.prisma.saasSubscription.findUniqueOrThrow({
+      where: { id: subscription.id },
+      select: { proprietaire: { select: { country: { select: { taxRatePct: true } } } } },
+    });
+    const taxRatePct = Number(subWithCountry.proprietaire.country?.taxRatePct ?? 0);
+    const taxAmount = (baseAmount * taxRatePct) / 100;
     // §14.x — les add-ons ne sont JAMAIS mêlés à cette facture : ils
     // ont leur propre circuit dédié et déjà correct (prix × durée
     // exacte, via processAddonRenewals/requestAddonActivation), qui
@@ -999,7 +1017,14 @@ export class SaasBillingService {
       subscription.saasPlan.annualDiscountPct,
       subscription.promotionalDiscountPct,
     );
-    const taxAmount = ((baseAmount + extraSallesAmount) * Number(subscription.saasPlan.taxRatePct ?? 0)) / 100;
+    // §14.x — même correction que getOrCreateCurrentInvoice : le taux
+    // de taxe vient du pays du propriétaire, pas du plan.
+    const renewalSubWithCountry = await this.prisma.saasSubscription.findUniqueOrThrow({
+      where: { id: subscription.id },
+      select: { proprietaire: { select: { country: { select: { taxRatePct: true } } } } },
+    });
+    const renewalTaxRatePct = Number(renewalSubWithCountry.proprietaire.country?.taxRatePct ?? 0);
+    const taxAmount = ((baseAmount + extraSallesAmount) * renewalTaxRatePct) / 100;
     // §14.x — les add-ons restent sur leur propre circuit dédié, voir
     // le commentaire équivalent dans getOrCreateCurrentInvoice.
 

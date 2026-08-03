@@ -324,8 +324,11 @@ function PlanFormModal({
         <Field label="Période d'essai (jours, 0 = aucune)">
           <Input type="number" min="0" value={trialDays} onChange={(e) => setTrialDays(e.target.value)} />
         </Field>
-        <Field label="Taux de taxe (%)">
-          <Input type="number" min="0" max="100" value={taxRatePct} onChange={(e) => setTaxRatePct(e.target.value)} />
+        <Field label="Taux de taxe (%) — non utilisé">
+          <Input type="number" min="0" max="100" value={taxRatePct} onChange={(e) => setTaxRatePct(e.target.value)} disabled />
+          <p className="-mt-3 mb-4 text-xs text-ink-400">
+            La taxe appliquée sur les factures est désormais définie par pays, dans "Pays" — ce champ est conservé pour l'historique mais n'a plus d'effet.
+          </p>
         </Field>
         <Field label="Quota de salles incluses">
           <Input type="number" min="1" required value={quotaSalles} onChange={(e) => setQuotaSalles(e.target.value)} />

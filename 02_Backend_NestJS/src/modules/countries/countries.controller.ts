@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Patch, Param, Injectable } from '@nestjs/common';
-import { IsString, IsBoolean, IsOptional, Length } from 'class-validator';
+import { IsString, IsBoolean, IsOptional, IsNumber, Min, Max, Length } from 'class-validator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RequirePermission } from '../../common/casl/policies.guard';
@@ -23,15 +23,21 @@ export class CountriesService {
     return this.prisma.country.findMany({ orderBy: { name: 'asc' } });
   }
 
-  create(dto: { code: string; name: string; currency: string; timezone: string }) {
+  create(dto: { code: string; name: string; currency: string; timezone: string; taxRatePct?: number }) {
     return this.prisma.country.create({
-      data: { code: dto.code.toUpperCase(), name: dto.name, currency: dto.currency.toUpperCase(), timezone: dto.timezone },
+      data: {
+        code: dto.code.toUpperCase(),
+        name: dto.name,
+        currency: dto.currency.toUpperCase(),
+        timezone: dto.timezone,
+        taxRatePct: dto.taxRatePct ?? 0,
+      },
     });
   }
 
   update(
     id: string,
-    dto: { name?: string; currency?: string; timezone?: string; active?: boolean },
+    dto: { name?: string; currency?: string; timezone?: string; active?: boolean; taxRatePct?: number },
   ) {
     return this.prisma.country.update({
       where: { id },
@@ -40,6 +46,7 @@ export class CountriesService {
         currency: dto.currency?.toUpperCase(),
         timezone: dto.timezone,
         active: dto.active,
+        taxRatePct: dto.taxRatePct,
       },
     });
   }
@@ -63,6 +70,13 @@ export class CreateCountryDto {
   @ApiProperty({ description: 'Fuseau horaire IANA, ex: "Africa/Dakar"', example: 'Africa/Dakar' })
   @IsString()
   timezone!: string;
+
+  @ApiPropertyOptional({ description: 'Taux de TVA/taxe applicable (%), ex: 18 pour 18%' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRatePct?: number;
 }
 
 export class UpdateCountryDto {
@@ -86,6 +100,13 @@ export class UpdateCountryDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({ description: 'Taux de TVA/taxe applicable (%), ex: 18 pour 18%' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRatePct?: number;
 }
 
 @ApiTags('Pays')

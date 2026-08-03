@@ -33,6 +33,7 @@ export interface Country {
   currency: string;
   timezone: string;
   active: boolean;
+  taxRatePct: number;
 }
 
 export interface Proprietaire {

@@ -27,7 +27,7 @@ export class InvoicePdfService {
       where: { id: invoiceId },
       include: {
         subscription: {
-          include: { proprietaire: { include: { user: true } }, saasPlan: true },
+          include: { proprietaire: { include: { user: true, country: true } }, saasPlan: true },
         },
       },
     });
@@ -103,7 +103,11 @@ export class InvoicePdfService {
         ? Number(invoice.subscription.saasPlan.priceAnnual)
         : Number(invoice.subscription.saasPlan.priceMonthly);
     const hasDiscount = Number(invoice.discountAmount) > 0;
-    const taxRatePct = Number(invoice.subscription.saasPlan.taxRatePct ?? 0);
+    // §14.x — même source que le calcul réel de taxAmount : le taux
+    // du PAYS du propriétaire, jamais celui du plan (bug réel
+    // corrigé — le libellé affichait un pourcentage incohérent avec
+    // le montant réellement facturé).
+    const taxRatePct = Number(invoice.subscription.proprietaire.country?.taxRatePct ?? 0);
 
     const addRow = (label: string, amount: string, options?: { muted?: boolean; negative?: boolean }) => {
       y += 10;

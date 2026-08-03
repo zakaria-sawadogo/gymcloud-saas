@@ -54,6 +54,7 @@ export default function PaysPage() {
                 <th className="px-5 py-3">Pays</th>
                 <th className="px-5 py-3">Code</th>
                 <th className="px-5 py-3">Devise</th>
+                <th className="px-5 py-3">Taxe</th>
                 <th className="px-5 py-3">Fuseau horaire</th>
                 <th className="px-5 py-3">Statut</th>
                 <th className="px-5 py-3"></th>
@@ -65,6 +66,7 @@ export default function PaysPage() {
                   <td className="px-5 py-3 font-medium text-ink-900">{c.name}</td>
                   <td className="px-5 py-3 text-ink-600">{c.code}</td>
                   <td className="px-5 py-3 text-ink-600">{c.currency}</td>
+                  <td className="px-5 py-3 text-ink-600">{c.taxRatePct}%</td>
                   <td className="px-5 py-3 text-ink-600">{c.timezone}</td>
                   <td className="px-5 py-3">
                     <span
@@ -125,6 +127,7 @@ function CreateCountryModal({
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('');
   const [timezone, setTimezone] = useState('');
+  const [taxRatePct, setTaxRatePct] = useState('0');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -133,11 +136,12 @@ function CreateCountryModal({
     setError(null);
     setIsSubmitting(true);
     try {
-      await apiClient.post('/countries', { code, name, currency, timezone });
+      await apiClient.post('/countries', { code, name, currency, timezone, taxRatePct: Number(taxRatePct) || 0 });
       setCode('');
       setName('');
       setCurrency('');
       setTimezone('');
+      setTaxRatePct('0');
       onSaved();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -178,6 +182,19 @@ function CreateCountryModal({
         <p className="-mt-3 mb-4 text-xs text-ink-400">
           Format attendu : Continent/Ville, ex. Africa/Dakar, Africa/Conakry.
         </p>
+        <Field label="Taux de TVA/taxe (%)">
+          <Input
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            value={taxRatePct}
+            onChange={(e) => setTaxRatePct(e.target.value)}
+          />
+        </Field>
+        <p className="-mt-3 mb-4 text-xs text-ink-400">
+          Appliqué automatiquement sur les factures des propriétaires rattachés à ce pays.
+        </p>
 
         {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
@@ -202,6 +219,7 @@ function EditCountryModal({
   const [currency, setCurrency] = useState(country.currency);
   const [timezone, setTimezone] = useState(country.timezone);
   const [active, setActive] = useState(country.active);
+  const [taxRatePct, setTaxRatePct] = useState(String(country.taxRatePct ?? 0));
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -210,7 +228,13 @@ function EditCountryModal({
     setError(null);
     setIsSubmitting(true);
     try {
-      await apiClient.patch(`/countries/${country.id}`, { name, currency, timezone, active });
+      await apiClient.patch(`/countries/${country.id}`, {
+        name,
+        currency,
+        timezone,
+        active,
+        taxRatePct: Number(taxRatePct) || 0,
+      });
       onSaved();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -237,6 +261,19 @@ function EditCountryModal({
         <Field label="Fuseau horaire (IANA)">
           <Input required value={timezone} onChange={(e) => setTimezone(e.target.value)} />
         </Field>
+        <Field label="Taux de TVA/taxe (%)">
+          <Input
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            value={taxRatePct}
+            onChange={(e) => setTaxRatePct(e.target.value)}
+          />
+        </Field>
+        <p className="-mt-3 mb-4 text-xs text-ink-400">
+          Appliqué sur les factures des propriétaires rattachés à ce pays — la prochaine facture générée reflète le nouveau taux.
+        </p>
         <label className="mb-4 flex items-center gap-2 text-sm text-ink-700">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           Pays actif (visible dans les sélecteurs)

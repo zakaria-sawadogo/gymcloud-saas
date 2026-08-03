@@ -30,6 +30,12 @@ model Country {
   currency  String   // ISO 4217, ex: "XOF"
   timezone  String   // ex: "Africa/Ouagadougou"
   active    Boolean  @default(true)
+  // §14.x — taux de TVA/taxe applicable, propre à chaque pays (une
+  // politique fiscale nationale, pas un choix de plan) — remplace
+  // SaasPlan.taxRatePct comme source de vérité pour la facturation
+  // (conservé sur SaasPlan pour compatibilité historique, mais plus
+  // utilisé dans le calcul).
+  taxRatePct Decimal @default(0) @db.Decimal(5, 2)
   createdAt DateTime @default(now())
 
   salles        Salle[]
