@@ -185,13 +185,20 @@ export class SaasBillingService {
     }
 
     const addon = await this.prisma.saasAddon.findUniqueOrThrow({ where: { id: addonId } });
-    const totalAmount = Math.round(Number(addon.price) * durationMonths * 100) / 100;
+    const addonsSubtotal = Math.round(Number(addon.price) * durationMonths * 100) / 100;
 
     await this.prisma.saasSubscriptionAddon.upsert({
       where: { salleId_addonId: { salleId, addonId } },
       update: { status: 'EN_ATTENTE', durationMonths, requestedAt: new Date() },
       create: { salleId, subscriptionId: salle.subscriptionId, addonId, status: 'EN_ATTENTE', durationMonths },
     });
+
+    // §14.x — la taxe du pays s'applique aussi aux add-ons, oubliée
+    // jusqu'ici (bug réel corrigé) — aucune raison qu'un add-on soit
+    // exonéré alors que l'abonnement de base ne l'est pas.
+    const addonTaxRatePct = await this.getCountryTaxRatePct(salle.subscriptionId);
+    const addonTaxAmount = Math.round(((addonsSubtotal * addonTaxRatePct) / 100) * 100) / 100;
+    const totalAmount = addonsSubtotal + addonTaxAmount;
 
     const now = new Date();
     // §14.x — la période affichée sur la facture doit refléter la
@@ -210,8 +217,8 @@ export class SaasBillingService {
         baseAmount: 0,
         extraSallesCount: 0,
         extraSallesAmount: 0,
-        addonsAmount: totalAmount,
-        taxAmount: 0,
+        addonsAmount: addonsSubtotal,
+        taxAmount: addonTaxAmount,
         totalAmount,
         currency: 'XOF',
         status: 'EMISE',
@@ -289,7 +296,7 @@ export class SaasBillingService {
         continue;
       }
 
-      const totalAmount = Math.round(Number(item.addon.price) * item.durationMonths * 100) / 100;
+      const renewalAddonsSubtotal = Math.round(Number(item.addon.price) * item.durationMonths * 100) / 100;
       const renewalPeriodEnd = new Date(now);
       renewalPeriodEnd.setMonth(renewalPeriodEnd.getMonth() + item.durationMonths);
 
@@ -297,6 +304,12 @@ export class SaasBillingService {
         where: { salleId_addonId: { salleId: item.salleId, addonId: item.addonId } },
         data: { status: 'EN_ATTENTE', requestedAt: now },
       });
+
+      // §14.x — même correction que requestAddonActivation : la taxe
+      // du pays s'applique aussi au renouvellement d'un add-on.
+      const renewalAddonTaxRatePct = await this.getCountryTaxRatePct(item.subscriptionId);
+      const renewalAddonTaxAmount = Math.round(((renewalAddonsSubtotal * renewalAddonTaxRatePct) / 100) * 100) / 100;
+      const totalAmount = renewalAddonsSubtotal + renewalAddonTaxAmount;
 
       await this.prisma.saasInvoice.create({
         data: {
@@ -308,8 +321,8 @@ export class SaasBillingService {
           baseAmount: 0,
           extraSallesCount: 0,
           extraSallesAmount: 0,
-          addonsAmount: totalAmount,
-          taxAmount: 0,
+          addonsAmount: renewalAddonsSubtotal,
+          taxAmount: renewalAddonTaxAmount,
           totalAmount,
           currency: 'XOF',
           status: 'EMISE',
@@ -624,7 +637,12 @@ export class SaasBillingService {
 
     const isSupplementaire = await this.isNextSalleSupplementaire(subscription.id);
     const pricing = await this.getEffectivePricing(subscription.saasPlanId, dto.countryId);
-    const totalAmount = isSupplementaire ? Number(pricing.extraSalleFee) : 0;
+    const salleSubtotal = isSupplementaire ? Number(pricing.extraSalleFee) : 0;
+    // §14.x — même correction que pour les add-ons : la taxe du pays
+    // s'applique aussi aux salles supplémentaires facturées.
+    const salleTaxRatePct = await this.getCountryTaxRatePct(subscription.id);
+    const salleTaxAmount = Math.round(((salleSubtotal * salleTaxRatePct) / 100) * 100) / 100;
+    const totalAmount = salleSubtotal + salleTaxAmount;
 
     const request = await this.prisma.salleCreationRequest.create({
       data: {
@@ -651,8 +669,8 @@ export class SaasBillingService {
         baseAmount: 0,
         extraSallesCount: 0,
         extraSallesAmount: 0,
-        addonsAmount: totalAmount,
-        taxAmount: 0,
+        addonsAmount: salleSubtotal,
+        taxAmount: salleTaxAmount,
         totalAmount,
         currency: 'XOF',
         status: 'EMISE',
@@ -887,6 +905,22 @@ export class SaasBillingService {
   }
 
   /**
+   * §14.x — Taux de taxe applicable à CETTE souscription, dérivé du
+   * pays du propriétaire — source unique de vérité, réutilisée par
+   * TOUTE facture générée (abonnement, add-on, salle supplémentaire,
+   * changement de plan...). Avant cette centralisation, chaque type
+   * de facture avait sa propre logique — la plupart oubliaient
+   * simplement d'appliquer une taxe (bug réel corrigé).
+   */
+  private async getCountryTaxRatePct(subscriptionId: string): Promise<number> {
+    const sub = await this.prisma.saasSubscription.findUniqueOrThrow({
+      where: { id: subscriptionId },
+      select: { proprietaire: { select: { country: { select: { taxRatePct: true } } } } },
+    });
+    return Number(sub.proprietaire.country?.taxRatePct ?? 0);
+  }
+
+  /**
    * Retourne la facture SaaS de la période courante ; la crée si elle
    * n'existe pas encore (première charge de la période).
    */
@@ -925,11 +959,7 @@ export class SaasBillingService {
     // (qui ne devrait pas varier selon le pays souscrit) — bug réel
     // corrigé : deux propriétaires du même plan mais de pays
     // différents payaient jusqu'ici exactement la même taxe.
-    const subWithCountry = await this.prisma.saasSubscription.findUniqueOrThrow({
-      where: { id: subscription.id },
-      select: { proprietaire: { select: { country: { select: { taxRatePct: true } } } } },
-    });
-    const taxRatePct = Number(subWithCountry.proprietaire.country?.taxRatePct ?? 0);
+    const taxRatePct = await this.getCountryTaxRatePct(subscription.id);
     const taxAmount = (baseAmount * taxRatePct) / 100;
     // §14.x — les add-ons ne sont JAMAIS mêlés à cette facture : ils
     // ont leur propre circuit dédié et déjà correct (prix × durée
@@ -1019,11 +1049,7 @@ export class SaasBillingService {
     );
     // §14.x — même correction que getOrCreateCurrentInvoice : le taux
     // de taxe vient du pays du propriétaire, pas du plan.
-    const renewalSubWithCountry = await this.prisma.saasSubscription.findUniqueOrThrow({
-      where: { id: subscription.id },
-      select: { proprietaire: { select: { country: { select: { taxRatePct: true } } } } },
-    });
-    const renewalTaxRatePct = Number(renewalSubWithCountry.proprietaire.country?.taxRatePct ?? 0);
+    const renewalTaxRatePct = await this.getCountryTaxRatePct(subscription.id);
     const taxAmount = ((baseAmount + extraSallesAmount) * renewalTaxRatePct) / 100;
     // §14.x — les add-ons restent sur leur propre circuit dédié, voir
     // le commentaire équivalent dans getOrCreateCurrentInvoice.
@@ -1154,11 +1180,16 @@ export class SaasBillingService {
       // renouvellement au même plan) — plus de seuil qui faisait
       // disparaître silencieusement l'historique de ces changements.
       {
+        // §14.x — calculée avant le contrôle du montant dû, pour que
+        // le message d'erreur affiche le vrai total taxe comprise.
+        const prorataTaxRatePct = await this.getCountryTaxRatePct(subscriptionId);
+        const prorataTaxAmount = Math.round(((prorataDifference * prorataTaxRatePct) / 100) * 100) / 100;
+        const prorataTotalWithTax = prorataDifference + prorataTaxAmount;
         const isAmountDue = prorataDifference > 0;
 
         if (isAmountDue && !payment) {
           throw new BadRequestException(
-            `Un complément de ${prorataDifference} XOF est dû au prorata — précisez une méthode de paiement pour l'encaisser`,
+            `Un complément de ${prorataTotalWithTax} XOF (taxe comprise) est dû au prorata — précisez une méthode de paiement pour l'encaisser`,
           );
         }
 
@@ -1179,8 +1210,8 @@ export class SaasBillingService {
             extraSallesCount: 0,
             extraSallesAmount: 0,
             addonsAmount: 0,
-            taxAmount: 0,
-            totalAmount: prorataDifference,
+            taxAmount: prorataTaxAmount,
+            totalAmount: prorataTotalWithTax,
             currency: 'XOF',
             status: isAmountDue ? 'EMISE' : 'PAYEE',
             paidAt: isAmountDue ? null : now,
