@@ -12,6 +12,7 @@ interface PlatformSettings {
   supportEmail?: string;
   supportPhone?: string;
   whatsappNumber?: string;
+  invoiceIssuerName?: string;
   updatedAt: string;
 }
 
@@ -28,6 +29,7 @@ export default function ContactsPage() {
   const [supportEmail, setSupportEmail] = useState('');
   const [supportPhone, setSupportPhone] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [invoiceIssuerName, setInvoiceIssuerName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -37,6 +39,7 @@ export default function ContactsPage() {
       setSupportEmail(data.supportEmail ?? '');
       setSupportPhone(data.supportPhone ?? '');
       setWhatsappNumber(data.whatsappNumber ?? '');
+      setInvoiceIssuerName(data.invoiceIssuerName ?? '');
     }
   }, [data]);
 
@@ -46,7 +49,7 @@ export default function ContactsPage() {
     setSuccess(false);
     setIsSubmitting(true);
     try {
-      await apiClient.patch('/platform-settings', { supportEmail, supportPhone, whatsappNumber });
+      await apiClient.patch('/platform-settings', { supportEmail, supportPhone, whatsappNumber, invoiceIssuerName });
       setSuccess(true);
       refetch();
     } catch (err) {
@@ -91,6 +94,20 @@ export default function ContactsPage() {
             <Field label="Numéro WhatsApp (optionnel)">
               <Input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} />
             </Field>
+
+            <hr className="my-5 border-ink-100" />
+
+            <Field label="Nom affiché sur les factures PDF">
+              <Input
+                value={invoiceIssuerName}
+                onChange={(e) => setInvoiceIssuerName(e.target.value)}
+                placeholder="GymCloud"
+              />
+            </Field>
+            <p className="-mt-3 mb-4 text-xs text-ink-400">
+              Utile si l&apos;entité qui facture légalement diffère du nom commercial du produit, ex: &quot;Sahel
+              System — GymCloud&quot;. Laissez vide pour utiliser &quot;GymCloud&quot; par défaut.
+            </p>
 
             {success && (
               <p className="mb-4 rounded-lg bg-primary-50 px-3 py-2 text-sm text-primary-700">

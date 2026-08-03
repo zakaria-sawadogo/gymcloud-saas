@@ -1,9 +1,22 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
+import { IsString, MaxLength } from 'class-validator';
 import { UsersService } from './users.service';
 import { CreateProprietaireDto } from './dto/users.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
+
+export class SendEmailDto {
+  @ApiProperty()
+  @IsString()
+  @MaxLength(200)
+  subject!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(5000)
+  body!: string;
+}
 
 @ApiTags('Utilisateurs — Propriétaires')
 @ApiBearerAuth()
@@ -39,6 +52,13 @@ export class ProprietairesController {
   async reactivate(@Param('id') id: string, @CurrentUser() user: TenantContext) {
     const proprietaire = await this.usersService.findProprietaireById(id);
     return this.usersService.reactivateUser(proprietaire.userId, user.userId);
+  }
+
+  @Post(':id/send-email')
+  @RequirePermission('manage', 'User')
+  @ApiOperation({ summary: 'Envoyer un e-mail ponctuel à ce propriétaire — réservé SUPER_ADMIN (§14.x)' })
+  sendEmail(@Param('id') id: string, @Body() dto: SendEmailDto) {
+    return this.usersService.sendEmailToProprietaire(id, dto.subject, dto.body);
   }
 
   @Delete(':id')

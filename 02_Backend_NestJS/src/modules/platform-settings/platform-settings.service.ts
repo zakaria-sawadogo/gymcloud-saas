@@ -19,12 +19,17 @@ export class PlatformSettingsService {
     if (existing) return existing;
 
     return this.prisma.platformSettings.create({
-      data: { id: SETTINGS_ID, supportEmail: 'gymcloudsys@gmail.com', supportPhone: '+226 68 46 11 19' },
+      data: {
+        id: SETTINGS_ID,
+        supportEmail: 'gymcloudsys@gmail.com',
+        supportPhone: '+226 68 46 11 19',
+        invoiceIssuerName: 'GymCloud',
+      },
     });
   }
 
   async update(
-    dto: { supportEmail?: string; supportPhone?: string; whatsappNumber?: string },
+    dto: { supportEmail?: string; supportPhone?: string; whatsappNumber?: string; invoiceIssuerName?: string },
     actorUserId: string,
   ) {
     await this.get(); // garantit que la ligne existe avant la mise à jour

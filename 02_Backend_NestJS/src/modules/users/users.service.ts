@@ -13,6 +13,7 @@ import { TenantContext } from '../../common/decorators/current-user.decorator';
 import { SallesService } from '../salles/salles.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../notifications/email.service';
 import { SaasBillingService } from '../saas-billing/saas-billing.service';
 import {
   CreateProprietaireDto,
@@ -40,6 +41,7 @@ export class UsersService {
     private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
     private readonly saasBillingService: SaasBillingService,
+    private readonly emailService: EmailService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -179,6 +181,31 @@ export class UsersService {
     const proprietaire = await this.prisma.proprietaire.findUnique({ where: { id } });
     if (!proprietaire) throw new NotFoundException('Propriétaire introuvable');
     return proprietaire;
+  }
+
+  /**
+   * §14.x — Envoi manuel d'un e-mail par le SUPER_ADMIN à un
+   * propriétaire précis (annonce, relance, information ponctuelle) —
+   * réutilise EmailService, déjà en place pour les notifications
+   * automatiques, jamais exposé jusqu'ici pour un envoi à la demande.
+   */
+  async sendEmailToProprietaire(proprietaireId: string, subject: string, body: string) {
+    const proprietaire = await this.prisma.proprietaire.findUnique({
+      where: { id: proprietaireId },
+      include: { user: true },
+    });
+    if (!proprietaire) throw new NotFoundException('Propriétaire introuvable');
+    if (!proprietaire.user.email) {
+      throw new BadRequestException('Ce propriétaire n\'a pas d\'adresse e-mail enregistrée');
+    }
+
+    const sent = await this.emailService.send(proprietaire.user.email, subject, body);
+    if (!sent) {
+      throw new BadRequestException(
+        'L\'envoi a échoué — vérifiez la configuration e-mail du serveur (RESEND_API_KEY)',
+      );
+    }
+    return { success: true };
   }
 
   /**

@@ -39,6 +39,12 @@ export class InvoicePdfService {
       throw new ForbiddenException('Vous ne pouvez télécharger que vos propres factures');
     }
 
+    // §14.x — le nom en en-tête de facture est configurable par le
+    // SUPER_ADMIN (Paramètres) — "GymCloud" reste la valeur par
+    // défaut si jamais paramétré.
+    const platformSettings = await this.prisma.platformSettings.findUnique({ where: { id: 'platform' } });
+    const invoiceIssuerName = platformSettings?.invoiceIssuerName || 'GymCloud';
+
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
     const chunks: Buffer[] = [];
     doc.on('data', (chunk) => chunks.push(chunk));
@@ -58,7 +64,7 @@ export class InvoicePdfService {
     const money = (n: number | string) => `${formatThousands(Number(n))} ${invoice.currency}`;
 
     // En-tête
-    doc.fontSize(20).fillColor('#0F6E56').text('GymCloud', 50, 50);
+    doc.fontSize(20).fillColor('#0F6E56').text(invoiceIssuerName, 50, 50);
     doc.fontSize(10).fillColor('#71767A').text('Facture SaaS', 50, 75);
 
     doc.fontSize(10).fillColor('#14181B');

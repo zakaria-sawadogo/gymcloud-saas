@@ -16,4 +16,9 @@ export class UpdatePlatformSettingsDto {
   @IsOptional()
   @IsString()
   whatsappNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Nom affiché en en-tête des factures PDF, ex: "Sahel System — GymCloud"' })
+  @IsOptional()
+  @IsString()
+  invoiceIssuerName?: string;
 }

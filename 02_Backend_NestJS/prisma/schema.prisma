@@ -1379,6 +1379,11 @@ model PlatformSettings {
   supportEmail    String?
   supportPhone    String?
   whatsappNumber  String?
+  // §14.x — nom affiché en en-tête des factures PDF, remplace le
+  // "GymCloud" jusqu'ici codé en dur — utile si l'entité qui facture
+  // légalement diffère du nom commercial du produit (ex: "Sahel
+  // System — GymCloud").
+  invoiceIssuerName String?
   updatedByUserId String?
   updatedAt       DateTime @updatedAt
 

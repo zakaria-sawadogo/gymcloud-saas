@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Plus, UserCog, Ban, RotateCcw, Search, CreditCard, Trash2 } from 'lucide-react';
+import { Plus, UserCog, Ban, RotateCcw, Search, CreditCard, Trash2, Mail } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -23,6 +23,7 @@ export default function ProprietairesPage() {
   const [search, setSearch] = useState('');
   const [managingSubscriptionFor, setManagingSubscriptionFor] = useState<string | null>(null);
   const [deletingProprietaire, setDeletingProprietaire] = useState<Proprietaire | null>(null);
+  const [emailingProprietaire, setEmailingProprietaire] = useState<Proprietaire | null>(null);
   const { data: proprietaires, isLoading, error, refetch } = useApi<Proprietaire[]>('/proprietaires');
 
   const filtered = (proprietaires ?? []).filter((p) => {
@@ -130,6 +131,15 @@ export default function ProprietairesPage() {
                       </Button>
                       <Button
                         size="sm"
+                        variant="ghost"
+                        disabled={!p.user.email}
+                        title={p.user.email ? undefined : 'Aucune adresse e-mail enregistrée'}
+                        onClick={() => setEmailingProprietaire(p)}
+                      >
+                        <Mail className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
                         variant={p.user.status === 'SUSPENDU' ? 'secondary' : 'danger'}
                         isLoading={actioningId === p.id}
                         onClick={() => handleToggleStatus(p.id, p.user.status)}
@@ -183,6 +193,10 @@ export default function ProprietairesPage() {
             refetch();
           }}
         />
+      )}
+
+      {emailingProprietaire && (
+        <SendEmailModal proprietaire={emailingProprietaire} onClose={() => setEmailingProprietaire(null)} />
       )}
     </div>
   );
@@ -394,6 +408,74 @@ function DeleteProprietaireModal({
           Supprimer définitivement
         </Button>
       </div>
+    </Modal>
+  );
+}
+
+/**
+ * §14.x — Envoi manuel d'un e-mail ponctuel par le SUPER_ADMIN à un
+ * propriétaire précis (annonce, relance...) — réutilise EmailService,
+ * déjà en place pour les notifications automatiques.
+ */
+function SendEmailModal({ proprietaire, onClose }: { proprietaire: Proprietaire; onClose: () => void }) {
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await apiClient.post(`/proprietaires/${proprietaire.id}/send-email`, { subject, body });
+      setSuccess(true);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={`E-mail à ${proprietaire.user.firstName} ${proprietaire.user.lastName}`}>
+      {success ? (
+        <div>
+          <p className="mb-4 rounded-lg bg-primary-50 px-3 py-2 text-sm text-primary-700">E-mail envoyé avec succès.</p>
+          <Button onClick={onClose} className="w-full">
+            Fermer
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <p className="mb-4 text-xs text-ink-400">Destinataire : {proprietaire.user.email}</p>
+          <Field label="Objet">
+            <Input required value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={200} />
+          </Field>
+          <Field label="Message">
+            <textarea
+              required
+              rows={8}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              maxLength={5000}
+              className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
+            />
+          </Field>
+
+          {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} className="flex-1">
+              Annuler
+            </Button>
+            <Button type="submit" isLoading={isSubmitting} className="flex-1">
+              Envoyer
+            </Button>
+          </div>
+        </form>
+      )}
     </Modal>
   );
 }
