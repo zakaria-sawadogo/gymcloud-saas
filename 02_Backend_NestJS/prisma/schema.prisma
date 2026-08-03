@@ -518,13 +518,11 @@ model Proprietaire {
   @@map("proprietaires")
 }
 
-/**
- * §14.x — Programme de parrainage : un propriétaire (le parrain)
- * partage son code, un prospect l'utilise à l'inscription. La
- * récompense n'est accordée qu'à la première facture RÉELLEMENT
- * payée du filleul — jamais à la simple inscription, pour ne pas
- * ouvrir la porte à l'auto-parrainage avec de faux comptes.
- */
+// §14.x — Programme de parrainage : un propriétaire (le parrain)
+// partage son code, un prospect l'utilise à l'inscription. La
+// récompense n'est accordée qu'à la première facture RÉELLEMENT
+// payée du filleul — jamais à la simple inscription, pour ne pas
+// ouvrir la porte à l'auto-parrainage avec de faux comptes.
 model Referral {
   id                     String   @id @default(uuid())
   referrerProprietaireId String
