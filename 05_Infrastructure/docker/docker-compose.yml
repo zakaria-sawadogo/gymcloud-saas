@@ -78,6 +78,9 @@ services:
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-notifications@gymcloud.sahelsystem.com}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
       NODE_ENV: production
       PORT: 3000
     ports:

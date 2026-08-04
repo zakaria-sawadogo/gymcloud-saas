@@ -18,6 +18,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AdherentsModule } from './modules/adherents/adherents.module';
 import { AccessControlModule } from './modules/access-control/access-control.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { WhatsAppModule } from './modules/whatsapp/whatsapp.module';
 import { PlatformSettingsModule } from './modules/platform-settings/platform-settings.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -51,6 +52,7 @@ import { SalleContentModule } from './modules/salle-content/salle-content.module
     AdherentsModule,
     AccessControlModule,
     NotificationsModule,
+    WhatsAppModule,
     PlatformSettingsModule,
     BookingsModule,
     PaymentsModule,
