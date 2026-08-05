@@ -14,6 +14,8 @@ import { SallesService } from '../salles/salles.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailService } from '../notifications/email.service';
+import { AuthService } from '../auth/auth.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { SaasBillingService } from '../saas-billing/saas-billing.service';
 import {
   CreateProprietaireDto,
@@ -42,6 +44,8 @@ export class UsersService {
     private readonly notifications: NotificationsService,
     private readonly saasBillingService: SaasBillingService,
     private readonly emailService: EmailService,
+    private readonly authService: AuthService,
+    private readonly whatsAppService: WhatsAppService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -210,6 +214,15 @@ export class UsersService {
         `Bonjour ${dto.firstName},\n\nVotre compte propriétaire GymCloud a été créé pour "${dto.salleName}".\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
       );
     }
+
+    // §14.x — WhatsApp, contrairement à l'e-mail, fonctionne sans
+    // condition : le téléphone est toujours renseigné (obligatoire),
+    // contrairement à l'e-mail (optionnel) — c'était justement le
+    // trou que ce lien d'activation vient combler. Échec silencieux
+    // volontaire (voir WhatsAppService) : ne bloque jamais la
+    // création du compte elle-même.
+    const activationLink = await this.authService.generateActivationLink(user.id);
+    await this.whatsAppService.send(dto.phone, 'bienvenue_proprietaire', [dto.firstName, dto.salleName, activationLink]);
 
     // §14.x — Programme de parrainage : lie le filleul à son parrain
     // si un code valide a été fourni, et accorde 10% sur SA première
@@ -446,6 +459,14 @@ export class UsersService {
       );
     }
 
+    const gestionnaireActivationLink = await this.authService.generateActivationLink(user.id);
+    await this.whatsAppService.send(dto.phone, 'bienvenue_personnel', [
+      dto.firstName,
+      'Gestionnaire',
+      salle.name,
+      gestionnaireActivationLink,
+    ]);
+
     return { profile, user, tempPassword };
   }
 
@@ -515,6 +536,14 @@ export class UsersService {
         `Bonjour ${dto.firstName},\n\nVotre compte coach GymCloud a été créé pour "${salle.name}".\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
       );
     }
+
+    const coachActivationLink = await this.authService.generateActivationLink(user.id);
+    await this.whatsAppService.send(dto.phone, 'bienvenue_personnel', [
+      dto.firstName,
+      'Coach',
+      salle.name,
+      coachActivationLink,
+    ]);
 
     return { profile, user, tempPassword };
   }
@@ -854,7 +883,24 @@ export class UsersService {
       metadata: { roleCode: role.code },
     });
 
-    // TODO(module notifications): envoyer tempPassword par SMS/WhatsApp.
+    if (dto.email) {
+      await this.notifications.create(
+        user.id,
+        'Bienvenue sur GymCloud — votre compte',
+        `Bonjour ${dto.firstName},\n\nVotre compte ${role.name} a été créé sur la plateforme GymCloud.\n\nTéléphone de connexion : ${dto.phone}\nMot de passe temporaire : ${tempPassword}\n\nPensez à le changer dès votre première connexion.`,
+      );
+    }
+
+    // §14.x — remplace le TODO laissé ici : envoi réel désormais en
+    // place (voir WhatsAppService), un lien de première connexion
+    // plutôt que le mot de passe en clair (voir generateActivationLink).
+    const internalActivationLink = await this.authService.generateActivationLink(user.id);
+    await this.whatsAppService.send(dto.phone, 'bienvenue_personnel_interne', [
+      dto.firstName,
+      role.name,
+      internalActivationLink,
+    ]);
+
     return { user, tempPassword };
   }
 

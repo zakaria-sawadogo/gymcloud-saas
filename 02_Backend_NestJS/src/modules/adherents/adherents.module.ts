@@ -6,9 +6,11 @@ import { AdherentsSchedulerService } from './adherents.scheduler';
 import { MembershipCardPdfService } from './membership-card-pdf.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuthModule } from '../auth/auth.module';
+import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 
 @Module({
-  imports: [PaymentsModule, NotificationsModule],
+  imports: [PaymentsModule, NotificationsModule, AuthModule, WhatsAppModule],
   controllers: [AdherentsController, AbonnementCatalogueController],
   providers: [AdherentsService, AdherentsSchedulerService, MembershipCardPdfService],
   exports: [AdherentsService], // consommé par les modules Contrôle d'accès, Réservations

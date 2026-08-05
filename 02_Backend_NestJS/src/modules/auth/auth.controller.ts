@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Patch, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, Param, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
@@ -8,6 +8,7 @@ import {
   ChangePasswordDto,
   RequestPasswordResetDto,
   ConfirmPasswordResetDto,
+  ConfirmActivationDto,
   UpdateProfileDto,
 } from './dto/auth.dto';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
@@ -64,5 +65,17 @@ export class AuthController {
   @ApiOperation({ summary: 'Confirmation de la réinitialisation avec le code OTP (§4.9)' })
   async resetPassword(@Body() dto: ConfirmPasswordResetDto) {
     return this.authService.confirmPasswordReset(dto.phone, dto.otpCode, dto.newPassword);
+  }
+
+  @Get('activate/:token')
+  @ApiOperation({ summary: 'Vérifie la validité d\'un lien de première connexion (§14.x)' })
+  async checkActivation(@Param('token') token: string) {
+    return this.authService.checkActivationToken(token);
+  }
+
+  @Post('activate')
+  @ApiOperation({ summary: 'Définit le mot de passe via un lien de première connexion (§14.x)' })
+  async activate(@Body() dto: ConfirmActivationDto) {
+    return this.authService.confirmActivation(dto.token, dto.newPassword);
   }
 }

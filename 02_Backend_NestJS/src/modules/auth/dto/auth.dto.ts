@@ -56,6 +56,20 @@ export class ConfirmPasswordResetDto {
   newPassword!: string;
 }
 
+export class ConfirmActivationDto {
+  @ApiProperty()
+  @IsString()
+  token!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(10)
+  @Matches(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+    message: 'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre (§13.4)',
+  })
+  newPassword!: string;
+}
+
 export class UpdateProfileDto {
   @ApiPropertyOptional()
   @IsOptional()

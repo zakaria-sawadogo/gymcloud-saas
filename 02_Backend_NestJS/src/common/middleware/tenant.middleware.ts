@@ -70,7 +70,7 @@ export class TenantMiddleware implements NestMiddleware {
   // d'une salle par sous-domaine, consultation des activités,
   // captation de prospects (inscription / essai gratuit). Jamais de
   // fonction d'administration sous ce préfixe.
-  private readonly PUBLIC_PATH_PREFIXES = ['/public/'];
+  private readonly PUBLIC_PATH_PREFIXES = ['/public/', '/auth/activate'];
 
   private isPublicPath(req: Request): boolean {
     // req.path ne reflète pas fiablement le chemin réel dans ce

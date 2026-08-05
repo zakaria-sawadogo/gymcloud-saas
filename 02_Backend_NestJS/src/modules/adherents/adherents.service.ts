@@ -7,6 +7,8 @@ import { AuditService } from '../../common/audit/audit.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PaymentTypeDto } from '../payments/dto/payments.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuthService } from '../auth/auth.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { TenantContext } from '../../common/decorators/current-user.decorator';
 import {
   CreateAdherentDto,
@@ -35,6 +37,8 @@ export class AdherentsService {
     private readonly audit: AuditService,
     private readonly paymentsService: PaymentsService,
     private readonly notifications: NotificationsService,
+    private readonly authService: AuthService,
+    private readonly whatsAppService: WhatsAppService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -129,6 +133,16 @@ export class AdherentsService {
         actorUserId,
       );
     }
+
+    // §14.x — premier envoi de bienvenue à un adhérent (n'existait pas
+    // jusqu'ici) — lien de première connexion plutôt que mot de passe
+    // en clair, voir generateActivationLink pour le pourquoi.
+    const adherentActivationLink = await this.authService.generateActivationLink(user.id);
+    await this.whatsAppService.send(dto.phone, 'bienvenue_adherent', [
+      dto.firstName,
+      salle.name,
+      adherentActivationLink,
+    ]);
 
     return { adherent, user, tempPassword, subscription };
   }

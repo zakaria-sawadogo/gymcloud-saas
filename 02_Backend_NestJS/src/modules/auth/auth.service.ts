@@ -212,6 +212,65 @@ export class AuthService {
   }
 
   /**
+   * §14.x — Génère un lien de première connexion pour un compte
+   * fraîchement créé (propriétaire, personnel, adhérent...) — utilisé
+   * à la place d'un mot de passe généré transmis en clair, refusé par
+   * les modèles WhatsApp Utilitaire de Meta (tout code/identifiant y
+   * est classé Authentification, catégorie à laquelle notre compte
+   * n'est pas éligible). Un lien, lui, passe sans souci — c'est aussi
+   * une meilleure pratique de sécurité dans l'absolu : aucun mot de
+   * passe généré ne transite jamais en clair dans une conversation.
+   *
+   * Validité volontairement longue (7 jours, pas quelques minutes
+   * comme l'OTP de réinitialisation) — c'est une activation initiale,
+   * pas une preuve d'identité urgente ; la personne peut mettre du
+   * temps à consulter son WhatsApp ou son e-mail après création.
+   */
+  async generateActivationLink(userId: string): Promise<string> {
+    const token = randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { activationToken: token, activationTokenExpiresAt: expiresAt },
+    });
+    const baseUrl = process.env.PUBLIC_APP_URL ?? 'https://gymcloud.sahelsystem.com';
+    return `${baseUrl}/activer-compte/${token}`;
+  }
+
+  /**
+   * Vérifie qu'un jeton d'activation est valide, sans le consommer —
+   * consommé par la page web pour savoir si le formulaire de
+   * définition de mot de passe doit s'afficher, ou un message d'erreur
+   * (lien expiré/déjà utilisé).
+   */
+  async checkActivationToken(token: string): Promise<{ valid: boolean; firstName?: string }> {
+    const user = await this.prisma.user.findUnique({ where: { activationToken: token } });
+    if (!user || !user.activationTokenExpiresAt || user.activationTokenExpiresAt < new Date()) {
+      return { valid: false };
+    }
+    return { valid: true, firstName: user.firstName };
+  }
+
+  /**
+   * Consomme le jeton d'activation : définit le mot de passe choisi
+   * par la personne et invalide le jeton (usage unique).
+   */
+  async confirmActivation(token: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { activationToken: token } });
+    if (!user || !user.activationTokenExpiresAt || user.activationTokenExpiresAt < new Date()) {
+      throw new BadRequestException('Lien invalide ou expiré');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, this.BCRYPT_ROUNDS);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, passwordChangedAt: new Date(), activationToken: null, activationTokenExpiresAt: null },
+    });
+
+    return { message: 'Compte activé. Vous pouvez vous connecter.' };
+  }
+
+  /**
    * Profil de l'utilisateur connecté — consommé par le frontend juste
    * après le login pour connaître son rôle, sa salle et ses
    * informations d'affichage (le JWT ne contient volontairement que

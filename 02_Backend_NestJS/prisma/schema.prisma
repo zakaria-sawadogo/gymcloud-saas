@@ -143,6 +143,16 @@ model User {
   passwordResetOtpCode      String?
   passwordResetOtpExpiresAt DateTime?
 
+  // §14.x — lien de première connexion, envoyé par WhatsApp/e-mail à
+  // la création du compte — remplace la transmission d'un mot de
+  // passe généré en clair (refusé par les modèles WhatsApp Utilitaire
+  // de Meta, qui classe tout code/identifiant comme relevant de la
+  // catégorie Authentification, hors de portée pour ce cas d'usage).
+  // Un jeton, contrairement à un mot de passe, se présente comme un
+  // simple lien dans le message — accepté sans souci.
+  activationToken           String?   @unique
+  activationTokenExpiresAt  DateTime?
+
   // Profils métier (1-1 optionnels selon le rôle)
   proprietaireProfile  Proprietaire?
   gestionnaireProfile  GestionnaireProfile?

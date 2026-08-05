@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Query, Body, Res, HttpStatus, Logger } from '@nestjs/common';
 import { Response } from 'express';
-import { ApiTags, ApiOperation, ApiExcludeEndpoint, ApiProperty } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiExcludeEndpoint, ApiProperty, ApiBearerAuth } from '@nestjs/swagger';
 import { IsString } from 'class-validator';
 import { WhatsAppService } from './whatsapp.service';
 import { RequirePermission } from '../../common/casl/policies.guard';
@@ -73,6 +73,7 @@ export class WhatsAppController {
  * cas de test-send avant cette séparation).
  */
 @ApiTags('whatsapp')
+@ApiBearerAuth()
 @Controller('whatsapp')
 export class WhatsAppAdminController {
   constructor(private readonly whatsAppService: WhatsAppService) {}
