@@ -138,7 +138,7 @@ export class AdherentsService {
     // jusqu'ici) — lien de première connexion plutôt que mot de passe
     // en clair, voir generateActivationLink pour le pourquoi.
     const adherentActivationLink = await this.authService.generateActivationLink(user.id);
-    await this.whatsAppService.send(dto.phone, 'bienvenue_adherent', [
+    await this.whatsAppService.sendIfEnabledForSalle(dto.salleId, dto.phone, 'bienvenue_adherent', [
       dto.firstName,
       salle.name,
       adherentActivationLink,

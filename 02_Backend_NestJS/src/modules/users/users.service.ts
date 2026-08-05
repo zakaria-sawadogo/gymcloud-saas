@@ -460,7 +460,7 @@ export class UsersService {
     }
 
     const gestionnaireActivationLink = await this.authService.generateActivationLink(user.id);
-    await this.whatsAppService.send(dto.phone, 'bienvenue_personnel', [
+    await this.whatsAppService.sendIfEnabledForSalle(dto.salleId, dto.phone, 'bienvenue_personnel', [
       dto.firstName,
       'Gestionnaire',
       salle.name,
@@ -538,7 +538,7 @@ export class UsersService {
     }
 
     const coachActivationLink = await this.authService.generateActivationLink(user.id);
-    await this.whatsAppService.send(dto.phone, 'bienvenue_personnel', [
+    await this.whatsAppService.sendIfEnabledForSalle(dto.salleId, dto.phone, 'bienvenue_personnel', [
       dto.firstName,
       'Coach',
       salle.name,

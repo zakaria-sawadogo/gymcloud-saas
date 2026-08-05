@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * §14.x — Envoi de messages WhatsApp réels via l'API Cloud de Meta
@@ -36,7 +37,7 @@ export class WhatsAppService {
   private readonly phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   private readonly apiVersion = 'v21.0';
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     if (!this.accessToken || !this.phoneNumberId) {
       this.logger.warn(
         'WHATSAPP_ACCESS_TOKEN ou WHATSAPP_PHONE_NUMBER_ID non défini — envoi WhatsApp désactivé (les notifications in-app/e-mail restent actives)',
@@ -98,5 +99,30 @@ export class WhatsAppService {
       this.logger.error(`Échec d'envoi WhatsApp à ${normalizedTo}: ${error instanceof Error ? error.message : error}`);
       return false;
     }
+  }
+
+  /**
+   * §14.x — Variante de send() réservée aux notifications concernant
+   * un utilisateur RATTACHÉ À UNE SALLE (gestionnaire, coach,
+   * adhérent) — l'envoi n'a lieu QUE si cette salle a l'add-on
+   * "NOTIFICATION_WHATSAPP" actif. Ne s'applique jamais au
+   * propriétaire (rattaché à plusieurs salles, pas une seule — et sa
+   * toute première salle ne peut de toute façon pas encore avoir
+   * d'add-on actif au moment de sa propre création) ni au personnel
+   * interne (rattaché à aucune salle) — ceux-là utilisent send()
+   * directement, sans condition.
+   */
+  async sendIfEnabledForSalle(
+    salleId: string,
+    to: string,
+    templateName: string,
+    parameters: string[] = [],
+    languageCode = 'fr',
+  ): Promise<boolean> {
+    const hasAddon = await this.prisma.saasSubscriptionAddon.findFirst({
+      where: { salleId, status: 'ACTIF', addon: { code: 'NOTIFICATION_WHATSAPP' } },
+    });
+    if (!hasAddon) return false;
+    return this.send(to, templateName, parameters, languageCode);
   }
 }
