@@ -1,6 +1,15 @@
 import { Controller, Get, Post, Query, Body, Res, HttpStatus, Logger } from '@nestjs/common';
 import { Response } from 'express';
-import { ApiTags, ApiOperation, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiExcludeEndpoint, ApiProperty } from '@nestjs/swagger';
+import { IsString } from 'class-validator';
+import { WhatsAppService } from './whatsapp.service';
+import { RequirePermission } from '../../common/casl/policies.guard';
+
+export class TestSendWhatsAppDto {
+  @ApiProperty({ description: 'Numéro destinataire, avec ou sans indicatif, ex: "+22674967857"' })
+  @IsString()
+  to!: string;
+}
 
 /**
  * §14.x — Point d'entrée des webhooks WhatsApp (Meta Cloud API).
@@ -25,6 +34,24 @@ import { ApiTags, ApiOperation, ApiExcludeEndpoint } from '@nestjs/swagger';
 export class WhatsAppController {
   private readonly logger = new Logger(WhatsAppController.name);
   private readonly verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+
+  constructor(private readonly whatsAppService: WhatsAppService) {}
+
+  /**
+   * §14.x — Envoi d'un message de test, réservé SUPER_ADMIN — utilise
+   * le modèle "hello_world", pré-approuvé par défaut par Meta pour
+   * tout compte WhatsApp Business, permettant de valider la connexion
+   * (jeton + identifiant de numéro) sans attendre l'approbation d'un
+   * modèle personnalisé. Reste utile au-delà du test initial, pour
+   * diagnostiquer une connexion WhatsApp qui semble ne plus fonctionner.
+   */
+  @Post('test-send')
+  @RequirePermission('manage', 'PlatformSettings')
+  @ApiOperation({ summary: 'Envoyer un message WhatsApp de test (modèle hello_world) — réservé SUPER_ADMIN' })
+  async testSend(@Body() dto: TestSendWhatsAppDto) {
+    const sent = await this.whatsAppService.send(dto.to, 'hello_world', [], 'en_US');
+    return { sent };
+  }
 
   @Get('webhook')
   @ApiExcludeEndpoint() // appelé exclusivement par Meta, pas un endpoint destiné à un client de l'app
