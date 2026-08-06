@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { Prisma } from '@prisma/client';
 import { randomUUID, randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import * as XLSX from 'xlsx';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -145,6 +146,166 @@ export class AdherentsService {
     ]);
 
     return { adherent, user, tempPassword, subscription };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Import Excel (§14.x)
+  // ─────────────────────────────────────────────────────────────
+
+  private static readonly IMPORT_HEADERS = ['Prénom', 'Nom', 'Téléphone', 'Email', 'Adresse', 'Formule'];
+
+  /**
+   * §14.x — Modèle Excel à télécharger avant un import — colonnes
+   * attendues + une ligne d'exemple réaliste, pour qu'un propriétaire
+   * qui migre depuis un tableur existant sache exactement quoi
+   * préparer, sans deviner un format. Le nom de "Formule" doit
+   * correspondre EXACTEMENT à une formule déjà créée dans le
+   * catalogue de cette salle — rappelé en note, colonne facultative.
+   */
+  async generateImportTemplate(salleId: string): Promise<Buffer> {
+    const catalogues = await this.prisma.abonnementCatalogue.findMany({
+      where: { salleId, active: true },
+      select: { name: true },
+      take: 3,
+    });
+
+    const rows = [
+      AdherentsService.IMPORT_HEADERS,
+      ['Awa', 'Traoré', '+22670000001', 'awa.traore@example.com', 'Ouagadougou, Secteur 15', catalogues[0]?.name ?? ''],
+    ];
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    sheet['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 26 }, { wch: 24 }, { wch: 20 }];
+
+    const noteRows = [
+      [],
+      ['Notes :'],
+      ['- Prénom, Nom et Téléphone sont obligatoires.'],
+      ['- Email, Adresse et Formule sont optionnels.'],
+      catalogues.length > 0
+        ? [`- Formule doit correspondre exactement à : ${catalogues.map((c: { name: string }) => c.name).join(', ')}`]
+        : ['- Aucune formule active pour cette salle actuellement — laissez la colonne vide.'],
+      ['- Effacez la ligne d\'exemple avant d\'importer vos propres adhérents.'],
+    ];
+    XLSX.utils.sheet_add_aoa(sheet, noteRows, { origin: -1 });
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Adhérents');
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  }
+
+  /**
+   * §14.x — Import en masse depuis un fichier Excel — le principal
+   * frein identifié à la conversion d'un propriétaire déjà équipé
+   * (cahier, tableur) : sans ça, migrer veut dire ressaisir chaque
+   * adhérent à la main. Les lignes valides sont importées, les lignes
+   * en erreur sont rapportées avec leur numéro et la raison — jamais
+   * de rejet global du fichier pour UNE ligne problématique (§14.x,
+   * principe validé avec l'utilisateur).
+   */
+  async importFromExcel(
+    salleId: string,
+    fileBuffer: Buffer,
+    actorUserId: string,
+  ): Promise<{ imported: number; errors: Array<{ row: number; reason: string }> }> {
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (!sheet) throw new BadRequestException('Fichier Excel vide ou illisible');
+
+    const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+
+    const catalogues = await this.prisma.abonnementCatalogue.findMany({
+      where: { salleId, active: true },
+      select: { id: true, name: true },
+    });
+    const catalogueByName = new Map<string, string>(
+      catalogues.map((c: { id: string; name: string }) => [c.name.trim().toLowerCase(), c.id]),
+    );
+
+    // §14.x — QuotaGuard ne vérifie qu'une fois par REQUÊTE HTTP, pas
+    // ligne par ligne — insuffisant pour un import en masse qui crée
+    // potentiellement des dizaines d'adhérents en une seule requête
+    // (bug réel évité, pas encore commis : sans ce contrôle, un import
+    // aurait pu dépasser largement le quota du plan). Vérifié et
+    // décrémenté manuellement à chaque ligne importée avec succès.
+    const salle = await this.prisma.salle.findUniqueOrThrow({
+      where: { id: salleId },
+      include: { subscription: { include: { saasPlan: true } } },
+    });
+    const quota = salle.subscription.saasPlan.quotaAdherents;
+    let currentCount =
+      quota === null ? null : await this.prisma.adherentProfile.count({ where: { salleId } });
+
+    let imported = 0;
+    const errors: Array<{ row: number; reason: string }> = [];
+
+    for (let i = 0; i < raw.length; i++) {
+      const rowNumber = i + 2; // +1 pour l'en-tête, +1 pour l'index 0-based
+      const row = raw[i];
+
+      const firstName = String(row['Prénom'] ?? '').trim();
+      const lastName = String(row['Nom'] ?? '').trim();
+      const phone = String(row['Téléphone'] ?? '').trim();
+      // Ligne de notes en bas de fichier (voir generateImportTemplate)
+      // ou ligne totalement vide — ignorée silencieusement, ne compte
+      // ni comme import ni comme erreur.
+      // §14.x — les lignes de notes ajoutées par generateImportTemplate
+      // (ex: "Notes :") n'ont du contenu QUE dans la colonne Prénom —
+      // testé réellement (pas juste supposé) : une vraie tentative de
+      // ligne adhérent a presque toujours au moins un numéro de
+      // téléphone renseigné, un mot de note isolé jamais les deux
+      // colonnes Nom ET Téléphone vides en même temps. Ignorée
+      // silencieusement plutôt que de remonter une fausse erreur.
+      if (!lastName && !phone) continue;
+
+      if (!firstName || !lastName || !phone) {
+        errors.push({ row: rowNumber, reason: 'Prénom, Nom et Téléphone sont obligatoires' });
+        continue;
+      }
+
+      if (currentCount !== null && quota !== null && currentCount >= quota) {
+        errors.push({
+          row: rowNumber,
+          reason: `Quota d'adhérents atteint (${quota}) pour le plan ${salle.subscription.saasPlan.name} — ligne non importée`,
+        });
+        continue;
+      }
+
+      const emailRaw = String(row['Email'] ?? '').trim();
+      const addressRaw = String(row['Adresse'] ?? '').trim();
+      const formuleRaw = String(row['Formule'] ?? '').trim();
+
+      let abonnementCatalogueId: string | undefined;
+      if (formuleRaw) {
+        const matchedId = catalogueByName.get(formuleRaw.toLowerCase());
+        if (!matchedId) {
+          errors.push({ row: rowNumber, reason: `Formule "${formuleRaw}" introuvable dans le catalogue de cette salle` });
+          continue;
+        }
+        abonnementCatalogueId = matchedId;
+      }
+
+      try {
+        await this.create(
+          {
+            firstName,
+            lastName,
+            phone,
+            salleId,
+            email: emailRaw || undefined,
+            address: addressRaw || undefined,
+            abonnementCatalogueId,
+          },
+          actorUserId,
+          true, // allowSubscriptionUnpaid — un import en masse ne déclare pas de paiement ligne par ligne
+        );
+        imported++;
+        if (currentCount !== null) currentCount++;
+      } catch (err) {
+        errors.push({ row: rowNumber, reason: err instanceof Error ? err.message : 'Erreur inconnue' });
+      }
+    }
+
+    return { imported, errors };
   }
 
   /**

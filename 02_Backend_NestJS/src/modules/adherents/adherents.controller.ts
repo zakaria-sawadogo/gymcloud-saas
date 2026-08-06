@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { IsIn, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional, ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { AdherentsService } from './adherents.service';
 import { MembershipCardPdfService } from './membership-card-pdf.service';
 import { CreateAdherentDto, UpdateAdherentDto, SubscribeAdherentDto } from './dto/adherents.dto';
@@ -72,6 +73,33 @@ export class AdherentsController {
   @ApiOperation({ summary: 'Inscrire un adhérent, avec souscription immédiate optionnelle (§4.6, §5.6)' })
   create(@Body() dto: CreateAdherentDto, @CurrentUser() user: TenantContext) {
     return this.adherentsService.create(dto, user.userId);
+  }
+
+  @Get('import-template')
+  @RequirePermission('manage', 'Adherent')
+  @ApiOperation({ summary: 'Télécharge un modèle Excel pour l\'import en masse d\'adhérents (§14.x)' })
+  async importTemplate(@CurrentUser() user: TenantContext, @Res() res: Response) {
+    if (!user.salleId) throw new BadRequestException('Aucune salle associée à ce compte');
+    const buffer = await this.adherentsService.generateImportTemplate(user.salleId);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="modele-import-adherents.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.send(buffer);
+  }
+
+  @Post('import')
+  @RequirePermission('manage', 'Adherent')
+  @RestrictedInDegradedMode()
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Import en masse d\'adhérents depuis un fichier Excel (§14.x) — voir import-template pour le format attendu' })
+  async importExcel(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: TenantContext) {
+    if (!user.salleId) throw new BadRequestException('Aucune salle associée à ce compte');
+    if (!file) throw new BadRequestException('Fichier requis');
+    if (file.size > 5 * 1024 * 1024) throw new BadRequestException('Fichier trop volumineux (5 Mo maximum)');
+    return this.adherentsService.importFromExcel(user.salleId, file.buffer, user.userId);
   }
 
   @Post('with-payment')

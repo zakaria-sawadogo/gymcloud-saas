@@ -2,10 +2,11 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Plus, Users, Search, Download, CreditCard } from 'lucide-react';
+import { Plus, Users, Search, Download, CreditCard, Upload } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError, tokenStorage } from '@/lib/api-client';
+import { DownloadReportButton } from '@/components/dashboard/DownloadReportButton';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -46,6 +47,7 @@ export default function AdherentsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const salleId = user?.salle?.id;
   const path = salleId
@@ -68,10 +70,16 @@ export default function AdherentsPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-ink-900">Adhérents</h1>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Nouvel adhérent
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setIsImportOpen(true)}>
+            <Upload className="h-4 w-4" />
+            Importer depuis Excel
+          </Button>
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Nouvel adhérent
+          </Button>
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -151,6 +159,15 @@ export default function AdherentsPage() {
           onClose={() => setIsCreateOpen(false)}
           onCreated={() => {
             setIsCreateOpen(false);
+            refetch();
+          }}
+        />
+      )}
+
+      {isImportOpen && (
+        <ImportAdherentsModal
+          onClose={() => setIsImportOpen(false)}
+          onImported={() => {
             refetch();
           }}
         />
@@ -347,6 +364,111 @@ function CreateAdherentModal({
             Inscrire et encaisser
           </Button>
         </form>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * §14.x — Import en masse depuis un fichier Excel : le frein le plus
+ * courant à la conversion d'un propriétaire déjà équipé (cahier,
+ * tableur) est de devoir tout ressaisir à la main. Le modèle
+ * téléchargeable (via DownloadReportButton, déjà en place ailleurs
+ * dans l'app pour les rapports PDF — même mécanisme d'authentification
+ * par jeton) montre exactement le format attendu.
+ */
+function ImportAdherentsModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ imported: number; errors: Array<{ row: number; reason: string }> } | null>(
+    null,
+  );
+
+  const handleSubmit = async () => {
+    if (!file) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await apiClient.post<{ imported: number; errors: Array<{ row: number; reason: string }> }>(
+        '/adherents/import',
+        formData,
+      );
+      setResult(res);
+      if (res.imported > 0) onImported();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Importer des adhérents depuis Excel">
+      {!result ? (
+        <div>
+          <p className="mb-4 text-sm text-ink-600">
+            Téléchargez d&apos;abord le modèle pour voir le format exact attendu, remplissez-le avec vos adhérents
+            existants, puis importez-le ici.
+          </p>
+
+          <div className="mb-5">
+            <DownloadReportButton path="/adherents/import-template" filename="modele-import-adherents.xlsx" />
+          </div>
+
+          <div className="mb-5">
+            <label className="mb-1.5 block text-sm font-medium text-ink-800">Fichier Excel rempli</label>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-ink-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-primary-700"
+            />
+          </div>
+
+          {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onClose} className="flex-1">
+              Annuler
+            </Button>
+            <Button onClick={handleSubmit} isLoading={isSubmitting} disabled={!file} className="flex-1">
+              Importer
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p className="mb-4 rounded-lg bg-primary-50 px-3 py-2 text-sm text-primary-700">
+            {result.imported} adhérent{result.imported > 1 ? 's' : ''} importé{result.imported > 1 ? 's' : ''} avec
+            succès.
+          </p>
+
+          {result.errors.length > 0 && (
+            <div className="mb-4">
+              <p className="mb-2 text-sm font-medium text-ink-800">
+                {result.errors.length} ligne{result.errors.length > 1 ? 's' : ''} non importée
+                {result.errors.length > 1 ? 's' : ''} :
+              </p>
+              <div className="max-h-56 overflow-y-auto rounded-lg border border-ink-100">
+                {result.errors.map((e, i) => (
+                  <div
+                    key={i}
+                    className="border-b border-ink-50 px-3 py-2 text-xs text-ink-600 last:border-0"
+                  >
+                    <span className="font-medium text-ink-800">Ligne {e.row}</span> — {e.reason}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Button onClick={onClose} className="w-full">
+            Fermer
+          </Button>
+        </div>
       )}
     </Modal>
   );
