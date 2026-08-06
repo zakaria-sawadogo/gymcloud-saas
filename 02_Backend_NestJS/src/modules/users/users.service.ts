@@ -415,7 +415,6 @@ export class UsersService {
   // Gestionnaires (§4.4) — SUPER_ADMIN ou PROPRIETAIRE (§2.8)
   // ─────────────────────────────────────────────────────────────
 
-
   async createGestionnaire(dto: CreateGestionnaireDto, actor: TenantContext) {
     const salle = await this.prisma.salle.findUnique({ where: { id: dto.salleId } });
     if (!salle) throw new NotFoundException('Salle introuvable');

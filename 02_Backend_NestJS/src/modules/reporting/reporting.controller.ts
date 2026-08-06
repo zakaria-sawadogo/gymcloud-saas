@@ -4,6 +4,7 @@ import { Response } from 'express';
 import { ReportingService } from './reporting.service';
 import { ReportPdfService } from './report-pdf.service';
 import { RequirePermission } from '../../common/casl/policies.guard';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
 
 /**
@@ -43,6 +44,7 @@ export class ReportingController {
 
   @Get('salle/:salleId/dashboard')
   @RequirePermission('read', 'Payment')
+  @RequireModule('rapports_standards')
   @ApiOperation({ summary: 'Tableau de bord Gestionnaire — pilotage quotidien d\'une salle (§11)' })
   async gestionnaireDashboard(@Param('salleId') salleId: string, @CurrentUser() user: TenantContext) {
     await this.assertCanAccessSalle(salleId, user);
@@ -51,6 +53,7 @@ export class ReportingController {
 
   @Get('salle/:salleId/revenue')
   @RequirePermission('read', 'Payment')
+  @RequireModule('rapports_standards')
   @ApiOperation({ summary: 'Détail des revenus sur une période, par méthode et par jour' })
   async revenue(
     @Param('salleId') salleId: string,
@@ -64,6 +67,7 @@ export class ReportingController {
 
   @Get('salle/:salleId/occupancy')
   @RequirePermission('read', 'AccessLog')
+  @RequireModule('rapports_standards')
   @ApiOperation({ summary: 'Tendances de fréquentation sur une période' })
   async occupancy(
     @Param('salleId') salleId: string,
@@ -77,6 +81,7 @@ export class ReportingController {
 
   @Get('salle/:salleId/retention')
   @RequirePermission('read', 'Adherent')
+  @RequireModule('rapports_avances')
   @ApiOperation({ summary: 'Taux de rétention et réabonnements' })
   async retention(@Param('salleId') salleId: string, @CurrentUser() user: TenantContext) {
     await this.assertCanAccessSalle(salleId, user);
@@ -112,6 +117,7 @@ export class ReportingController {
 
   @Get('salle/:salleId/pdf')
   @RequirePermission('read', 'Payment')
+  @RequireModule('rapports_avances')
   @ApiOperation({ summary: 'Rapport PDF de la salle — Gestionnaire, Propriétaire (ses salles) ou SUPER_ADMIN' })
   async gestionnaireReportPdf(
     @Param('salleId') salleId: string,
