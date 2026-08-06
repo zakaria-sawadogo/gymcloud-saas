@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { QrCode, LogIn, LogOut, AlertTriangle, Users, Ban, RotateCcw } from 'lucide-react';
+import { QrCode, LogIn, LogOut, Users, Ban, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
@@ -26,9 +26,6 @@ export default function AccessControlPage() {
 
   const { data: occupancy, refetch: refetchOccupancy } = useApi<AccessLog[]>(
     salleId ? `/access-control/salle/${salleId}/current` : null,
-  );
-  const { data: anomalies, refetch: refetchAnomalies } = useApi<AccessLog[]>(
-    salleId ? `/access-control/salle/${salleId}/anomalies` : null,
   );
 
   const handleScan = async (e: FormEvent) => {
@@ -186,32 +183,6 @@ export default function AccessControlPage() {
         </Card>
       </div>
 
-      {anomalies && anomalies.length > 0 && (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>
-              <span className="flex items-center gap-2 text-accent-600">
-                <AlertTriangle className="h-4 w-4" />
-                Anomalies à vérifier ({anomalies.length})
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <p className="mb-3 text-xs text-ink-400">
-            Sessions fermées automatiquement après 6h sans scan de sortie — vérifiez qu'il ne s'agit pas d'un oubli
-            de contrôle.
-          </p>
-          <div className="space-y-2">
-            {anomalies.map((log) => (
-              <div key={log.id} className="flex items-center justify-between rounded-lg bg-accent-50 px-3 py-2 text-sm">
-                <span className="font-medium text-ink-900">
-                  {log.adherent?.user.firstName} {log.adherent?.user.lastName}
-                </span>
-                <span className="text-xs text-ink-500">Entré à {formatDateTime(log.checkInAt)}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

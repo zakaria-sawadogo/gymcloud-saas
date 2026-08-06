@@ -67,13 +67,6 @@ export class AccessControlController {
     );
   }
 
-  @Get('salle/:salleId/anomalies')
-  @RequirePermission('read', 'AccessLog')
-  @ApiOperation({ summary: 'Sessions fermées automatiquement à investiguer (§6.13)' })
-  anomalies(@Param('salleId') salleId: string) {
-    return this.accessControlService.listAnomalies(salleId);
-  }
-
   @Get('adherent/:adherentId/history')
   @RequirePermission('read', 'AccessLog')
   @ApiOperation({ summary: 'Historique de fréquentation d\'un adhérent (§6.11)' })

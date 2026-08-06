@@ -223,8 +223,12 @@ export class AccessControlService {
   /**
    * Tâche planifiée (voir access-control.scheduler.ts) : ferme
    * automatiquement les sessions ouvertes depuis trop longtemps
-   * (téléphone perdu, oubli de scan sortie) et les marque comme
-   * anomalie pour investigation par le gestionnaire.
+   * (téléphone perdu, oubli de scan sortie). Ne marque plus ces
+   * sessions comme "anomalie" (§14.x — retiré à la demande de
+   * l'utilisateur : le scan de sortie n'étant pas obligatoire dans
+   * l'usage réel de la salle, une session fermée automatiquement est
+   * un cas normal, pas suspect — le signalement générait une fausse
+   * alerte pour chaque adhérent, chaque jour).
    */
   async autoCloseForgottenSessions(): Promise<{ closed: number }> {
     const threshold = new Date();
@@ -239,19 +243,10 @@ export class AccessControlService {
 
     await this.prisma.accessLog.updateMany({
       where: { id: { in: stale.map((s: { id: string }) => s.id) } },
-      data: { checkOutAt: new Date(), autoClosed: true, anomalyFlag: true },
+      data: { checkOutAt: new Date(), autoClosed: true },
     });
 
     this.logger.log(`${stale.length} session(s) fermée(s) automatiquement (§6.8)`);
     return { closed: stale.length };
-  }
-
-  /** Liste des anomalies à investiguer par le gestionnaire (§6.13) */
-  async listAnomalies(salleId: string) {
-    return this.prisma.accessLog.findMany({
-      where: { salleId, anomalyFlag: true },
-      include: { adherent: { include: { user: true } } },
-      orderBy: { checkInAt: 'desc' },
-    });
   }
 }
