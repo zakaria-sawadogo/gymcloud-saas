@@ -1030,10 +1030,53 @@ export class AdherentsService {
       });
     }
 
-    // TODO(module notifications): notifier les adhérents passés en
-    // EN_GRACE ou EXPIRE (rappel de réabonnement — §10.x).
-
     return { movedToGrace: toGrace.count, movedToExpired: expiredSubs.length };
+  }
+
+  /**
+   * §10.x — Rappel WhatsApp automatique avant échéance — chantier
+   * resté en TODO jusqu'ici malgré l'infrastructure déjà en place
+   * (modèle approuvé, add-on, service d'envoi). Appelé depuis le job
+   * nocturne existant (adherents.scheduler.ts), séparé de
+   * processExpirations() : celle-ci traite ce qui a DÉJÀ expiré,
+   * celle-là prévient AVANT que ça n'arrive — deux moments distincts,
+   * pas la même responsabilité.
+   *
+   * Plage d'un jour calendaire complet (pas juste "maintenant + 3
+   * jours" à l'instant précis) pour ne rater personne selon l'heure
+   * exacte du passage du job, sans non plus doubler l'envoi d'un jour
+   * sur l'autre — chaque abonnement n'a qu'une seule date de fin, donc
+   * ne peut tomber dans cette fenêtre qu'une seule fois.
+   */
+  async sendUpcomingExpiryReminders(daysBefore = 3): Promise<{ sent: number }> {
+    const rangeStart = new Date();
+    rangeStart.setDate(rangeStart.getDate() + daysBefore);
+    rangeStart.setHours(0, 0, 0, 0);
+    const rangeEnd = new Date(rangeStart);
+    rangeEnd.setHours(23, 59, 59, 999);
+
+    const upcoming = await this.prisma.adherentAbonnement.findMany({
+      where: { status: 'ACTIF', endDate: { gte: rangeStart, lte: rangeEnd } },
+      include: { adherent: { include: { user: true, salle: true } } },
+    });
+
+    let sent = 0;
+    for (const sub of upcoming) {
+      const dateFormatted = new Intl.DateTimeFormat('fr-FR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }).format(sub.endDate);
+      const success = await this.whatsAppService.sendIfEnabledForSalle(
+        sub.adherent.salleId,
+        sub.adherent.user.phone,
+        'rappel_echeance_adherent',
+        [sub.adherent.user.firstName, sub.adherent.salle.name, dateFormatted],
+      );
+      if (success) sent++;
+    }
+
+    return { sent };
   }
 
   // ─────────────────────────────────────────────────────────────

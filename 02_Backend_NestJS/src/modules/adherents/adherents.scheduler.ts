@@ -3,12 +3,13 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AdherentsService } from './adherents.service';
 
 /**
- * §5.12 — Gestion automatique du cycle de vie des abonnements.
+ * §5.12, §10.x — Gestion automatique du cycle de vie des abonnements.
  *
  * Exécuté chaque nuit : fait transiter les abonnements expirés vers
- * EN_GRACE puis EXPIRE, et aligne le statut de l'adhérent en
- * conséquence. Le module Notifications (à développer) s'abonnera au
- * résultat pour envoyer les rappels de réabonnement (§10.x).
+ * EN_GRACE puis EXPIRE, aligne le statut de l'adhérent en conséquence,
+ * et envoie un rappel WhatsApp aux adhérents dont l'abonnement arrive
+ * à échéance dans quelques jours (si l'add-on WhatsApp est actif pour
+ * leur salle).
  */
 @Injectable()
 export class AdherentsSchedulerService {
@@ -23,5 +24,8 @@ export class AdherentsSchedulerService {
     this.logger.log(
       `Terminé : ${result.movedToGrace} passages en grâce, ${result.movedToExpired} expirations définitives.`,
     );
+
+    const reminders = await this.adherentsService.sendUpcomingExpiryReminders();
+    this.logger.log(`Rappels d'échéance WhatsApp envoyés : ${reminders.sent}.`);
   }
 }
