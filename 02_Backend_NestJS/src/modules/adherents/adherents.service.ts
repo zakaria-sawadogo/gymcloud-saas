@@ -130,7 +130,7 @@ export class AdherentsService {
     if (dto.abonnementCatalogueId) {
       subscription = await this.subscribe(
         adherent.id,
-        { abonnementCatalogueId: dto.abonnementCatalogueId },
+        { abonnementCatalogueId: dto.abonnementCatalogueId, startDate: dto.abonnementStartDate },
         actorUserId,
       );
     }
@@ -152,7 +152,15 @@ export class AdherentsService {
   // Import Excel (§14.x)
   // ─────────────────────────────────────────────────────────────
 
-  private static readonly IMPORT_HEADERS = ['Prénom', 'Nom', 'Téléphone', 'Email', 'Adresse', 'Formule'];
+  private static readonly IMPORT_HEADERS = [
+    'Prénom',
+    'Nom',
+    'Téléphone',
+    'Email',
+    'Adresse',
+    'Formule',
+    'Date de début (JJ/MM/AAAA)',
+  ];
 
   /**
    * §14.x — Modèle Excel à télécharger avant un import — colonnes
@@ -171,19 +179,32 @@ export class AdherentsService {
 
     const rows = [
       AdherentsService.IMPORT_HEADERS,
-      ['Awa', 'Traoré', '+22670000001', 'awa.traore@example.com', 'Ouagadougou, Secteur 15', catalogues[0]?.name ?? ''],
+      [
+        'Awa',
+        'Traoré',
+        '+22670000001',
+        'awa.traore@example.com',
+        'Ouagadougou, Secteur 15',
+        catalogues[0]?.name ?? '',
+        '',
+      ],
     ];
     const sheet = XLSX.utils.aoa_to_sheet(rows);
-    sheet['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 26 }, { wch: 24 }, { wch: 20 }];
+    sheet['!cols'] = [{ wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 26 }, { wch: 24 }, { wch: 20 }, { wch: 24 }];
 
     const noteRows = [
       [],
       ['Notes :'],
       ['- Prénom, Nom et Téléphone sont obligatoires.'],
-      ['- Email, Adresse et Formule sont optionnels.'],
+      ['- Email, Adresse, Formule et Date de début sont optionnels.'],
       catalogues.length > 0
         ? [`- Formule doit correspondre exactement à : ${catalogues.map((c: { name: string }) => c.name).join(', ')}`]
         : ['- Aucune formule active pour cette salle actuellement — laissez la colonne vide.'],
+      [
+        '- Date de début : uniquement si Formule est renseignée. Pour un adhérent déjà en cours ' +
+          "d'abonnement, indiquez sa vraie date de début — la date de fin se calcule automatiquement " +
+          'à partir de la durée de la formule. Laissez vide pour démarrer aujourd\'hui.',
+      ],
       ['- Effacez la ligne d\'exemple avant d\'importer vos propres adhérents.'],
     ];
     XLSX.utils.sheet_add_aoa(sheet, noteRows, { origin: -1 });
@@ -207,7 +228,10 @@ export class AdherentsService {
     fileBuffer: Buffer,
     actorUserId: string,
   ): Promise<{ imported: number; errors: Array<{ row: number; reason: string }> }> {
-    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+    // cellDates: true — une cellule formatée comme date par Excel est
+    // lue comme un objet Date JS plutôt qu'un nombre de série Excel
+    // opaque, plus fiable à interpréter ensuite.
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer', cellDates: true });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     if (!sheet) throw new BadRequestException('Fichier Excel vide ou illisible');
 
@@ -284,6 +308,29 @@ export class AdherentsService {
         abonnementCatalogueId = matchedId;
       }
 
+      // §14.x — permet d'importer un adhérent déjà en cours d'abonnement
+      // (migration depuis un tableur) avec sa vraie date de début,
+      // plutôt que de forcer "aujourd'hui" pour tout le monde — chaque
+      // ligne peut avoir une date différente (voir subscribe(), qui
+      // calcule déjà la date de fin à partir d'une date de début
+      // fournie, mécanisme préexistant réutilisé ici).
+      let abonnementStartDate: string | undefined;
+      const dateRaw = row['Date de début (JJ/MM/AAAA)'];
+      if (dateRaw !== undefined && dateRaw !== null && String(dateRaw).trim() !== '') {
+        if (dateRaw instanceof Date) {
+          abonnementStartDate = dateRaw.toISOString().slice(0, 10);
+        } else {
+          const str = String(dateRaw).trim();
+          const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (!match) {
+            errors.push({ row: rowNumber, reason: `Date de début "${str}" invalide — utilisez le format JJ/MM/AAAA` });
+            continue;
+          }
+          const [, day, month, year] = match;
+          abonnementStartDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+      }
+
       try {
         await this.create(
           {
@@ -294,6 +341,7 @@ export class AdherentsService {
             email: emailRaw || undefined,
             address: addressRaw || undefined,
             abonnementCatalogueId,
+            abonnementStartDate,
           },
           actorUserId,
           true, // allowSubscriptionUnpaid — un import en masse ne déclare pas de paiement ligne par ligne

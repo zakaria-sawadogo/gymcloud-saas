@@ -63,6 +63,14 @@ export class CreateAdherentDto {
   @IsOptional()
   @IsUUID()
   abonnementCatalogueId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Date de début de l'abonnement (§14.x, import Excel) — pour un adhérent déjà en cours d'abonnement au moment de la migration, la date de fin se calcule à partir de celle-ci plutôt que d'aujourd'hui. Ignoré sans abonnementCatalogueId.",
+  })
+  @IsOptional()
+  @IsDateString()
+  abonnementStartDate?: string;
 }
 
 export class UpdateAdherentDto {
