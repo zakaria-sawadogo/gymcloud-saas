@@ -686,6 +686,25 @@ export class AdherentsService {
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + catalogue.durationDays);
 
+    // §14.x — un abonnement importé avec une date de fin déjà passée
+    // (migration d'un adhérent déjà en cours au moment du transfert
+    // vers GymCloud) doit refléter son VRAI statut dès la création,
+    // pas rester "Actif" jusqu'au prochain passage du job nocturne
+    // (processExpirations) — même seuil de grâce que ce job, pour
+    // qu'un abonnement fraîchement créé et un abonnement traité par
+    // le job donnent toujours le même résultat pour les mêmes dates
+    // (bug réel corrigé, trouvé en testant l'import avec une date
+    // passée).
+    const now = new Date();
+    const graceLimit = new Date(now);
+    graceLimit.setDate(graceLimit.getDate() - GRACE_PERIOD_DAYS);
+    let initialStatus: 'ACTIF' | 'EN_GRACE' | 'EXPIRE' = 'ACTIF';
+    if (endDate < graceLimit) {
+      initialStatus = 'EXPIRE';
+    } else if (endDate < now) {
+      initialStatus = 'EN_GRACE';
+    }
+
     const subscription = await this.prisma.adherentAbonnement.create({
       data: {
         id: randomUUID(),
@@ -693,13 +712,21 @@ export class AdherentsService {
         abonnementCatalogueId: catalogue.id,
         startDate,
         endDate,
-        status: 'ACTIF',
+        status: initialStatus,
         isRenewal,
       },
     });
 
-    // Un réabonnement réactive un adhérent précédemment EXPIRE (§5.12)
-    if (adherent.status === 'EXPIRE' || adherent.status === 'EN_GRACE') {
+    // Aligne le statut de l'adhérent sur celui, correctement calculé
+    // ci-dessus, du nouvel abonnement — un réabonnement réactive un
+    // adhérent précédemment EXPIRE/EN_GRACE (§5.12), SAUF si le nouvel
+    // abonnement lui-même est déjà expiré/en grâce (import historique).
+    if (initialStatus !== 'ACTIF') {
+      await this.prisma.adherentProfile.update({
+        where: { id: adherentId },
+        data: { status: initialStatus },
+      });
+    } else if (adherent.status === 'EXPIRE' || adherent.status === 'EN_GRACE') {
       await this.prisma.adherentProfile.update({
         where: { id: adherentId },
         data: { status: 'ACTIF' },
