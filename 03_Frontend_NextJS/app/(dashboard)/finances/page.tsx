@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Wallet, Pencil, Copy, Trash2, Camera } from 'lucide-react';
+import { Plus, Wallet, Pencil, Copy, Trash2, Camera, Download } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { DownloadReportButton } from '@/components/dashboard/DownloadReportButton';
 
 const SUGGESTED_CATEGORIES = ['Loyer', 'Salaires', 'Électricité/Eau', 'Équipement', 'Maintenance', 'Marketing', 'Autres'];
 const MONTH_LABELS = [
@@ -44,6 +45,7 @@ export default function FinancesPage() {
 }
 
 function FinancesView({ salleId, currency }: { salleId: string; currency: string }) {
+  const { user } = useAuth();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -104,6 +106,14 @@ function FinancesView({ salleId, currency }: { salleId: string; currency: string
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-semibold text-ink-900">GymCloud Finances</h1>
         <div className="flex items-center gap-2">
+          {user?.roleCode === 'PROPRIETAIRE' && (
+            <DownloadReportButton
+              path={`/salles/${salleId}/finances/expenses/export-excel?year=${year}&month=${month}`}
+              filename={`export-comptable-${year}-${String(month).padStart(2, '0')}.xlsx`}
+              label="Export comptable"
+              icon={Download}
+            />
+          )}
           <Select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-40">
             {MONTH_LABELS.map((label, i) => (
               <option key={i} value={i + 1}>

@@ -1,20 +1,35 @@
 'use client';
 
 import { useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { tokenStorage } from '@/lib/api-client';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
 /**
- * §11 — Téléchargement du rapport PDF d'un tableau de bord (Gestionnaire,
- * Propriétaire ou SUPER_ADMIN selon `path`). Même mécanisme que le
+ * §11, §14.x — Téléchargement d'un fichier généré par le backend
+ * (rapport PDF, export Excel...) — même mécanisme que le
  * téléchargement des factures SaaS (fetch + Authorization Bearer +
  * blob), puisque ces routes exigent un token comme n'importe quelle
  * autre route protégée — un simple lien `<a href>` ne suffit pas.
+ *
+ * `label` et `icon` personnalisables (§14.x — généralisé depuis un
+ * composant initialement pensé pour le seul rapport PDF, réutilisé
+ * tel quel pour l'export comptable Excel plutôt que de dupliquer
+ * cette même logique de téléchargement authentifié).
  */
-export function DownloadReportButton({ path, filename }: { path: string; filename: string }) {
+export function DownloadReportButton({
+  path,
+  filename,
+  label = 'Rapport PDF',
+  icon: Icon = Download,
+}: {
+  path: string;
+  filename: string;
+  label?: string;
+  icon?: LucideIcon;
+}) {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownload = async () => {
@@ -25,7 +40,7 @@ export function DownloadReportButton({ path, filename }: { path: string; filenam
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
-        alert('Impossible de générer le rapport PDF');
+        alert(`Impossible de générer : ${label}`);
         return;
       }
       const blob = await res.blob();
@@ -42,8 +57,8 @@ export function DownloadReportButton({ path, filename }: { path: string; filenam
 
   return (
     <Button size="sm" variant="secondary" isLoading={isDownloading} onClick={handleDownload}>
-      <Download className="h-3.5 w-3.5" />
-      Rapport PDF
+      <Icon className="h-3.5 w-3.5" />
+      {label}
     </Button>
   );
 }

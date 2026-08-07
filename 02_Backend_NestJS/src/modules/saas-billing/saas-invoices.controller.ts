@@ -157,6 +157,19 @@ export class SaasInvoicesController {
     return this.saasBillingService.listPendingValidation();
   }
 
+  @Get('export-excel')
+  @RequirePermission('manage', 'SaasPlan')
+  @ApiOperation({ summary: 'Export comptable Excel des revenus SaaS de la plateforme (§14.x)' })
+  async exportRevenueExcel(@Query('year') year: string, @Query('month') month: string, @Res() res: Response) {
+    const buffer = await this.saasBillingService.exportSaasRevenueExcel(Number(year), Number(month));
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="export-saas-${year}-${month}.xlsx"`,
+      'Content-Length': buffer.length,
+    });
+    res.send(buffer);
+  }
+
   @Patch(':id/approve')
   @RequirePermission('manage', 'SaasPlan')
   @ApiOperation({

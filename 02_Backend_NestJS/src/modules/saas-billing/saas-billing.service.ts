@@ -2277,4 +2277,74 @@ export class SaasBillingService {
         : null,
     }));
   }
+
+  /**
+   * §14.x — Export comptable Excel des revenus SaaS de la plateforme
+   * (abonnements des propriétaires à GymCloud) — pendant SUPER_ADMIN
+   * du même besoin que l'export comptable propriétaire (paiements
+   * adhérents), même principe : une feuille de synthèse, une feuille
+   * de détail par facture réellement encaissée sur la période.
+   */
+  async exportSaasRevenueExcel(year: number, month: number): Promise<Buffer> {
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const invoices = await this.prisma.saasInvoice.findMany({
+      where: { status: 'PAYEE', paidAt: { gte: start, lte: end } },
+      include: {
+        subscription: {
+          include: {
+            proprietaire: { include: { user: { select: { firstName: true, lastName: true } } } },
+            saasPlan: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { paidAt: 'asc' },
+    });
+
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.utils.book_new();
+
+    type InvoiceRow = {
+      paidAt: Date | null;
+      invoiceNumber: string;
+      subscription: {
+        proprietaire: { user: { firstName: string; lastName: string } };
+        saasPlan: { name: string };
+      };
+      totalAmount: unknown;
+      paymentMethod: string | null;
+      paymentReference: string | null;
+    };
+    const totalRevenue = invoices.reduce((sum: number, i: InvoiceRow) => sum + Number(i.totalAmount), 0);
+
+    const monthLabel = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(
+      new Date(year, month - 1, 1),
+    );
+    const summarySheetData = [
+      ['Revenus SaaS GymCloud', monthLabel],
+      [],
+      ['Nombre de factures encaissées', invoices.length],
+      ['Total encaissé', totalRevenue],
+    ];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summarySheetData), 'Synthèse');
+
+    const detailSheetData = [
+      ['Date encaissement', 'N° facture', 'Propriétaire', 'Plan', 'Montant', 'Méthode', 'Référence'],
+      ...invoices.map((i: InvoiceRow) => [
+        i.paidAt ? i.paidAt.toISOString().split('T')[0] : '',
+        i.invoiceNumber,
+        `${i.subscription.proprietaire.user.firstName} ${i.subscription.proprietaire.user.lastName}`,
+        i.subscription.saasPlan.name,
+        Number(i.totalAmount),
+        i.paymentMethod ?? '',
+        i.paymentReference ?? '',
+      ]),
+      [],
+      ['Total', '', '', '', totalRevenue, '', ''],
+    ];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(detailSheetData), 'Factures encaissées');
+
+    return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  }
 }

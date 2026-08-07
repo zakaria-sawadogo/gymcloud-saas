@@ -382,17 +382,75 @@ export class FinancesService {
     }
     const { start, end } = this.monthRange(year, month);
 
-    const [productSales, expenses] = await Promise.all([
+    // §14.x — payments (abonnements adhérents) manquait de cet export
+    // jusqu'ici, alors que c'est la principale source de revenus d'une
+    // salle — seules les ventes boutique et les dépenses y figuraient,
+    // ce qui en faisait un export comptable incomplet dans les faits.
+    const [productSales, expenses, payments] = await Promise.all([
       this.prisma.productSale.findMany({
         where: { salleId, createdAt: { gte: start, lte: end } },
         include: { product: { select: { name: true } } },
         orderBy: { createdAt: 'asc' },
       }),
       this.listExpenses(salleId, year, month, actor),
+      this.prisma.payment.findMany({
+        where: { salleId, status: 'VALIDE', createdAt: { gte: start, lte: end } },
+        include: { adherent: { include: { user: { select: { firstName: true, lastName: true } } } } },
+        orderBy: { createdAt: 'asc' },
+      }),
     ]);
 
     const XLSX = await import('xlsx');
     const workbook = XLSX.utils.book_new();
+
+    type PaymentRow = {
+      createdAt: Date;
+      adherent: { user: { firstName: string; lastName: string } } | null;
+      type: string;
+      method: string;
+      amount: unknown;
+      reference: string | null;
+    };
+    const totalPayments = payments.reduce((sum: number, p: PaymentRow) => sum + Number(p.amount), 0);
+    const totalBoutique = productSales.reduce(
+      (sum: number, s: { totalAmount: unknown }) => sum + Number(s.totalAmount),
+      0,
+    );
+    const totalExpenses = expenses.reduce(
+      (sum: number, e: { amount: unknown }) => sum + Number(e.amount),
+      0,
+    );
+
+    const monthLabel = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(
+      new Date(year, month - 1, 1),
+    );
+    const summarySheetData = [
+      ['Synthèse comptable', monthLabel],
+      [],
+      ['Paiements adhérents (abonnements, séances)', totalPayments],
+      ['Revenus boutique', totalBoutique],
+      ['Total revenus', totalPayments + totalBoutique],
+      [],
+      ['Dépenses', totalExpenses],
+      [],
+      ['Résultat net', totalPayments + totalBoutique - totalExpenses],
+    ];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summarySheetData), 'Synthèse');
+
+    const paymentsSheetData = [
+      ['Date', 'Adhérent', 'Type', 'Méthode', 'Montant', 'Référence'],
+      ...payments.map((p: PaymentRow) => [
+        p.createdAt.toISOString().split('T')[0],
+        p.adherent ? `${p.adherent.user.firstName} ${p.adherent.user.lastName}` : '',
+        p.type,
+        p.method,
+        Number(p.amount),
+        p.reference ?? '',
+      ]),
+      [],
+      ['Total', '', '', '', totalPayments, ''],
+    ];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(paymentsSheetData), 'Paiements adhérents');
 
     const revenueSheetData = [
       ['Date', 'Produit', 'Quantité', 'Montant'],
@@ -403,7 +461,7 @@ export class FinancesService {
         Number(s.totalAmount),
       ]),
       [],
-      ['Total', '', '', productSales.reduce((sum: number, s: { totalAmount: unknown }) => sum + Number(s.totalAmount), 0)],
+      ['Total', '', '', totalBoutique],
     ];
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(revenueSheetData), 'Revenus boutique');
 
@@ -415,6 +473,8 @@ export class FinancesService {
         Number(e.amount),
         e.description ?? '',
       ]),
+      [],
+      ['Total', '', totalExpenses, ''],
     ];
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(expensesSheetData), 'Dépenses');
 

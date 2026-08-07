@@ -174,7 +174,7 @@ export class FinancesController {
 
   @Get('expenses/export-excel')
   @RequirePermission('read', 'Expense')
-  @ApiOperation({ summary: "État Excel pour le gestionnaire — revenus boutique + dépenses non confidentielles uniquement" })
+  @ApiOperation({ summary: "Export comptable Excel — paiements adhérents, revenus boutique et dépenses non confidentielles (§14.x)" })
   async exportExcel(
     @Param('salleId') salleId: string,
     @Query('year') year: string,
