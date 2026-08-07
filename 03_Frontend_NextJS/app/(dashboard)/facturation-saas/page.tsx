@@ -17,6 +17,11 @@ import { DownloadReportButton } from '@/components/dashboard/DownloadReportButto
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
+const MONTH_LABELS = [
+  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+];
+
 /**
  * Le PDF est binaire et protégé par Bearer token — un simple lien
  * `<a href>` ne peut pas envoyer l'en-tête d'autorisation. On récupère
@@ -66,6 +71,10 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 export default function FacturationSaasPage() {
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState('');
+  const now = new Date();
+  const [exportYear, setExportYear] = useState(now.getFullYear());
+  const [exportMonth, setExportMonth] = useState(now.getMonth() + 1);
+  const exportYears = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
   const [invoiceToPay, setInvoiceToPay] = useState<SaasInvoice | null>(null);
   // §14.x — la liste principale et "Validations en attente" sont deux
   // sections indépendantes (données et refetch séparés) : sans ce
@@ -89,10 +98,24 @@ export default function FacturationSaasPage() {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-ink-900">Facturation SaaS</h1>
         <div className="flex items-center gap-2">
+          <Select value={exportMonth} onChange={(e) => setExportMonth(Number(e.target.value))} className="w-36">
+            {MONTH_LABELS.map((label, i) => (
+              <option key={i} value={i + 1}>
+                {label}
+              </option>
+            ))}
+          </Select>
+          <Select value={exportYear} onChange={(e) => setExportYear(Number(e.target.value))} className="w-24">
+            {exportYears.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </Select>
           <DownloadReportButton
-            path={`/saas/invoices/export-excel?year=${new Date().getFullYear()}&month=${new Date().getMonth() + 1}`}
-            filename={`export-revenus-saas-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}.xlsx`}
-            label="Export comptable (mois en cours)"
+            path={`/saas/invoices/export-excel?year=${exportYear}&month=${exportMonth}`}
+            filename={`export-revenus-saas-${exportYear}-${String(exportMonth).padStart(2, '0')}.xlsx`}
+            label="Export comptable"
           />
           <select
             value={statusFilter}
