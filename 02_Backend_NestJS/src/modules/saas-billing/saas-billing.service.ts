@@ -543,7 +543,7 @@ export class SaasBillingService {
   async registerExtraSalleCharge(subscriptionId: string, salleId: string, actorUserId: string) {
     const subscription = await this.prisma.saasSubscription.findUniqueOrThrow({
       where: { id: subscriptionId },
-      include: { saasPlan: true, proprietaire: { include: { country: true } } },
+      include: { saasPlan: true, proprietaire: { include: { country: true, user: true } } },
     });
 
     // §9.7 — Pendant la période d'essai gratuit, rien n'est facturé,
@@ -598,7 +598,15 @@ export class SaasBillingService {
       },
     });
 
-    // TODO(module notifications): notifier le propriétaire du surcoût (§13.20).
+    // §14.x, §13.20 — trou resté ouvert jusqu'ici : le surcoût était
+    // bien ajouté à la facture, mais le propriétaire ne l'apprenait
+    // qu'en consultant sa facturation lui-même — pas idéal pour un
+    // montant qui s'ajoute sans action explicite de sa part.
+    await this.notifications.create(
+      subscription.proprietaire.user.id,
+      'Salle supplémentaire facturée',
+      `Une salle supplémentaire a été ajoutée à votre abonnement — ${pricing.extraSalleFee} XOF ajoutés à votre prochaine facture (total : ${updated.extraSallesCount} salle(s) supplémentaire(s)).`,
+    );
 
     return updated;
   }
@@ -1767,7 +1775,20 @@ export class SaasBillingService {
       entityId: invoice.subscriptionId,
       metadata: { viaInvoiceId: invoice.id, newPeriodEnd: invoice.periodEnd },
     });
-    // TODO(module notifications): confirmer la réactivation au propriétaire.
+    // §14.x — trou resté ouvert jusqu'ici : la réactivation se
+    // faisait bien en base, mais le propriétaire n'était jamais
+    // prévenu que son accès venait de revenir après une suspension.
+    const subscription = await this.prisma.saasSubscription.findUnique({
+      where: { id: invoice.subscriptionId },
+      include: { proprietaire: { include: { user: true } } },
+    });
+    if (subscription) {
+      await this.notifications.create(
+        subscription.proprietaire.user.id,
+        'Abonnement réactivé',
+        'Votre paiement a été confirmé — votre abonnement GymCloud est de nouveau actif, merci de votre confiance.',
+      );
+    }
   }
 
   /**
@@ -2175,7 +2196,10 @@ export class SaasBillingService {
    * et un changement de plan en attente est abandonné.
    */
   async rejectDeclaredPayment(invoiceId: string, actorUserId: string, reason?: string) {
-    const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({ where: { id: invoiceId } });
+    const invoice = await this.prisma.saasInvoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      include: { subscription: { include: { proprietaire: { include: { user: true } } } } },
+    });
     if (!invoice.declaredAt) {
       throw new BadRequestException('Aucun paiement déclaré à rejeter pour cette facture');
     }
@@ -2213,7 +2237,18 @@ export class SaasBillingService {
       metadata: { reason },
     });
 
-    // TODO(module notifications): informer le propriétaire du rejet et du motif.
+    // §14.x — trou resté ouvert jusqu'ici : la facture repassait en
+    // "à re-déclarer" côté propriétaire, mais rien ne le prévenait
+    // activement — il aurait fallu qu'il retourne consulter sa
+    // facturation de lui-même pour s'en rendre compte, potentiellement
+    // bien après l'échéance.
+    await this.notifications.create(
+      invoice.subscription.proprietaire.user.id,
+      'Paiement rejeté',
+      reason
+        ? `Votre paiement déclaré pour la facture ${invoice.invoiceNumber} a été rejeté : ${reason}. Merci de déclarer un nouveau paiement.`
+        : `Votre paiement déclaré pour la facture ${invoice.invoiceNumber} a été rejeté. Merci de déclarer un nouveau paiement.`,
+    );
 
     return updated;
   }

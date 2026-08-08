@@ -4,6 +4,7 @@ import * as QRCode from 'qrcode';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { SaasBillingService } from '../saas-billing/saas-billing.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { TenantContext } from '../../common/middleware/tenant.middleware';
 import { UpdateSalleBrandingDto, UpdateSalleSettingsDto } from './dto/salle.dto';
 
@@ -32,6 +33,7 @@ export class SallesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     @Inject(forwardRef(() => SaasBillingService)) private readonly saasBilling: SaasBillingService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -116,8 +118,14 @@ export class SallesService {
       metadata: { isSalleSupplementaire: isSupplementaire, proprietaireId: proprietaire.id },
     });
 
-    // TODO(module notifications): notifier le propriétaire de la création
-    // et des éventuels coûts supplémentaires (§3.2).
+    // §14.x, §3.2 — confirmation de création ; le coût éventuel
+    // (salle supplémentaire) est déjà notifié séparément par
+    // registerExtraSalleCharge ci-dessus, pas dupliqué ici.
+    await this.notifications.create(
+      proprietaire.userId,
+      'Nouvelle salle créée',
+      `La salle "${salle.name}" a été créée sur votre compte GymCloud.`,
+    );
 
     return salle;
   }
