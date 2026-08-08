@@ -299,7 +299,7 @@ const translations = {
     },
     addons: {
       kicker: 'Add-ons',
-      title: 'À la carte extras, never imposed',
+      title: 'Add-on extras, never imposed',
       lead: 'Activate any time from your dashboard, on top of your plan — you only pay for what you turn on.',
       perMonth: 'XOF/month',
     },
@@ -801,55 +801,49 @@ export function LandingPage() {
                   margin: '0 auto',
                 }}
               >
-                {addons.map((addon, index) => {
-                  const isFeatured = index === 1; // 1er/3ème blanc, 2ème mis en avant — même motif que les plans
-                  return (
-                    <div
-                      key={addon.id}
-                      style={{
-                        background: isFeatured ? 'var(--ink)' : '#fff',
-                        border: isFeatured ? '1px solid rgba(61,255,154,0.35)' : '1px solid var(--line-dark, rgba(20,67,47,0.12))',
-                        borderRadius: '14px',
-                        padding: '22px',
-                        boxShadow: isFeatured
-                          ? '0 20px 50px rgba(0,0,0,0.35), 0 0 0 1px rgba(61,255,154,0.08) inset'
-                          : '0 10px 30px rgba(0,0,0,0.12)',
-                        transform: isFeatured ? 'translateY(-6px)' : 'none',
-                      }}
-                    >
-                      <p style={{ fontWeight: 600, fontSize: '15px', color: isFeatured ? 'var(--paper)' : 'var(--ink)', marginBottom: '6px' }}>
-                        {addon.name}
+                {addons.map((addon) => (
+                  <div
+                    key={addon.id}
+                    style={{
+                      background: '#fff',
+                      border: '1px solid var(--line-dark, rgba(20,67,47,0.12))',
+                      borderRadius: '14px',
+                      padding: '22px',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+                    }}
+                  >
+                    <p style={{ fontWeight: 600, fontSize: '15px', color: 'var(--ink)', marginBottom: '6px' }}>
+                      {addon.name}
+                    </p>
+                    {addon.description && (
+                      <p
+                        style={{
+                          fontSize: '13px',
+                          color: 'var(--ink-soft, #1C5940)',
+                          opacity: 0.75,
+                          marginBottom: '14px',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {addon.description}
                       </p>
-                      {addon.description && (
-                        <p
-                          style={{
-                            fontSize: '13px',
-                            color: isFeatured ? 'rgba(250,248,243,0.6)' : 'var(--ink-soft, #1C5940)',
-                            opacity: isFeatured ? 1 : 0.75,
-                            marginBottom: '14px',
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {addon.description}
-                        </p>
-                      )}
-                      <p style={{ fontWeight: 700, fontSize: '17px', color: isFeatured ? 'var(--signal, #3DFF9A)' : 'var(--emerald, #0F6E56)' }}>
-                        +{Math.round(addon.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')}
-                        <span
-                          style={{
-                            fontWeight: 400,
-                            fontSize: '12px',
-                            color: isFeatured ? 'rgba(250,248,243,0.55)' : 'var(--ink)',
-                            opacity: isFeatured ? 1 : 0.55,
-                          }}
-                        >
+                    )}
+                    <p style={{ fontWeight: 700, fontSize: '17px', color: 'var(--emerald, #0F6E56)' }}>
+                      +{Math.round(addon.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')}
+                      <span
+                        style={{
+                          fontWeight: 400,
+                          fontSize: '12px',
+                          color: 'var(--ink)',
+                          opacity: 0.55,
+                        }}
+                      >
                           {' '}
                           {t.addons.perMonth}
                         </span>
                       </p>
                     </div>
-                  );
-                })}
+                ))}
               </div>
             </div>
           </section>
