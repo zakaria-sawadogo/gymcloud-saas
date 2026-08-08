@@ -305,6 +305,8 @@
   /* ---------- PRICING ---------- */
   .pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
   @media(max-width:900px){.pricing-grid{grid-template-columns:1fr;max-width:420px;margin:0 auto;}}
+  .addons-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:920px;margin:0 auto;}
+  @media(max-width:900px){.addons-grid{grid-template-columns:1fr;max-width:420px;}}
   .plan{
     border:1px solid var(--line-dark);border-radius:18px;padding:32px 28px;
     background:#fff;display:flex;flex-direction:column;position:relative;

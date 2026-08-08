@@ -273,8 +273,17 @@ export class PublicService {
    * uniquement ceux actifs (le SUPER_ADMIN peut désactiver un add-on
    * sans le supprimer, ce qui le retire alors de cette liste publique).
    */
+  /** §14.x — Même principe que getPublicPlans : prix USD ajouté à côté du prix XOF de référence, pour affichage bi-devise sur le site vitrine. */
   async getPublicAddons() {
-    return this.prisma.saasAddon.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
+    const [addons, settings] = await Promise.all([
+      this.prisma.saasAddon.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+      this.prisma.platformSettings.findUnique({ where: { id: 'platform' } }),
+    ]);
+    const rate = Number(settings?.usdToXofRate ?? 600);
+    return addons.map((addon: { price: unknown }) => ({
+      ...addon,
+      priceUsd: Math.round((Number(addon.price) / rate) * 100) / 100,
+    }));
   }
 
   /** §3.2, §9.5 — Pays actifs, pour le sélecteur du formulaire de demande d'abonnement du site vitrine. */
