@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PaymentTypeDto } from '../payments/dto/payments.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   CreateCoursCollectifDto,
   UpdateCoursCollectifDto,
@@ -34,6 +35,7 @@ export class BookingsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly paymentsService: PaymentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────
@@ -611,7 +613,29 @@ export class BookingsService {
       metadata: { adherentId: next.adherentId, coursCollectifId },
     });
 
-    // TODO(module notifications): notifier l'adhérent promu (§7.5, §10.x).
+    // §14.x, §7.5 — trou resté ouvert jusqu'ici : la promotion se
+    // faisait bien en base (réservation confirmée), mais l'adhérent
+    // n'apprenait jamais qu'une place venait de se libérer pour lui —
+    // au risque de rater le cours faute de le savoir.
+    const adherent = await this.prisma.adherentProfile.findUnique({
+      where: { id: next.adherentId },
+      include: { user: true },
+    });
+    if (adherent) {
+      const timeFormatted = new Intl.DateTimeFormat('fr-FR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(cours.startAt);
+      await this.notifications.create(
+        adherent.user.id,
+        'Place confirmée',
+        `Une place s'est libérée pour "${cours.name}" — votre réservation est confirmée pour le ${timeFormatted}.`,
+      );
+    }
+
   }
 
   // ─────────────────────────────────────────────────────────────

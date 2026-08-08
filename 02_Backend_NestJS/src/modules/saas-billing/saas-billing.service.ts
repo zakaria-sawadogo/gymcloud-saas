@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { TenantContext } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { SallesService } from '../salles/salles.service';
 import { randomUUID } from 'crypto';
 
@@ -25,6 +26,7 @@ export class SaasBillingService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly whatsAppService: WhatsAppService,
     @Inject(forwardRef(() => SallesService)) private readonly sallesService: SallesService,
   ) {}
 
@@ -1550,10 +1552,9 @@ export class SaasBillingService {
         entityId: sub.id,
       });
       movedToGrace++;
-      // TODO(module notifications): notifier le propriétaire — J-30/15/7/3/1
-      // sont envoyés AVANT expiration (§9.9, pas encore implémenté) ;
-      // ce point-ci correspond au moment où l'expiration vient de se
-      // produire.
+      // Les rappels J-30/15/7/3/1 (§9.9) sont gérés séparément par
+      // sendUpcomingRenewalReminders — ce point-ci correspond au
+      // moment où l'échéance vient tout juste de passer, pas avant.
     }
 
     const overdue = await this.prisma.saasSubscription.findMany({
@@ -1573,6 +1574,60 @@ export class SaasBillingService {
     }
 
     return { movedToGrace, movedToSuspended };
+  }
+
+  /**
+   * §9.9, §14.x — Rappels échelonnés avant échéance de l'abonnement
+   * SaaS du propriétaire (J-30, J-15, J-7, J-3, J-1) — chantier resté
+   * en TODO jusqu'ici, distinct des transitions "dures" gérées par
+   * processSubscriptionLifecycle ci-dessus (qui agit APRÈS l'échéance,
+   * pas avant).
+   *
+   * Aucune table de suivi séparée n'est nécessaire pour éviter les
+   * doublons : chaque abonnement n'a qu'une seule currentPeriodEnd à
+   * un instant donné, donc une fenêtre d'un jour calendaire par palier
+   * ne peut se déclencher qu'une fois par échéance — même principe que
+   * sendUpcomingExpiryReminders côté adhérents.
+   *
+   * Utilise le modèle WhatsApp "rappel_echeance_abonnement" — approuvé
+   * séparément des cinq modèles de bienvenue, envoi silencieusement
+   * sans effet si jamais pas encore actif (voir WhatsAppService.send).
+   */
+  async sendUpcomingRenewalReminders(): Promise<{ sent: number }> {
+    const REMINDER_DAYS_BEFORE = [30, 15, 7, 3, 1];
+    let sent = 0;
+
+    for (const daysBefore of REMINDER_DAYS_BEFORE) {
+      const rangeStart = new Date();
+      rangeStart.setDate(rangeStart.getDate() + daysBefore);
+      rangeStart.setHours(0, 0, 0, 0);
+      const rangeEnd = new Date(rangeStart);
+      rangeEnd.setHours(23, 59, 59, 999);
+
+      const subscriptions = await this.prisma.saasSubscription.findMany({
+        where: { status: 'ACTIF', currentPeriodEnd: { gte: rangeStart, lte: rangeEnd } },
+        include: {
+          proprietaire: { include: { user: true, salles: { take: 1, select: { name: true } } } },
+        },
+      });
+
+      for (const sub of subscriptions) {
+        const businessName = sub.proprietaire.companyName ?? sub.proprietaire.salles[0]?.name ?? 'votre salle';
+        const dateFormatted = new Intl.DateTimeFormat('fr-FR', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        }).format(sub.currentPeriodEnd);
+        const success = await this.whatsAppService.send(sub.proprietaire.user.phone, 'rappel_echeance_abonnement', [
+          sub.proprietaire.user.firstName,
+          businessName,
+          dateFormatted,
+        ]);
+        if (success) sent++;
+      }
+    }
+
+    return { sent };
   }
 
   // ─────────────────────────────────────────────────────────────

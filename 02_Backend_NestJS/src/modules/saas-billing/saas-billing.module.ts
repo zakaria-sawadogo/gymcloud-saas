@@ -5,10 +5,11 @@ import { SaasInvoicesController } from './saas-invoices.controller';
 import { SaasBillingSchedulerService } from './saas-billing.scheduler';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 import { SallesModule } from '../salles/salles.module';
 
 @Module({
-  imports: [NotificationsModule, forwardRef(() => SallesModule)],
+  imports: [NotificationsModule, WhatsAppModule, forwardRef(() => SallesModule)],
   controllers: [SaasPlansController, SaasInvoicesController],
   providers: [SaasBillingService, SaasBillingSchedulerService, InvoicePdfService],
   exports: [SaasBillingService], // consommé par SallesModule

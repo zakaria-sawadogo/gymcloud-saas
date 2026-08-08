@@ -30,5 +30,8 @@ export class SaasBillingSchedulerService {
     this.logger.log('Traitement quotidien du renouvellement des add-ons...');
     const addonResult = await this.saasBillingService.processAddonRenewals();
     this.logger.log(`Terminé : ${addonResult.renewed} add-on(s) mis en attente de renouvellement.`);
+
+    const reminders = await this.saasBillingService.sendUpcomingRenewalReminders();
+    this.logger.log(`Rappels d'échéance WhatsApp envoyés au propriétaire : ${reminders.sent}.`);
   }
 }
