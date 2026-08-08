@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { MarketingService } from '../marketing/marketing.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { TenantContext } from '../../common/middleware/tenant.middleware';
 import {
   CreateCashPaymentDto,
@@ -41,6 +42,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly marketingService: MarketingService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -106,7 +108,33 @@ export class PaymentsService {
       metadata: { amount: finalAmount, currency: dto.currency, couponCode: dto.couponCode, discountApplied },
     });
 
+    await this.notifyAdherentPaymentConfirmed(payment.id);
+
     return { payment, receipt, discountApplied };
+  }
+
+  /**
+   * §14.x — Confirme à l'adhérent que son paiement a bien été
+   * enregistré — trou resté ouvert jusqu'ici sur les deux méthodes qui
+   * valident un paiement (espèces et Mobile Money) : le reçu était
+   * généré, mais l'adhérent lui-même n'en était jamais informé
+   * directement, sauf à consulter l'app lui-même. In-app + e-mail
+   * (via NotificationsService.create, déjà branché) — pas de nouveau
+   * modèle WhatsApp nécessaire ici, contrairement aux rappels
+   * d'échéance qui exigeaient un modèle pré-approuvé par Meta.
+   */
+  private async notifyAdherentPaymentConfirmed(paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: { adherent: { include: { user: true } } },
+    });
+    if (!payment?.adherent) return;
+
+    await this.notifications.create(
+      payment.adherent.user.id,
+      'Paiement confirmé',
+      `Votre paiement de ${payment.amount} ${payment.currency} a bien été enregistré. Merci !`,
+    );
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -205,7 +233,7 @@ export class PaymentsService {
       entityId: payment.id,
     });
 
-    // TODO(module notifications): confirmer le paiement à l'adhérent.
+    await this.notifyAdherentPaymentConfirmed(payment.id);
 
     return { payment: validated, receipt };
   }
