@@ -235,7 +235,7 @@ export class PublicService {
       },
     });
 
-    // TODO(module notifications): alerter le gestionnaire d'une demande d'essai.
+    await this.notifications.notifyStaffOfTrialRequest(salle.id, `${dto.firstName} ${dto.lastName}`, cours.name);
 
     return {
       id: prospect.id,

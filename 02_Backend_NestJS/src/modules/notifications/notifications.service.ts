@@ -103,6 +103,34 @@ export class NotificationsService {
   }
 
   /**
+   * §3.2, §14.x — Alerte le personnel d'une salle (gestionnaires +
+   * propriétaire) qu'une demande d'essai gratuit vient d'arriver
+   * depuis le site public — trou resté ouvert jusqu'ici : la demande
+   * était bien enregistrée en base, mais personne n'était prévenu,
+   * malgré la promesse faite au visiteur ("la salle confirmera votre
+   * place par téléphone"). Même patron que
+   * notifyStaffOfReabonnementRequest ci-dessus.
+   */
+  async notifyStaffOfTrialRequest(salleId: string, prospectName: string, coursName: string) {
+    const [gestionnaires, salle] = await Promise.all([
+      this.prisma.gestionnaireProfile.findMany({ where: { salleId }, select: { userId: true } }),
+      this.prisma.salle.findUnique({ where: { id: salleId }, select: { proprietaire: { select: { userId: true } } } }),
+    ]);
+
+    const recipientUserIds = [
+      ...gestionnaires.map((g: { userId: string }) => g.userId),
+      ...(salle?.proprietaire ? [salle.proprietaire.userId] : []),
+    ];
+    if (recipientUserIds.length === 0) return;
+
+    await this.createForUsers(
+      recipientUserIds,
+      'Nouvelle demande d\'essai gratuit',
+      `${prospectName} souhaite essayer "${coursName}" — pensez à confirmer sa place par téléphone.`,
+    );
+  }
+
+  /**
    * §9.8, §9.12 — Alerte tous les SUPER_ADMIN qu'un propriétaire a
    * déclaré un paiement pour un changement/réabonnement de plan SaaS,
    * en attente de validation (un propriétaire ne peut jamais
