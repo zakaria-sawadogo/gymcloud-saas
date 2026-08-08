@@ -39,33 +39,52 @@ interface PublicAddon {
   price: number;
 }
 
-const MODULE_LABELS: Record<string, string> = {
-  qr_code: "Contrôle d'accès QR",
-  reservations: 'Réservations',
-  marketing: 'Marketing & fidélisation',
-  mobile: 'Application mobile',
-  whatsapp: 'Notifications WhatsApp',
-  rapports_avances: 'Rapports avancés',
-  api: 'Accès API',
-  bi: 'Tableaux de bord avancés (BI)',
+const MODULE_LABELS: Record<Lang, Record<string, string>> = {
+  fr: {
+    qr_code: "Contrôle d'accès QR",
+    reservations: 'Réservations',
+    marketing: 'Marketing & fidélisation',
+    mobile: 'Application mobile',
+    whatsapp: 'Notifications WhatsApp',
+    rapports_avances: 'Rapports avancés',
+    api: 'Accès API',
+    bi: 'Tableaux de bord avancés (BI)',
+  },
+  en: {
+    qr_code: 'QR access control',
+    reservations: 'Bookings',
+    marketing: 'Marketing & retention',
+    mobile: 'Mobile app',
+    whatsapp: 'WhatsApp notifications',
+    rapports_avances: 'Advanced reports',
+    api: 'API access',
+    bi: 'Advanced dashboards (BI)',
+  },
 };
 
 /** Puces de fonctionnalités dérivées des vraies données du plan — jamais de texte figé qui pourrait se désynchroniser des tarifs réels. */
-function buildPlanFeatures(plan: PublicPlan): string[] {
+function buildPlanFeatures(plan: PublicPlan, lang: Lang): string[] {
   const feats: string[] = [];
-  feats.push(plan.quotaSalles === 1 ? '1 salle incluse' : `${plan.quotaSalles} salles incluses`);
-  feats.push(plan.quotaGestionnaires == null ? 'Gestionnaires illimités' : `${plan.quotaGestionnaires} gestionnaire${plan.quotaGestionnaires > 1 ? 's' : ''}`);
-  feats.push(plan.quotaAdherents == null ? 'Adhérents illimités' : `Jusqu'à ${plan.quotaAdherents.toLocaleString('fr-FR')} adhérents`);
-  feats.push('Adhérents, abonnements, paiements');
+  if (lang === 'fr') {
+    feats.push(plan.quotaSalles === 1 ? '1 salle incluse' : `${plan.quotaSalles} salles incluses`);
+    feats.push(plan.quotaGestionnaires == null ? 'Gestionnaires illimités' : `${plan.quotaGestionnaires} gestionnaire${plan.quotaGestionnaires > 1 ? 's' : ''}`);
+    feats.push(plan.quotaAdherents == null ? 'Adhérents illimités' : `Jusqu'à ${plan.quotaAdherents.toLocaleString('fr-FR')} adhérents`);
+    feats.push('Adhérents, abonnements, paiements');
+  } else {
+    feats.push(plan.quotaSalles === 1 ? '1 gym included' : `${plan.quotaSalles} gyms included`);
+    feats.push(plan.quotaGestionnaires == null ? 'Unlimited managers' : `${plan.quotaGestionnaires} manager${plan.quotaGestionnaires > 1 ? 's' : ''}`);
+    feats.push(plan.quotaAdherents == null ? 'Unlimited members' : `Up to ${plan.quotaAdherents.toLocaleString('en-US')} members`);
+    feats.push('Members, subscriptions, payments');
+  }
   // Modules avancés présents sur ce plan, dans un ordre de lecture stable
   ['qr_code', 'reservations', 'marketing', 'mobile', 'whatsapp', 'rapports_avances', 'api', 'bi']
     .filter((m) => plan.modules.includes(m))
-    .forEach((m) => feats.push(MODULE_LABELS[m]));
-  if (!plan.modules.includes('rapports_avances')) feats.push('Rapports standards');
+    .forEach((m) => feats.push(MODULE_LABELS[lang][m]));
+  if (!plan.modules.includes('rapports_avances')) feats.push(lang === 'fr' ? 'Rapports standards' : 'Standard reports');
   return feats;
 }
 
-const FAQ_ITEMS = [
+const FAQ_ITEMS_FR = [
   {
     q: 'GymCloud fonctionne-t-il avec Orange Money, Moov Money et Wave ?',
     a: "Oui. Les trois opérateurs sont pris en charge pour l'encaissement des adhérents comme pour le règlement de votre propre abonnement GymCloud, en plus des espèces.",
@@ -88,6 +107,262 @@ const FAQ_ITEMS = [
   },
 ];
 
+const FAQ_ITEMS_EN = [
+  {
+    q: 'Does GymCloud work with Orange Money, Moov Money and Wave?',
+    a: 'Yes. All three operators are supported both for collecting member payments and for settling your own GymCloud subscription, alongside cash.',
+  },
+  {
+    q: 'Can I manage several gyms with a single account?',
+    a: "Yes, that's exactly what it's built for. One owner account can group several gyms, each with its own managers, coaches and members, while keeping a consolidated view of revenue.",
+  },
+  {
+    q: 'What happens if I change plan mid-month?',
+    a: 'The change is immediate and the amount is calculated pro-rata for the days remaining in your current period — you never pay twice for the same period.',
+  },
+  {
+    q: 'Do my members need a smartphone?',
+    a: 'Not for access — the QR badge can be printed on a physical card. The member mobile app is an extra service, not a requirement.',
+  },
+  {
+    q: 'Can I try it before paying?',
+    a: 'The Starter plan starts with a free trial period. No invoice is issued while the trial is running.',
+  },
+];
+
+/**
+ * §14.x — Dictionnaire de traduction FR/EN du site vitrine
+ * uniquement (pas le tableau de bord — marché actuel 100%
+ * francophone, pas de besoin identifié côté application). Approche
+ * volontairement simple (objet + état React) plutôt qu'une librairie
+ * i18n complète : un seul composant à couvrir, pas besoin de routing
+ * par langue ni de chargement différé des traductions.
+ */
+const translations = {
+  fr: {
+    nav: { features: 'Fonctionnalités', how: 'Comment ça marche', pricing: 'Tarifs', faq: 'Questions', login: 'Se connecter', cta: 'Demander une démo', menuLabel: 'Ouvrir le menu' },
+    hero: {
+      eyebrow: "Conçu pour les salles d'Afrique de l'Ouest",
+      titlePre: 'Votre salle de sport, ',
+      titleEm: 'pilotée',
+      titlePost: ' comme une vraie entreprise.',
+      lead: 'GymCloud remplace le cahier, la caisse en espèces et les fiches papier par un système unique : accès par QR code, adhérents, paiements Mobile Money et facturation — pour une salle ou pour toute une chaîne.',
+      ctaPrimary: 'Demander une démo',
+      ctaSecondary: 'Voir les tarifs',
+      microtext: 'Aucune carte bancaire requise · Essai gratuit sur le plan STARTER',
+      badgeMember: 'Aïcha Ouédraogo',
+      badgeSub: 'MEMBRE · GC-2K91-4F',
+      badgeSalle: 'Salle Iron Temple · Ouaga',
+      badgeAccess: 'Accès autorisé',
+    },
+    strip: ['ORANGE MONEY', 'MOOV MONEY', 'WAVE', "CONTRÔLE D'ACCÈS QR", 'MULTI-SALLES', 'FACTURATION AUTOMATIQUE'],
+    compare: {
+      kicker: 'La transformation',
+      title: 'Le même métier. Un fonctionnement totalement différent.',
+      lead: "Pas besoin de changer votre façon de gérer votre salle — juste la manière dont c'est enregistré, suivi et sécurisé.",
+      beforeLabel: "Aujourd'hui, sans GymCloud",
+      afterLabel: 'Avec GymCloud',
+      before: [
+        "Un cahier pour noter qui a payé, et qui a oublié",
+        "L'accueil laisse entrer sur simple parole",
+        "Impossible de savoir le revenu du mois sans tout ressaisir",
+        "Une deuxième salle = une deuxième comptabilité, séparée",
+      ],
+      after: [
+        "Chaque paiement Espèces ou Mobile Money horodaté automatiquement",
+        "Le badge QR refuse l'accès si l'abonnement est expiré",
+        "Revenus du jour, du mois et par salle en un coup d'œil",
+        "Toutes vos salles pilotées depuis un seul tableau de bord",
+      ],
+    },
+    pricing: {
+      kicker: 'Tarifs',
+      title: 'Un plan pour chaque étape de votre croissance',
+      lead: 'Changez de formule à tout moment — le prorata est calculé automatiquement, sans surprise sur la facture.',
+      loading: 'Chargement des tarifs...',
+      note: "Tarifs indicatifs en XOF, hors taxes locales éventuelles. Salle supplémentaire au-delà du quota inclus : facturation à l'usage.",
+      ctaTrial: "Démarrer l'essai gratuit",
+      ctaContact: 'Parler à un conseiller',
+      perMonth: '/ mois',
+      perMonthShort: 'XOF/mois',
+      featured: 'Le plus choisi',
+    },
+    addons: {
+      kicker: 'Add-ons',
+      title: 'Des extras à la carte, jamais imposés',
+      lead: 'Activables à tout moment depuis votre espace, en plus de votre plan — vous ne payez que ce que vous activez.',
+      perMonth: 'XOF/mois',
+    },
+    modules: {
+      kicker: 'Ce que couvre GymCloud',
+      title: 'Six modules. Une seule plateforme.',
+      lead: 'Activés selon votre formule — vous ne payez que pour ce dont votre salle a besoin aujourd\'hui.',
+      items: [
+        { title: 'Adhérents & abonnements', desc: 'Dossier complet, historique des formules, statut à jour automatiquement — plus de fiches perdues.' },
+        { title: "Contrôle d'accès QR", desc: "Un badge, un scan, une décision instantanée. Aucun abonnement expiré ne passe la porte." },
+        { title: 'Paiements & Mobile Money', desc: 'Espèces, Orange Money, Moov Money, Wave — chaque encaissement génère un reçu, sans exception.' },
+        { title: 'Réservations', desc: "Cours collectifs avec liste d'attente automatique, séances individuelles avec vos coachs." },
+        { title: 'Marketing & fidélisation', desc: 'Campagnes ciblées par segment (bientôt expirés, inactifs...) et coupons de réduction.' },
+        { title: 'Multi-salles & facturation', desc: 'Chaque nouvelle salle rejoint votre compte propriétaire, avec une facturation SaaS consolidée.' },
+      ],
+    },
+    steps: {
+      kicker: 'Mise en route',
+      title: 'Opérationnel en trois étapes',
+      items: [
+        { num: '01 / Inscription', title: 'Créez votre compte propriétaire', desc: 'Vous choisissez votre plan et renseignez votre première salle — nom, adresse, contact.' },
+        { num: '02 / Configuration', title: 'Ajoutez votre équipe et vos formules', desc: 'Gestionnaires, coachs, formules d\'abonnement et tarifs — configurés en quelques minutes.' },
+        { num: '03 / Ouverture', title: 'Inscrivez vos premiers adhérents', desc: 'Badge QR généré automatiquement, premier encaissement, première facture. C\'est parti.' },
+      ],
+    },
+    ctaFinal: {
+      title: 'Prêt à faire tourner votre salle autrement ?',
+      lead: 'Laissez-nous vos coordonnées — un conseiller vous recontacte pour configurer votre première salle, en moins de 20 minutes.',
+      firstName: 'Prénom',
+      lastName: 'Nom',
+      phone: 'Téléphone',
+      email: 'E-mail',
+      companyName: 'Nom de votre salle',
+      city: 'Ville (optionnel)',
+      country: 'Pays',
+      plan: 'Plan qui vous intéresse',
+      addonsLabel: 'Add-ons qui vous intéressent (optionnel) :',
+      addonsTotal: 'Total add-ons sélectionnés',
+      referralCode: 'Code de parrainage (optionnel)',
+      message: 'Un message ? (optionnel)',
+      submitting: 'Envoi...',
+      submit: 'Envoyer ma demande',
+      backToPricing: 'Revoir les tarifs',
+    },
+    faq: {
+      kicker: 'Questions fréquentes',
+      title: 'Avant de vous décider',
+      items: FAQ_ITEMS_FR,
+    },
+    footer: {
+      tagline: "Le logiciel de gestion pensé pour les salles de sport d'Afrique de l'Ouest.",
+      product: 'Produit',
+      resources: 'Ressources',
+      legal: 'Légal',
+      terms: "Conditions d'utilisation",
+      privacy: 'Confidentialité',
+      rights: 'Tous droits réservés.',
+    },
+  },
+  en: {
+    nav: { features: 'Features', how: 'How it works', pricing: 'Pricing', faq: 'FAQ', login: 'Log in', cta: 'Request a demo', menuLabel: 'Open menu' },
+    hero: {
+      eyebrow: 'Built for West African gyms',
+      titlePre: 'Your gym, ',
+      titleEm: 'run',
+      titlePost: ' like a real business.',
+      lead: 'GymCloud replaces the notebook, the cash box and paper files with a single system: QR code access, members, Mobile Money payments and billing — for one gym or an entire chain.',
+      ctaPrimary: 'Request a demo',
+      ctaSecondary: 'View pricing',
+      microtext: 'No credit card required · Free trial on the STARTER plan',
+      badgeMember: 'Aïcha Ouédraogo',
+      badgeSub: 'MEMBER · GC-2K91-4F',
+      badgeSalle: 'Iron Temple Gym · Ouaga',
+      badgeAccess: 'Access granted',
+    },
+    strip: ['ORANGE MONEY', 'MOOV MONEY', 'WAVE', 'QR ACCESS CONTROL', 'MULTI-GYM', 'AUTOMATIC BILLING'],
+    compare: {
+      kicker: 'The shift',
+      title: 'The same job. A completely different way of running it.',
+      lead: "No need to change how you run your gym — just how it's recorded, tracked and secured.",
+      beforeLabel: 'Today, without GymCloud',
+      afterLabel: 'With GymCloud',
+      before: [
+        'A notebook to track who paid, and who forgot',
+        'Front desk lets people in on their word',
+        "No way to know the month's revenue without redoing it all",
+        'A second gym means a second, separate set of books',
+      ],
+      after: [
+        'Every cash or Mobile Money payment timestamped automatically',
+        'The QR badge refuses access if the membership has expired',
+        "Today's, this month's and per-gym revenue at a glance",
+        'All your gyms run from a single dashboard',
+      ],
+    },
+    pricing: {
+      kicker: 'Pricing',
+      title: 'A plan for every stage of your growth',
+      lead: 'Switch plans any time — the pro-rata is calculated automatically, no surprises on the invoice.',
+      loading: 'Loading pricing...',
+      note: 'Indicative pricing in XOF, excluding any local taxes. Extra gym beyond the included quota: billed by usage.',
+      ctaTrial: 'Start free trial',
+      ctaContact: 'Talk to an advisor',
+      perMonth: '/ month',
+      perMonthShort: 'XOF/mo',
+      featured: 'Most popular',
+    },
+    addons: {
+      kicker: 'Add-ons',
+      title: 'À la carte extras, never imposed',
+      lead: 'Activate any time from your dashboard, on top of your plan — you only pay for what you turn on.',
+      perMonth: 'XOF/month',
+    },
+    modules: {
+      kicker: 'What GymCloud covers',
+      title: 'Six modules. One platform.',
+      lead: 'Turned on based on your plan — you only pay for what your gym needs today.',
+      items: [
+        { title: 'Members & subscriptions', desc: 'Full profile, plan history, status kept up to date automatically — no more lost records.' },
+        { title: 'QR access control', desc: 'One badge, one scan, an instant decision. No expired membership gets through the door.' },
+        { title: 'Payments & Mobile Money', desc: 'Cash, Orange Money, Moov Money, Wave — every payment generates a receipt, no exceptions.' },
+        { title: 'Bookings', desc: 'Group classes with automatic waiting lists, one-on-one sessions with your coaches.' },
+        { title: 'Marketing & retention', desc: 'Segment-targeted campaigns (soon-to-expire, inactive...) and discount coupons.' },
+        { title: 'Multi-gym & billing', desc: 'Every new gym joins your owner account, with consolidated SaaS billing.' },
+      ],
+    },
+    steps: {
+      kicker: 'Getting started',
+      title: 'Up and running in three steps',
+      items: [
+        { num: '01 / Sign up', title: 'Create your owner account', desc: 'Choose your plan and enter your first gym — name, address, contact.' },
+        { num: '02 / Setup', title: 'Add your team and your plans', desc: 'Managers, coaches, membership plans and pricing — set up in minutes.' },
+        { num: '03 / Launch', title: 'Register your first members', desc: 'QR badge generated automatically, first payment, first invoice. Off you go.' },
+      ],
+    },
+    ctaFinal: {
+      title: 'Ready to run your gym differently?',
+      lead: "Leave us your details — an advisor will get back to you to set up your first gym, in under 20 minutes.",
+      firstName: 'First name',
+      lastName: 'Last name',
+      phone: 'Phone',
+      email: 'Email',
+      companyName: 'Your gym name',
+      city: 'City (optional)',
+      country: 'Country',
+      plan: 'Plan you\'re interested in',
+      addonsLabel: 'Add-ons you\'re interested in (optional):',
+      addonsTotal: 'Total selected add-ons',
+      referralCode: 'Referral code (optional)',
+      message: 'A message? (optional)',
+      submitting: 'Sending...',
+      submit: 'Send my request',
+      backToPricing: 'Back to pricing',
+    },
+    faq: {
+      kicker: 'Frequently asked questions',
+      title: 'Before you decide',
+      items: FAQ_ITEMS_EN,
+    },
+    footer: {
+      tagline: 'Management software built for West African gyms.',
+      product: 'Product',
+      resources: 'Resources',
+      legal: 'Legal',
+      terms: 'Terms of use',
+      privacy: 'Privacy',
+      rights: 'All rights reserved.',
+    },
+  },
+} as const;
+
+type Lang = keyof typeof translations;
+
 /**
  * §3.2, §9.5 — Page d'accueil publique de GymCloud (vitrine), servie
  * directement par l'app à la racine "/" pour les visiteurs non
@@ -100,6 +375,8 @@ const FAQ_ITEMS = [
  * scopés à .landingRoot pour ne jamais affecter le reste de l'app.
  */
 export function LandingPage() {
+  const [lang, setLang] = useState<Lang>('fr');
+  const t = translations[lang];
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [plans, setPlans] = useState<PublicPlan[]>([]);
@@ -251,21 +528,37 @@ export function LandingPage() {
             GymCloud
           </a>
           <div className={c('nav-links')}>
-            <a href="#modules">Fonctionnalités</a>
-            <a href="#comment">Comment ça marche</a>
-            <a href="#tarifs">Tarifs</a>
-            <a href="#faq">Questions</a>
+            <a href="#modules">{t.nav.features}</a>
+            <a href="#comment">{t.nav.how}</a>
+            <a href="#tarifs">{t.nav.pricing}</a>
+            <a href="#faq">{t.nav.faq}</a>
           </div>
           <div className={c('nav-actions')}>
+            <button
+              onClick={() => setLang((l) => (l === 'fr' ? 'en' : 'fr'))}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--line-dark, rgba(20,67,47,0.15))',
+                borderRadius: '7px',
+                padding: '5px 10px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                color: 'inherit',
+              }}
+              aria-label={lang === 'fr' ? 'Switch to English' : 'Passer en français'}
+            >
+              {lang === 'fr' ? 'EN' : 'FR'}
+            </button>
             <a href="/login" className={c('nav-login')}>
-              Se connecter
+              {t.nav.login}
             </a>
             <a href="#contact" className={c('nav-cta')}>
-              Demander une démo
+              {t.nav.cta}
             </a>
             <button
               className={c('nav-mobile-toggle')}
-              aria-label="Ouvrir le menu"
+              aria-label={t.nav.menuLabel}
               aria-expanded={isMobileMenuOpen}
               onClick={() => setIsMobileMenuOpen((v) => !v)}
             >
@@ -284,22 +577,22 @@ export function LandingPage() {
         {isMobileMenuOpen && (
           <div className={c('mobile-menu', 'open')}>
             <a href="#modules" onClick={closeMobileMenu}>
-              Fonctionnalités
+              {t.nav.features}
             </a>
             <a href="#comment" onClick={closeMobileMenu}>
-              Comment ça marche
+              {t.nav.how}
             </a>
             <a href="#tarifs" onClick={closeMobileMenu}>
-              Tarifs
+              {t.nav.pricing}
             </a>
             <a href="#faq" onClick={closeMobileMenu}>
-              Questions
+              {t.nav.faq}
             </a>
             <a href="/login" onClick={closeMobileMenu}>
-              Se connecter
+              {t.nav.login}
             </a>
             <a href="#contact" className={c('nav-cta')} onClick={closeMobileMenu}>
-              Demander une démo
+              {t.nav.cta}
             </a>
           </div>
         )}
@@ -312,28 +605,24 @@ export function LandingPage() {
           <div className={c('wrap', 'hero-grid')}>
             <div>
               <span className={c('eyebrow')}>
-                <span className={c('dot')} /> Conçu pour les salles d'Afrique de l'Ouest
+                <span className={c('dot')} /> {t.hero.eyebrow}
               </span>
               <h1>
-                Votre salle de sport, <em>pilotée</em> comme une vraie entreprise.
+                {t.hero.titlePre}<em>{t.hero.titleEm}</em>{t.hero.titlePost}
               </h1>
-              <p className={c('lead')}>
-                GymCloud remplace le cahier, la caisse en espèces et les fiches papier par un système unique : accès
-                par QR code, adhérents, paiements Mobile Money et facturation — pour une salle ou pour toute une
-                chaîne.
-              </p>
+              <p className={c('lead')}>{t.hero.lead}</p>
               <div className={c('hero-ctas')}>
                 <a href="#contact" className={c('btn-primary')}>
-                  Demander une démo
+                  {t.hero.ctaPrimary}
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </a>
                 <a href="#tarifs" className={c('btn-ghost')}>
-                  Voir les tarifs
+                  {t.hero.ctaSecondary}
                 </a>
               </div>
-              <p className={c('hero-microtext')}>Aucune carte bancaire requise · Essai gratuit sur le plan STARTER</p>
+              <p className={c('hero-microtext')}>{t.hero.microtext}</p>
             </div>
 
             <div className={c('scan-stage')} aria-hidden="true">
@@ -341,8 +630,8 @@ export function LandingPage() {
                 <div className={c('scan-ring')} />
                 <div className={c('badge-top')}>
                   <div>
-                    <div className={c('badge-name')}>Aïcha Ouédraogo</div>
-                    <div className={c('badge-sub')}>MEMBRE · GC-2K91-4F</div>
+                    <div className={c('badge-name')}>{t.hero.badgeMember}</div>
+                    <div className={c('badge-sub')}>{t.hero.badgeSub}</div>
                   </div>
                   <div className={c('badge-chip')} />
                 </div>
@@ -382,12 +671,12 @@ export function LandingPage() {
                   <div className={c('scan-line')} />
                 </div>
                 <div className={c('badge-foot')}>
-                  <span className={c('badge-id')}>Salle Iron Temple · Ouaga</span>
+                  <span className={c('badge-id')}>{t.hero.badgeSalle}</span>
                   <span className={c('status-pill')}>
                     <svg viewBox="0 0 12 12" fill="none">
                       <path d="M2.5 6.2l2.3 2.3L9.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    Accès autorisé
+                    {t.hero.badgeAccess}
                   </span>
                 </div>
               </div>
@@ -397,30 +686,12 @@ export function LandingPage() {
 
         <div className={c('strip')} aria-hidden="true">
           <div className={c('strip-inner')}>
-            <span>ORANGE MONEY</span>
-            <span>·</span>
-            <span>MOOV MONEY</span>
-            <span>·</span>
-            <span>WAVE</span>
-            <span>·</span>
-            <span>CONTRÔLE D'ACCÈS QR</span>
-            <span>·</span>
-            <span>MULTI-SALLES</span>
-            <span>·</span>
-            <span>FACTURATION AUTOMATIQUE</span>
-            <span>·</span>
-            <span>ORANGE MONEY</span>
-            <span>·</span>
-            <span>MOOV MONEY</span>
-            <span>·</span>
-            <span>WAVE</span>
-            <span>·</span>
-            <span>CONTRÔLE D'ACCÈS QR</span>
-            <span>·</span>
-            <span>MULTI-SALLES</span>
-            <span>·</span>
-            <span>FACTURATION AUTOMATIQUE</span>
-            <span>·</span>
+            {[...t.strip, ...t.strip].map((item, i) => (
+              <span key={i}>
+                {i > 0 && '· '}
+                {item}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -428,65 +699,33 @@ export function LandingPage() {
         <section>
           <div className={c('wrap')}>
             <div className={c('section-head', 'reveal')}>
-              <span className={c('kicker')}>La transformation</span>
-              <h2>Le même métier. Un fonctionnement totalement différent.</h2>
-              <p>Pas besoin de changer votre façon de gérer votre salle — juste la manière dont c'est enregistré, suivi et sécurisé.</p>
+              <span className={c('kicker')}>{t.compare.kicker}</span>
+              <h2>{t.compare.title}</h2>
+              <p>{t.compare.lead}</p>
             </div>
 
             <div className={c('compare', 'reveal')}>
               <div className={c('compare-col', 'before')}>
-                <span className={c('compare-label')}>Aujourd'hui, sans GymCloud</span>
-                <div className={c('compare-item')}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 4l8 8M12 4l-8 8" stroke="#C6491F" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
-                  Un cahier pour noter qui a payé, et qui a oublié
-                </div>
-                <div className={c('compare-item')}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 4l8 8M12 4l-8 8" stroke="#C6491F" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
-                  L'accueil laisse entrer sur simple parole
-                </div>
-                <div className={c('compare-item')}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 4l8 8M12 4l-8 8" stroke="#C6491F" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
-                  Impossible de savoir le revenu du mois sans tout ressaisir
-                </div>
-                <div className={c('compare-item')}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 4l8 8M12 4l-8 8" stroke="#C6491F" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
-                  Une deuxième salle = une deuxième comptabilité, séparée
-                </div>
+                <span className={c('compare-label')}>{t.compare.beforeLabel}</span>
+                {t.compare.before.map((item) => (
+                  <div className={c('compare-item')} key={item}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M4 4l8 8M12 4l-8 8" stroke="#C6491F" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                    {item}
+                  </div>
+                ))}
               </div>
               <div className={c('compare-col', 'after')}>
-                <span className={c('compare-label')}>Avec GymCloud</span>
-                <div className={c('compare-item')}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M3 8.5l3.5 3.5L13 5" stroke="#3DFF9A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Chaque paiement Espèces ou Mobile Money horodaté automatiquement
-                </div>
-                <div className={c('compare-item')}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M3 8.5l3.5 3.5L13 5" stroke="#3DFF9A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Le badge QR refuse l'accès si l'abonnement est expiré
-                </div>
-                <div className={c('compare-item')}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M3 8.5l3.5 3.5L13 5" stroke="#3DFF9A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Revenus du jour, du mois et par salle en un coup d'œil
-                </div>
-                <div className={c('compare-item')}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M3 8.5l3.5 3.5L13 5" stroke="#3DFF9A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Toutes vos salles pilotées depuis un seul tableau de bord
-                </div>
+                <span className={c('compare-label')}>{t.compare.afterLabel}</span>
+                {t.compare.after.map((item) => (
+                  <div className={c('compare-item')} key={item}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M3 8.5l3.5 3.5L13 5" stroke="#3DFF9A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {item}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -497,26 +736,26 @@ export function LandingPage() {
         <section id="tarifs" style={{ background: 'var(--paper-dim)' }}>
           <div className={c('wrap')}>
             <div className={c('section-head', 'reveal')}>
-              <span className={c('kicker')}>Tarifs</span>
-              <h2>Un plan pour chaque étape de votre croissance</h2>
-              <p>Changez de formule à tout moment — le prorata est calculé automatiquement, sans surprise sur la facture.</p>
+              <span className={c('kicker')}>{t.pricing.kicker}</span>
+              <h2>{t.pricing.title}</h2>
+              <p>{t.pricing.lead}</p>
             </div>
 
             <div className={c('pricing-grid', 'reveal')}>
               {plans.map((plan) => (
                 <div key={plan.id} className={c('plan', ...(plan.code === 'PROFESSIONAL' ? ['featured'] : []))}>
-                  {plan.code === 'PROFESSIONAL' && <span className={c('plan-tag')}>Le plus choisi</span>}
+                  {plan.code === 'PROFESSIONAL' && <span className={c('plan-tag')}>{t.pricing.featured}</span>}
                   <div className={c('plan-name')}>{plan.name}</div>
                   <div className={c('plan-desc')}>{plan.description}</div>
                   <div className={c('plan-price')}>
                     <span className={c('amount')}>{Math.round(plan.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')}</span>
-                    <span className={c('unit')}>XOF / mois</span>
+                    <span className={c('unit')}>XOF {t.pricing.perMonth}</span>
                   </div>
                   <div className={c('plan-price-usd')}>
-                    ≈ {plan.priceMonthlyUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD / mois
+                    ≈ {plan.priceMonthlyUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD {t.pricing.perMonth}
                   </div>
                   <ul className={c('plan-feats')}>
-                    {buildPlanFeatures(plan).map((feat) => (
+                    {buildPlanFeatures(plan, lang).map((feat) => (
                       <li key={feat}>
                         <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                           <path d="M2.5 8l3.5 3.5L12.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -526,18 +765,17 @@ export function LandingPage() {
                     ))}
                   </ul>
                   <a href="#contact" className={c('plan-cta')}>
-                    {plan.trialDays > 0 ? "Démarrer l'essai gratuit" : 'Parler à un conseiller'}
+                    {plan.trialDays > 0 ? t.pricing.ctaTrial : t.pricing.ctaContact}
                   </a>
                 </div>
               ))}
               {plans.length === 0 && (
                 <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: 'var(--ink-400, #71767A)' }}>
-                  Chargement des tarifs...
+                  {t.pricing.loading}
                 </p>
               )}
             </div>
-            <p className={c('pricing-note')}>
-              Tarifs indicatifs en XOF, hors taxes locales éventuelles. Salle supplémentaire au-delà du quota inclus : facturation à l'usage.
+            <p className={c('pricing-note')}>{t.pricing.note}
             </p>
           </div>
         </section>
@@ -548,12 +786,10 @@ export function LandingPage() {
             <div className={c('wrap')}>
               <div className={c('section-head')} style={{ color: 'var(--paper)' }}>
                 <span className={c('kicker')} style={{ color: 'var(--signal, #3DFF9A)' }}>
-                  Add-ons
+                  {t.addons.kicker}
                 </span>
-                <h2 style={{ color: 'var(--paper)' }}>Des extras à la carte, jamais imposés</h2>
-                <p style={{ color: 'rgba(250,248,243,0.65)' }}>
-                  Activables à tout moment depuis votre espace, en plus de votre plan — vous ne payez que ce que vous activez.
-                </p>
+                <h2 style={{ color: 'var(--paper)' }}>{t.addons.title}</h2>
+                <p style={{ color: 'rgba(250,248,243,0.65)' }}>{t.addons.lead}</p>
               </div>
 
               <div
@@ -608,7 +844,7 @@ export function LandingPage() {
                           }}
                         >
                           {' '}
-                          XOF/mois
+                          {t.addons.perMonth}
                         </span>
                       </p>
                     </div>
@@ -623,66 +859,52 @@ export function LandingPage() {
         <section id="modules" style={{ background: 'var(--paper-dim)' }}>
           <div className={c('wrap')}>
             <div className={c('section-head', 'reveal')}>
-              <span className={c('kicker')}>Ce que couvre GymCloud</span>
-              <h2>Six modules. Une seule plateforme.</h2>
-              <p>Activés selon votre formule — vous ne payez que pour ce dont votre salle a besoin aujourd'hui.</p>
+              <span className={c('kicker')}>{t.modules.kicker}</span>
+              <h2>{t.modules.title}</h2>
+              <p>{t.modules.lead}</p>
             </div>
 
             <div className={c('modules', 'reveal')}>
-              <div className={c('module')}>
-                <svg className={c('module-icon')} viewBox="0 0 38 38" fill="none">
+              {[
+                <>
                   <circle cx="19" cy="13" r="6" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M7 31c1.5-6.5 6.5-10 12-10s10.5 3.5 12 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                <h3>Adhérents & abonnements</h3>
-                <p>Dossier complet, historique des formules, statut à jour automatiquement — plus de fiches perdues.</p>
-              </div>
-              <div className={c('module')}>
-                <svg className={c('module-icon')} viewBox="0 0 38 38" fill="none">
+                </>,
+                <>
                   <rect x="7" y="7" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
                   <rect x="21" y="7" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
                   <rect x="7" y="21" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M24 25h7M27.5 21.5v7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                <h3>Contrôle d'accès QR</h3>
-                <p>Un badge, un scan, une décision instantanée. Aucun abonnement expiré ne passe la porte.</p>
-              </div>
-              <div className={c('module')}>
-                <svg className={c('module-icon')} viewBox="0 0 38 38" fill="none">
+                </>,
+                <>
                   <rect x="5" y="11" width="28" height="18" rx="3" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M5 17h28" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M10 23h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                <h3>Paiements & Mobile Money</h3>
-                <p>Espèces, Orange Money, Moov Money, Wave — chaque encaissement génère un reçu, sans exception.</p>
-              </div>
-              <div className={c('module')}>
-                <svg className={c('module-icon')} viewBox="0 0 38 38" fill="none">
+                </>,
+                <>
                   <rect x="6" y="8" width="26" height="24" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M6 15h26" stroke="currentColor" strokeWidth="1.8" />
                   <path d="M12 4v7M26 4v7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                <h3>Réservations</h3>
-                <p>Cours collectifs avec liste d'attente automatique, séances individuelles avec vos coachs.</p>
-              </div>
-              <div className={c('module')}>
-                <svg className={c('module-icon')} viewBox="0 0 38 38" fill="none">
+                </>,
+                <>
                   <path d="M6 19c0-7 5.8-13 13-13s13 6 13 13-5.8 13-13 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                   <path d="M19 13v6l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M6 19l4-4M6 19l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                <h3>Marketing & fidélisation</h3>
-                <p>Campagnes ciblées par segment (bientôt expirés, inactifs...) et coupons de réduction.</p>
-              </div>
-              <div className={c('module')}>
-                <svg className={c('module-icon')} viewBox="0 0 38 38" fill="none">
+                </>,
+                <>
                   <rect x="5" y="19" width="9" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
                   <rect x="15" y="12" width="9" height="20" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
                   <rect x="25" y="6" width="9" height="26" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
-                </svg>
-                <h3>Multi-salles & facturation</h3>
-                <p>Chaque nouvelle salle rejoint votre compte propriétaire, avec une facturation SaaS consolidée.</p>
-              </div>
+                </>,
+              ].map((icon, i) => (
+                <div className={c('module')} key={i}>
+                  <svg className={c('module-icon')} viewBox="0 0 38 38" fill="none">
+                    {icon}
+                  </svg>
+                  <h3>{t.modules.items[i].title}</h3>
+                  <p>{t.modules.items[i].desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -691,25 +913,17 @@ export function LandingPage() {
         <section id="comment">
           <div className={c('wrap')}>
             <div className={c('section-head', 'reveal')}>
-              <span className={c('kicker')}>Mise en route</span>
-              <h2>Opérationnel en trois étapes</h2>
+              <span className={c('kicker')}>{t.steps.kicker}</span>
+              <h2>{t.steps.title}</h2>
             </div>
             <div className={c('steps', 'reveal')}>
-              <div className={c('step')}>
-                <div className={c('step-num')}>01 / Inscription</div>
-                <h3>Créez votre compte propriétaire</h3>
-                <p>Vous choisissez votre plan et renseignez votre première salle — nom, adresse, contact.</p>
-              </div>
-              <div className={c('step')}>
-                <div className={c('step-num')}>02 / Configuration</div>
-                <h3>Ajoutez votre équipe et vos formules</h3>
-                <p>Gestionnaires, coachs, formules d'abonnement et tarifs — configurés en quelques minutes.</p>
-              </div>
-              <div className={c('step')}>
-                <div className={c('step-num')}>03 / Ouverture</div>
-                <h3>Inscrivez vos premiers adhérents</h3>
-                <p>Badge QR généré automatiquement, premier encaissement, première facture. C'est parti.</p>
-              </div>
+              {t.steps.items.map((step) => (
+                <div className={c('step')} key={step.num}>
+                  <div className={c('step-num')}>{step.num}</div>
+                  <h3>{step.title}</h3>
+                  <p>{step.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -719,8 +933,8 @@ export function LandingPage() {
           <div className={c('wrap')}>
             <div className={c('cta-final', 'reveal')}>
               <div className={c('grain')} aria-hidden="true" />
-              <h2>Prêt à faire tourner votre salle autrement ?</h2>
-              <p>Laissez-nous vos coordonnées — un conseiller vous recontacte pour configurer votre première salle, en moins de 20 minutes.</p>
+              <h2>{t.ctaFinal.title}</h2>
+              <p>{t.ctaFinal.lead}</p>
 
               {formStatus === 'success' ? (
                 <div className={c('demo-form-success')}>
@@ -733,21 +947,21 @@ export function LandingPage() {
               ) : (
                 <form className={c('demo-form')} onSubmit={handleSubmit}>
                   <div className={c('demo-form-row')}>
-                    <input ref={firstNameRef} type="text" placeholder="Prénom" required />
-                    <input ref={lastNameRef} type="text" placeholder="Nom" required />
+                    <input ref={firstNameRef} type="text" placeholder={t.ctaFinal.firstName} required />
+                    <input ref={lastNameRef} type="text" placeholder={t.ctaFinal.lastName} required />
                   </div>
                   <div className={c('demo-form-row')}>
-                    <input ref={phoneRef} type="tel" placeholder="Téléphone" required />
-                    <input ref={emailRef} type="email" placeholder="E-mail" required />
+                    <input ref={phoneRef} type="tel" placeholder={t.ctaFinal.phone} required />
+                    <input ref={emailRef} type="email" placeholder={t.ctaFinal.email} required />
                   </div>
                   <div className={c('demo-form-row')}>
-                    <input ref={companyNameRef} type="text" placeholder="Nom de votre salle" required />
-                    <input ref={cityRef} type="text" placeholder="Ville (optionnel)" />
+                    <input ref={companyNameRef} type="text" placeholder={t.ctaFinal.companyName} required />
+                    <input ref={cityRef} type="text" placeholder={t.ctaFinal.city} />
                   </div>
                   <div className={c('demo-form-row')}>
                     <select ref={countryIdRef} defaultValue="" required>
                       <option value="" disabled>
-                        Pays
+                        {t.ctaFinal.country}
                       </option>
                       {countries.map((country) => (
                         <option key={country.id} value={country.id}>
@@ -757,11 +971,11 @@ export function LandingPage() {
                     </select>
                     <select ref={planIdRef} defaultValue="" required>
                       <option value="" disabled>
-                        Plan qui vous intéresse
+                        {t.ctaFinal.plan}
                       </option>
                       {plans.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} — {Math.round(p.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF/mois (≈ {p.priceMonthlyUsd.toFixed(2)} USD)
+                          {p.name} — {Math.round(p.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} {t.pricing.perMonthShort} (≈ {p.priceMonthlyUsd.toFixed(2)} USD)
                         </option>
                       ))}
                     </select>
@@ -769,7 +983,7 @@ export function LandingPage() {
                   {addons.length > 0 && (
                     <div style={{ marginTop: '4px' }}>
                       <p style={{ fontSize: '13px', opacity: 0.7, marginBottom: '10px' }}>
-                        Add-ons qui vous intéressent (optionnel) :
+                        {t.ctaFinal.addonsLabel}
                       </p>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {addons.map((a) => {
@@ -804,7 +1018,7 @@ export function LandingPage() {
                                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px' }}>
                                   <span style={{ fontWeight: 600, fontSize: '14px' }}>{a.name}</span>
                                   <span style={{ fontWeight: 600, fontSize: '13px', whiteSpace: 'nowrap' }}>
-                                    {Math.round(a.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF/mois
+                                    {Math.round(a.price).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} {t.addons.perMonth}
                                   </span>
                                 </div>
                                 {a.description && (
@@ -827,7 +1041,7 @@ export function LandingPage() {
                             fontWeight: 600,
                           }}
                         >
-                          <span>Total add-ons sélectionnés</span>
+                          <span>{t.ctaFinal.addonsTotal}</span>
                           <span>
                             {Math.round(
                               addons
@@ -836,7 +1050,7 @@ export function LandingPage() {
                             )
                               .toLocaleString('fr-FR')
                               .replace(/\u202f/g, ' ')}{' '}
-                            XOF/mois
+                            {t.addons.perMonth}
                           </span>
                         </div>
                       )}
@@ -845,15 +1059,15 @@ export function LandingPage() {
                   <input
                     ref={referralCodeRef}
                     type="text"
-                    placeholder="Code de parrainage (optionnel)"
+                    placeholder={t.ctaFinal.referralCode}
                     style={{ textTransform: 'uppercase' }}
                   />
-                  <textarea ref={messageRef} placeholder="Un message ? (optionnel)" rows={2} />
+                  <textarea ref={messageRef} placeholder={t.ctaFinal.message} rows={2} />
 
                   {formStatus === 'error' && <div className={c('demo-form-error')}>{formMessage}</div>}
 
                   <button type="submit" className={c('btn-primary')} disabled={formStatus === 'submitting'} style={{ width: '100%', justifyContent: 'center' }}>
-                    {formStatus === 'submitting' ? 'Envoi...' : 'Envoyer ma demande'}
+                    {formStatus === 'submitting' ? t.ctaFinal.submitting : t.ctaFinal.submit}
                     {formStatus !== 'submitting' && (
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -864,7 +1078,7 @@ export function LandingPage() {
               )}
 
               <a href="#tarifs" className={c('btn-ghost')} style={{ marginTop: '18px', display: 'inline-flex' }}>
-                Revoir les tarifs
+                {t.ctaFinal.backToPricing}
               </a>
             </div>
           </div>
@@ -874,12 +1088,12 @@ export function LandingPage() {
         <section id="faq">
           <div className={c('wrap')} style={{ maxWidth: '820px' }}>
             <div className={c('section-head', 'reveal')}>
-              <span className={c('kicker')}>Questions fréquentes</span>
-              <h2>Avant de vous décider</h2>
+              <span className={c('kicker')}>{t.faq.kicker}</span>
+              <h2>{t.faq.title}</h2>
             </div>
 
             <div className={c('faq', 'reveal')}>
-              {FAQ_ITEMS.map((item, i) => (
+              {t.faq.items.map((item, i) => (
                 <details
                   key={item.q}
                   className={c('faq-item')}
@@ -913,28 +1127,28 @@ export function LandingPage() {
                 </svg>
                 GymCloud
               </div>
-              <p style={{ maxWidth: '240px', lineHeight: '1.6' }}>Le logiciel de gestion pensé pour les salles de sport d'Afrique de l'Ouest.</p>
+              <p style={{ maxWidth: '240px', lineHeight: '1.6' }}>{t.footer.tagline}</p>
             </div>
             <div className={c('foot-col')}>
-              <h4>Produit</h4>
-              <a href="#modules">Fonctionnalités</a>
-              <a href="#tarifs">Tarifs</a>
-              <a href="#comment">Comment ça marche</a>
+              <h4>{t.footer.product}</h4>
+              <a href="#modules">{t.nav.features}</a>
+              <a href="#tarifs">{t.nav.pricing}</a>
+              <a href="#comment">{t.nav.how}</a>
             </div>
             <div className={c('foot-col')}>
-              <h4>Ressources</h4>
-              <a href="#faq">Questions fréquentes</a>
+              <h4>{t.footer.resources}</h4>
+              <a href="#faq">{t.faq.kicker}</a>
               <a href={`mailto:${contact.supportEmail}`}>{contact.supportEmail}</a>
               <a href={`tel:${contact.supportPhone.replace(/\s/g, '')}`}>{contact.supportPhone}</a>
             </div>
             <div className={c('foot-col')}>
-              <h4>Légal</h4>
-              <a href="#">Conditions d'utilisation</a>
-              <a href="#">Confidentialité</a>
+              <h4>{t.footer.legal}</h4>
+              <a href="#">{t.footer.terms}</a>
+              <a href="#">{t.footer.privacy}</a>
             </div>
           </div>
           <div className={c('foot-bottom')}>
-            <span>© 2026 GymCloud. Tous droits réservés.</span>
+            <span>© 2026 GymCloud. {t.footer.rights}</span>
             <span className={c('mono')} style={{ opacity: '0.5' }}>
               Ouagadougou, Burkina Faso
             </span>
