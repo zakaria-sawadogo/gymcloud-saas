@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Query, Body, Res, HttpStatus, Logger } from '@nestjs/common';
 import { Response } from 'express';
-import { ApiTags, ApiOperation, ApiExcludeEndpoint, ApiProperty, ApiBearerAuth } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
+import { ApiTags, ApiOperation, ApiExcludeEndpoint, ApiProperty, ApiPropertyOptional, ApiBearerAuth } from '@nestjs/swagger';
+import { IsString, IsOptional, IsArray } from 'class-validator';
 import { WhatsAppService } from './whatsapp.service';
 import { RequirePermission } from '../../common/casl/policies.guard';
 
@@ -9,6 +9,23 @@ export class TestSendWhatsAppDto {
   @ApiProperty({ description: 'Numéro destinataire, avec ou sans indicatif, ex: "+22674967857"' })
   @IsString()
   to!: string;
+
+  @ApiPropertyOptional({
+    description: 'Nom exact du modèle à tester — "hello_world" par défaut si omis',
+  })
+  @IsOptional()
+  @IsString()
+  templateName?: string;
+
+  @ApiPropertyOptional({ description: 'Valeurs des variables {{1}}, {{2}}... dans l\'ordre', type: [String] })
+  @IsOptional()
+  @IsArray()
+  parameters?: string[];
+
+  @ApiPropertyOptional({ description: 'Code de langue du modèle — "fr" par défaut si omis' })
+  @IsOptional()
+  @IsString()
+  languageCode?: string;
 }
 
 /**
@@ -79,18 +96,25 @@ export class WhatsAppAdminController {
   constructor(private readonly whatsAppService: WhatsAppService) {}
 
   /**
-   * Envoi d'un message de test, réservé SUPER_ADMIN — utilise le
-   * modèle "hello_world", pré-approuvé par défaut par Meta pour tout
-   * compte WhatsApp Business, permettant de valider la connexion
-   * (jeton + identifiant de numéro) sans attendre l'approbation d'un
-   * modèle personnalisé. Reste utile au-delà du test initial, pour
-   * diagnostiquer une connexion WhatsApp qui semble ne plus fonctionner.
+   * Envoi d'un message de test, réservé SUPER_ADMIN — par défaut,
+   * utilise "hello_world" (pré-approuvé par Meta pour tout compte
+   * WhatsApp Business), permettant de valider la connexion sans
+   * attendre l'approbation d'un modèle personnalisé.
+   *
+   * §14.x — accepte aussi n'importe quel modèle DÉJÀ approuvé
+   * (templateName + parameters), pour tester un vrai modèle GymCloud
+   * sans avoir à recréer un adhérent/personnel/propriétaire de test à
+   * chaque fois juste pour déclencher un envoi — plus rapide pour
+   * diagnostiquer un souci ponctuel (ex: erreur de facturation Meta)
+   * sans polluer la base avec des enregistrements de test.
    */
   @Post('test-send')
   @RequirePermission('manage', 'PlatformSettings')
-  @ApiOperation({ summary: 'Envoyer un message WhatsApp de test (modèle hello_world) — réservé SUPER_ADMIN' })
+  @ApiOperation({ summary: 'Envoyer un message WhatsApp de test — hello_world par défaut, ou un modèle approuvé au choix — réservé SUPER_ADMIN' })
   async testSend(@Body() dto: TestSendWhatsAppDto) {
-    const sent = await this.whatsAppService.send(dto.to, 'hello_world', [], 'en_US');
-    return { sent };
+    const templateName = dto.templateName ?? 'hello_world';
+    const languageCode = dto.languageCode ?? (dto.templateName ? 'fr' : 'en_US');
+    const sent = await this.whatsAppService.send(dto.to, templateName, dto.parameters ?? [], languageCode);
+    return { sent, templateName };
   }
 }
