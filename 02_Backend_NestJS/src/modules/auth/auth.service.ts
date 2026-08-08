@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../notifications/email.service';
 
 interface JwtPayload {
   sub: string;
@@ -36,6 +37,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly emailService: EmailService,
   ) {}
 
   async login(phone: string, password: string, ipAddress?: string) {
@@ -155,13 +157,27 @@ export class AuthService {
   }
 
   /**
-   * Émission d'un code OTP de réinitialisation (§4.9). L'envoi effectif
-   * (SMS/WhatsApp) est délégué au module Notifications — non implémenté
-   * à ce stade du développement, d'où l'exposition temporaire du code
-   * en clair (devOtpCode), à retirer une fois une passerelle SMS réelle
-   * branchée — même convention que le reste du projet (Mobile Money).
+   * Émission d'un code OTP de réinitialisation (§4.9).
+   *
+   * §14.x — CORRECTIF DE SÉCURITÉ : cette méthode exposait auparavant
+   * le code directement dans sa réponse HTTP (`devOtpCode`), sous
+   * prétexte qu'aucune passerelle d'envoi n'était encore branchée.
+   * Conséquence réelle : n'importe qui connaissant un numéro de
+   * téléphone pouvait lire le code dans la réponse et prendre le
+   * contrôle du compte correspondant, y compris SUPER_ADMIN — sans
+   * avoir besoin d'intercepter quoi que ce soit. Corrigé en branchant
+   * réellement l'envoi par e-mail (WhatsApp suivra séparément une
+   * fois un modèle "réinitialisation" approuvé par Meta — nécessite
+   * une approche différente des modèles "bienvenue" existants, un
+   * code numérique n'y passe pas comme on l'a découvert).
+   *
+   * Si l'utilisateur n'a pas d'e-mail renseigné, le code est généré
+   * et stocké comme avant, mais personne ne le reçoit pour l'instant
+   * — préférable à le divulguer en clair, même si "mot de passe
+   * oublié" reste de facto indisponible pour ces comptes en attendant
+   * le relais WhatsApp.
    */
-  async requestPasswordReset(phone: string): Promise<{ message: string; devOtpCode?: string }> {
+  async requestPasswordReset(phone: string): Promise<{ message: string }> {
     const user = await this.prisma.user.findUnique({ where: { phone } });
     // Réponse identique que l'utilisateur existe ou non (anti-énumération)
     if (!user) {
@@ -175,7 +191,15 @@ export class AuthService {
       data: { passwordResetOtpCode: otp, passwordResetOtpExpiresAt: expiresAt },
     });
 
-    return { message: 'Si ce numéro existe, un code a été envoyé.', devOtpCode: otp };
+    if (user.email) {
+      await this.emailService.send(
+        user.email,
+        'Réinitialisation de votre mot de passe GymCloud',
+        `Bonjour ${user.firstName},\n\nVoici votre code de réinitialisation : ${otp}\n\nCe code est valable ${this.PASSWORD_RESET_OTP_VALIDITY_MINUTES} minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.`,
+      );
+    }
+
+    return { message: 'Si ce numéro existe, un code a été envoyé.' };
   }
 
   /**

@@ -17,7 +17,6 @@ export default function ForgotPasswordPage() {
   const [phone, setPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -26,8 +25,7 @@ export default function ForgotPasswordPage() {
     setError(null);
     setIsLoading(true);
     try {
-      const res = await apiClient.post<{ message: string; devOtpCode?: string }>('/auth/forgot-password', { phone });
-      setDevOtpCode(res.devOtpCode ?? null);
+      await apiClient.post<{ message: string }>('/auth/forgot-password', { phone });
       setStep('confirm');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -77,6 +75,10 @@ export default function ForgotPasswordPage() {
                   placeholder="+226 70 00 00 00"
                   className="h-10 w-full rounded-lg border border-ink-100 px-3 text-sm outline-none focus:border-primary-400"
                 />
+                <p className="mt-1.5 text-xs text-ink-400">
+                  Le code sera envoyé par e-mail. Pas d&apos;e-mail associé à ce compte ? Contactez votre
+                  gestionnaire ou propriétaire pour réinitialiser votre mot de passe.
+                </p>
               </div>
               {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
               <Button type="submit" isLoading={isLoading} className="w-full">
@@ -88,13 +90,8 @@ export default function ForgotPasswordPage() {
           {step === 'confirm' && (
             <form onSubmit={handleConfirm}>
               <p className="mb-4 text-sm text-ink-600">
-                Si ce numéro existe, un code à 6 chiffres a été envoyé par SMS.
+                Si ce numéro existe et a un e-mail associé, un code à 6 chiffres vient de vous être envoyé.
               </p>
-              {devOtpCode && (
-                <p className="mb-4 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-700">
-                  Mode démonstration (pas de passerelle SMS branchée) — code : <strong>{devOtpCode}</strong>
-                </p>
-              )}
               <div className="mb-4">
                 <label htmlFor="otp" className="mb-1.5 block text-sm font-medium text-ink-800">
                   Code reçu
