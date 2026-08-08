@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsOptional, IsString, IsNumber, Min } from 'class-validator';
 
 export class UpdatePlatformSettingsDto {
   @ApiPropertyOptional()
@@ -21,4 +21,13 @@ export class UpdatePlatformSettingsDto {
   @IsOptional()
   @IsString()
   invoiceIssuerName?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Taux de conversion USD → XOF, utilisé pour les propriétaires hors zone XOF et pour agréger les revenus au tableau de bord SUPER_ADMIN (§14.x)',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  usdToXofRate?: number;
 }

@@ -13,6 +13,7 @@ interface PlatformSettings {
   supportPhone?: string;
   whatsappNumber?: string;
   invoiceIssuerName?: string;
+  usdToXofRate?: number;
   updatedAt: string;
 }
 
@@ -30,6 +31,7 @@ export default function ContactsPage() {
   const [supportPhone, setSupportPhone] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [invoiceIssuerName, setInvoiceIssuerName] = useState('');
+  const [usdToXofRate, setUsdToXofRate] = useState('600');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -40,6 +42,7 @@ export default function ContactsPage() {
       setSupportPhone(data.supportPhone ?? '');
       setWhatsappNumber(data.whatsappNumber ?? '');
       setInvoiceIssuerName(data.invoiceIssuerName ?? '');
+      setUsdToXofRate(data.usdToXofRate ? String(data.usdToXofRate) : '600');
     }
   }, [data]);
 
@@ -49,7 +52,13 @@ export default function ContactsPage() {
     setSuccess(false);
     setIsSubmitting(true);
     try {
-      await apiClient.patch('/platform-settings', { supportEmail, supportPhone, whatsappNumber, invoiceIssuerName });
+      await apiClient.patch('/platform-settings', {
+        supportEmail,
+        supportPhone,
+        whatsappNumber,
+        invoiceIssuerName,
+        usdToXofRate: Number(usdToXofRate),
+      });
       setSuccess(true);
       refetch();
     } catch (err) {
@@ -104,6 +113,24 @@ export default function ContactsPage() {
                 placeholder="GymCloud"
               />
             </Field>
+
+            <hr className="my-5 border-ink-100" />
+
+            <Field label="Taux de change USD → XOF">
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={usdToXofRate}
+                onChange={(e) => setUsdToXofRate(e.target.value)}
+                placeholder="600"
+              />
+            </Field>
+            <p className="-mt-3 mb-4 text-xs text-ink-400">
+              Utilisé pour les propriétaires hors zone XOF (conversion automatique des prix) et pour agréger les
+              revenus au tableau de bord en une seule devise. Un taux qui change n&apos;affecte pas les factures déjà
+              émises — seulement les nouvelles.
+            </p>
             <p className="-mt-3 mb-4 text-xs text-ink-400">
               Utile si l&apos;entité qui facture légalement diffère du nom commercial du produit, ex: &quot;Sahel
               System — GymCloud&quot;. Laissez vide pour utiliser &quot;GymCloud&quot; par défaut.

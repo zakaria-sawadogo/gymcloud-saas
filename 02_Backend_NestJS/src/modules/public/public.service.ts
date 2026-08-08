@@ -286,24 +286,42 @@ export class PublicService {
     });
   }
 
+  /**
+   * §14.x — Ajoute le prix converti en USD à côté du prix XOF de
+   * référence, pour affichage bi-devise sur le site vitrine (utile
+   * aux visiteurs hors zone XOF, avant même de préciser leur pays
+   * dans le formulaire) — même taux de change que celui utilisé pour
+   * les factures réellement émises (PlatformSettings.usdToXofRate),
+   * pas une valeur séparée qui risquerait de diverger.
+   */
   async getPublicPlans() {
-    return this.prisma.saasPlan.findMany({
-      where: { status: 'ACTIF' },
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        description: true,
-        priceMonthly: true,
-        priceAnnual: true,
-        trialDays: true,
-        quotaSalles: true,
-        quotaGestionnaires: true,
-        quotaAdherents: true,
-        modules: true,
-      },
-      orderBy: { displayOrder: 'asc' },
-    });
+    const [plans, settings] = await Promise.all([
+      this.prisma.saasPlan.findMany({
+        where: { status: 'ACTIF' },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          description: true,
+          priceMonthly: true,
+          priceAnnual: true,
+          trialDays: true,
+          quotaSalles: true,
+          quotaGestionnaires: true,
+          quotaAdherents: true,
+          modules: true,
+        },
+        orderBy: { displayOrder: 'asc' },
+      }),
+      this.prisma.platformSettings.findUnique({ where: { id: 'platform' } }),
+    ]);
+
+    const rate = Number(settings?.usdToXofRate ?? 600);
+    return plans.map((plan: { priceMonthly: unknown; priceAnnual: unknown }) => ({
+      ...plan,
+      priceMonthlyUsd: Math.round((Number(plan.priceMonthly) / rate) * 100) / 100,
+      priceAnnualUsd: Math.round((Number(plan.priceAnnual) / rate) * 100) / 100,
+    }));
   }
 
   /** §3.2, §9.5 — Demande d'abonnement depuis le site vitrine : crée une piste, jamais un compte propriétaire. */

@@ -1431,6 +1431,16 @@ model PlatformSettings {
   // légalement diffère du nom commercial du produit (ex: "Sahel
   // System — GymCloud").
   invoiceIssuerName String?
+  // §14.x — taux de conversion USD → XOF, utilisé pour agréger les
+  // revenus SaaS du tableau de bord SUPER_ADMIN dans une devise
+  // unique (XOF) malgré des factures potentiellement en USD (pays
+  // hors zone XOF — voir SaasBillingService.getEffectiveCurrency).
+  // Défini manuellement plutôt qu'appelé depuis une API de taux en
+  // temps réel — un taux qui bouge sous les pieds du SUPER_ADMIN
+  // rendrait le tableau de bord incohérent d'une consultation à
+  // l'autre pour des factures déjà émises ; mieux vaut un taux stable,
+  // révisé consciemment de temps en temps.
+  usdToXofRate    Decimal  @default(600) @db.Decimal(10, 4)
   updatedByUserId String?
   updatedAt       DateTime @updatedAt
 

@@ -29,7 +29,13 @@ export class PlatformSettingsService {
   }
 
   async update(
-    dto: { supportEmail?: string; supportPhone?: string; whatsappNumber?: string; invoiceIssuerName?: string },
+    dto: {
+      supportEmail?: string;
+      supportPhone?: string;
+      whatsappNumber?: string;
+      invoiceIssuerName?: string;
+      usdToXofRate?: number;
+    },
     actorUserId: string,
   ) {
     await this.get(); // garantit que la ligne existe avant la mise à jour

@@ -18,6 +18,30 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class ReportingService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * §14.x — Somme d'un champ monétaire de SaasInvoice, convertie en
+   * XOF pour les factures en USD, plutôt qu'une simple addition brute
+   * (bug réel qu'aurait causé `aggregate()._sum` tel quel — mélanger
+   * XOF et USD dans une même somme n'a aucun sens, un tableau de bord
+   * agrégé a besoin d'une devise unique). Prisma ne sait pas convertir
+   * pendant l'agrégation, d'où un passage par findMany + réduction
+   * manuelle plutôt que `.aggregate()`.
+   */
+  private async sumInvoiceAmountXof(
+    where: Record<string, unknown>,
+    field: 'totalAmount' | 'extraSallesAmount',
+  ): Promise<number> {
+    const [invoices, settings] = await Promise.all([
+      this.prisma.saasInvoice.findMany({ where, select: { [field]: true, currency: true } }),
+      this.prisma.platformSettings.findUnique({ where: { id: 'platform' } }),
+    ]);
+    const rate = Number(settings?.usdToXofRate ?? 600);
+    return invoices.reduce((sum: number, inv: Record<string, unknown>) => {
+      const amount = Number(inv[field]);
+      return sum + (inv.currency === 'USD' ? amount * rate : amount);
+    }, 0);
+  }
+
   // ─────────────────────────────────────────────────────────────
   // Tableau de bord Gestionnaire (§11.x)
   // ─────────────────────────────────────────────────────────────
@@ -242,26 +266,11 @@ export class ReportingService {
       this.prisma.proprietaire.count({ where: { createdAt: { gte: monthStart } } }),
       this.prisma.saasSubscription.groupBy({ by: ['saasPlanId'], _count: { _all: true } }),
       this.prisma.saasSubscription.groupBy({ by: ['status'], _count: { _all: true } }),
-      this.prisma.saasInvoice.aggregate({
-        where: { status: 'PAYEE', paidAt: { gte: todayStart } },
-        _sum: { totalAmount: true },
-      }),
-      this.prisma.saasInvoice.aggregate({
-        where: { status: 'PAYEE', paidAt: { gte: monthStart } },
-        _sum: { totalAmount: true },
-      }),
-      this.prisma.saasInvoice.aggregate({
-        where: { status: 'PAYEE', paidAt: { gte: yearStart } },
-        _sum: { totalAmount: true },
-      }),
-      this.prisma.saasInvoice.aggregate({
-        where: { status: 'EMISE' },
-        _sum: { totalAmount: true },
-      }),
-      this.prisma.saasInvoice.aggregate({
-        where: { status: 'PAYEE', paidAt: { gte: monthStart } },
-        _sum: { extraSallesAmount: true },
-      }),
+      this.sumInvoiceAmountXof({ status: 'PAYEE', paidAt: { gte: todayStart } }, 'totalAmount'),
+      this.sumInvoiceAmountXof({ status: 'PAYEE', paidAt: { gte: monthStart } }, 'totalAmount'),
+      this.sumInvoiceAmountXof({ status: 'PAYEE', paidAt: { gte: yearStart } }, 'totalAmount'),
+      this.sumInvoiceAmountXof({ status: 'EMISE' }, 'totalAmount'),
+      this.sumInvoiceAmountXof({ status: 'PAYEE', paidAt: { gte: monthStart } }, 'extraSallesAmount'),
     ]);
 
     const plans = await this.prisma.saasPlan.findMany({
@@ -322,11 +331,11 @@ export class ReportingService {
         downgradesCeMois: downgrades,
       },
       revenus: {
-        aujourdHui: Number(saasRevenueToday._sum.totalAmount ?? 0),
-        ceMois: Number(saasRevenueThisMonth._sum.totalAmount ?? 0),
-        cetteAnnee: Number(saasRevenueThisYear._sum.totalAmount ?? 0),
-        enAttente: Number(saasRevenuePending._sum.totalAmount ?? 0),
-        sallesSupplementairesCeMois: Number(extraSallesRevenueThisMonth._sum.extraSallesAmount ?? 0),
+        aujourdHui: saasRevenueToday,
+        ceMois: saasRevenueThisMonth,
+        cetteAnnee: saasRevenueThisYear,
+        enAttente: saasRevenuePending,
+        sallesSupplementairesCeMois: extraSallesRevenueThisMonth,
         repartitionParPlan: planBreakdown,
       },
     };
@@ -380,6 +389,15 @@ export class ReportingService {
       include: { saasPlan: true },
     });
 
+    // §14.x — le prix du plan (saasPlan.priceMonthly/priceAnnual) est
+    // TOUJOURS la référence XOF, que l'abonnement soit facturé en XOF
+    // ou en USD (converti depuis cette même référence, voir
+    // SaasBillingService.getEffectivePricing) — sommer cette
+    // référence directement donne donc la vraie valeur agrégée en
+    // XOF, sans distinction à faire ici. Reste une légère
+    // approximation si un prix négocié manuellement (saasCountryPricing)
+    // diffère de la conversion automatique — acceptable pour un
+    // indicateur agrégé, pas une facture.
     const mrr = activeSubscriptions.reduce((sum: number, sub: any) => {
       const monthlyValue =
         sub.billingCycle === 'ANNUEL' ? Number(sub.saasPlan.priceAnnual) / 12 : Number(sub.saasPlan.priceMonthly);

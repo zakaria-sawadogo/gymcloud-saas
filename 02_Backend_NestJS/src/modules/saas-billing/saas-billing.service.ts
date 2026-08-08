@@ -187,7 +187,11 @@ export class SaasBillingService {
     }
 
     const addon = await this.prisma.saasAddon.findUniqueOrThrow({ where: { id: addonId } });
-    const addonsSubtotal = Math.round(Number(addon.price) * durationMonths * 100) / 100;
+    const baseAddonPrice = Math.round(Number(addon.price) * durationMonths * 100) / 100;
+    const { amount: addonsSubtotal, currency: addonCurrency } = await this.getEffectiveAddonPrice(
+      salle.subscriptionId,
+      baseAddonPrice,
+    );
 
     await this.prisma.saasSubscriptionAddon.upsert({
       where: { salleId_addonId: { salleId, addonId } },
@@ -222,7 +226,7 @@ export class SaasBillingService {
         addonsAmount: addonsSubtotal,
         taxAmount: addonTaxAmount,
         totalAmount,
-        currency: 'XOF',
+        currency: addonCurrency,
         status: 'EMISE',
         pendingAddonId: addonId,
         pendingAddonDurationMonths: durationMonths,
@@ -239,7 +243,7 @@ export class SaasBillingService {
         this.notifications.create(
           u.id,
           "Demande d'activation d'add-on",
-          `Add-on "${addon.name}" demandé pour "${salle.name}" (${durationMonths} mois, ${totalAmount.toLocaleString('fr-FR')} XOF) — en attente de paiement/validation.`,
+          `Add-on "${addon.name}" demandé pour "${salle.name}" (${durationMonths} mois, ${totalAmount.toLocaleString('fr-FR')} ${addonCurrency}) — en attente de paiement/validation.`,
         ),
       ),
     );
@@ -298,7 +302,11 @@ export class SaasBillingService {
         continue;
       }
 
-      const renewalAddonsSubtotal = Math.round(Number(item.addon.price) * item.durationMonths * 100) / 100;
+      const baseRenewalAddonPrice = Math.round(Number(item.addon.price) * item.durationMonths * 100) / 100;
+      const { amount: renewalAddonsSubtotal, currency: renewalAddonCurrency } = await this.getEffectiveAddonPrice(
+        item.subscriptionId,
+        baseRenewalAddonPrice,
+      );
       const renewalPeriodEnd = new Date(now);
       renewalPeriodEnd.setMonth(renewalPeriodEnd.getMonth() + item.durationMonths);
 
@@ -326,7 +334,7 @@ export class SaasBillingService {
           addonsAmount: renewalAddonsSubtotal,
           taxAmount: renewalAddonTaxAmount,
           totalAmount,
-          currency: 'XOF',
+          currency: renewalAddonCurrency,
           status: 'EMISE',
           pendingAddonId: item.addonId,
           pendingAddonDurationMonths: item.durationMonths,
@@ -342,7 +350,7 @@ export class SaasBillingService {
         await this.notifications.create(
           proprietaire.userId,
           "Renouvellement d'add-on à régler",
-          `L'add-on "${item.addon.name}" pour "${item.salle.name}" arrive à échéance — une nouvelle facture de ${totalAmount.toLocaleString('fr-FR')} XOF est en attente de règlement.`,
+          `L'add-on "${item.addon.name}" pour "${item.salle.name}" arrive à échéance — une nouvelle facture de ${totalAmount.toLocaleString('fr-FR')} ${renewalAddonCurrency} est en attente de règlement.`,
         );
       }
       renewed++;
@@ -500,19 +508,69 @@ export class SaasBillingService {
   // Tarification effective (avec surcharge pays — §14.15)
   // ─────────────────────────────────────────────────────────────
 
-  async getEffectivePricing(planId: string, countryId: string) {
-    const [plan, countryOverride] = await Promise.all([
+  /**
+   * §14.x — Enrichi pour retourner aussi la devise effective, avec
+   * conversion automatique quand aucun prix spécifique n'a été
+   * configuré pour ce pays (saasCountryPricing) : plutôt que de
+   * renvoyer tel quel le prix XOF de référence du plan (bug réel —
+   * c'était le comportement jusqu'ici, silencieusement faux pour tout
+   * pays hors zone XOF sans configuration manuelle), le prix est
+   * divisé par le taux de change pour donner un montant USD
+   * raisonnable par défaut. Le SUPER_ADMIN reste libre de définir un
+   * prix manuel différent (prix psychologique du type 29$ plutôt que
+   * 28,73$) via saasCountryPricing — cette conversion n'est qu'un
+   * filet de sécurité, pas un remplacement de la configuration
+   * manuelle.
+   */
+  async getEffectivePricing(planId: string, countryId: string | null) {
+    const [plan, countryOverride, country] = await Promise.all([
       this.prisma.saasPlan.findUniqueOrThrow({ where: { id: planId } }),
-      this.prisma.saasCountryPricing.findUnique({
-        where: { saasPlanId_countryId: { saasPlanId: planId, countryId } },
-      }),
+      countryId
+        ? this.prisma.saasCountryPricing.findUnique({
+            where: { saasPlanId_countryId: { saasPlanId: planId, countryId } },
+          })
+        : null,
+      countryId ? this.prisma.country.findUnique({ where: { id: countryId }, select: { currency: true } }) : null,
     ]);
 
+    const isXofCountry = !country?.currency || country.currency === 'XOF';
+
+    if (countryOverride) {
+      return {
+        priceMonthly: countryOverride.priceMonthly,
+        priceAnnual: countryOverride.priceAnnual,
+        extraSalleFee: countryOverride.extraSalleFee,
+        currency: isXofCountry ? 'XOF' : 'USD',
+      };
+    }
+
+    if (isXofCountry) {
+      return { priceMonthly: plan.priceMonthly, priceAnnual: plan.priceAnnual, extraSalleFee: plan.extraSalleFee, currency: 'XOF' };
+    }
+
+    const rate = await this.getUsdToXofRate();
     return {
-      priceMonthly: countryOverride?.priceMonthly ?? plan.priceMonthly,
-      priceAnnual: countryOverride?.priceAnnual ?? plan.priceAnnual,
-      extraSalleFee: countryOverride?.extraSalleFee ?? plan.extraSalleFee,
+      priceMonthly: Math.round((Number(plan.priceMonthly) / rate) * 100) / 100,
+      priceAnnual: Math.round((Number(plan.priceAnnual) / rate) * 100) / 100,
+      extraSalleFee: Math.round((Number(plan.extraSalleFee) / rate) * 100) / 100,
+      currency: 'USD',
     };
+  }
+
+  /**
+   * §14.x — Enveloppe pratique de getEffectivePricing pour les
+   * nombreux points d'appel qui n'ont qu'un subscriptionId sous la
+   * main (facture de renouvellement, prorata de changement de plan)
+   * plutôt que planId+countryId séparément — évite d'élargir les
+   * signatures de méthodes partagées existantes juste pour y faire
+   * transiter ces deux valeurs.
+   */
+  private async getEffectivePricingForSubscription(subscriptionId: string, planId?: string) {
+    const sub = await this.prisma.saasSubscription.findUniqueOrThrow({
+      where: { id: subscriptionId },
+      select: { saasPlanId: true, proprietaire: { select: { countryId: true } } },
+    });
+    return this.getEffectivePricing(planId ?? sub.saasPlanId, sub.proprietaire.countryId);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -604,10 +662,11 @@ export class SaasBillingService {
     // bien ajouté à la facture, mais le propriétaire ne l'apprenait
     // qu'en consultant sa facturation lui-même — pas idéal pour un
     // montant qui s'ajoute sans action explicite de sa part.
+    const extraSalleCurrency = await this.getEffectiveCurrency(subscriptionId);
     await this.notifications.create(
       subscription.proprietaire.user.id,
       'Salle supplémentaire facturée',
-      `Une salle supplémentaire a été ajoutée à votre abonnement — ${pricing.extraSalleFee} XOF ajoutés à votre prochaine facture (total : ${updated.extraSallesCount} salle(s) supplémentaire(s)).`,
+      `Une salle supplémentaire a été ajoutée à votre abonnement — ${pricing.extraSalleFee} ${extraSalleCurrency} ajoutés à votre prochaine facture (total : ${updated.extraSallesCount} salle(s) supplémentaire(s)).`,
     );
 
     return updated;
@@ -653,6 +712,7 @@ export class SaasBillingService {
     const salleTaxRatePct = await this.getCountryTaxRatePct(subscription.id);
     const salleTaxAmount = Math.round(((salleSubtotal * salleTaxRatePct) / 100) * 100) / 100;
     const totalAmount = salleSubtotal + salleTaxAmount;
+    const salleRequestCurrency = await this.getEffectiveCurrency(subscription.id);
 
     const request = await this.prisma.salleCreationRequest.create({
       data: {
@@ -682,7 +742,7 @@ export class SaasBillingService {
         addonsAmount: salleSubtotal,
         taxAmount: salleTaxAmount,
         totalAmount,
-        currency: 'XOF',
+        currency: salleRequestCurrency,
         status: 'EMISE',
         pendingSalleRequestId: request.id,
       },
@@ -697,7 +757,7 @@ export class SaasBillingService {
         this.notifications.create(
           u.id,
           'Demande de salle supplémentaire',
-          `"${dto.name}" (${dto.city}) — ${totalAmount > 0 ? `${totalAmount.toLocaleString('fr-FR')} XOF` : 'incluse dans le plan'} — en attente de validation.`,
+          `"${dto.name}" (${dto.city}) — ${totalAmount > 0 ? `${totalAmount.toLocaleString('fr-FR')} ${salleRequestCurrency}` : 'incluse dans le plan'} — en attente de validation.`,
         ),
       ),
     );
@@ -864,6 +924,7 @@ export class SaasBillingService {
     });
 
     if (subscription.saasPlan.trialDays > 0) {
+      const trialCurrency = await this.getEffectiveCurrency(subscription.id);
       const invoice = await this.prisma.saasInvoice.create({
         data: {
           id: randomUUID(),
@@ -877,7 +938,7 @@ export class SaasBillingService {
           addonsAmount: 0,
           taxAmount: 0,
           totalAmount: 0,
-          currency: 'XOF',
+          currency: trialCurrency,
           status: 'PAYEE',
           paidAt: new Date(),
           paymentMethod: 'ESSAI_GRATUIT',
@@ -922,12 +983,70 @@ export class SaasBillingService {
    * de facture avait sa propre logique — la plupart oubliaient
    * simplement d'appliquer une taxe (bug réel corrigé).
    */
+  /**
+   * §14.x — Taux de change USD → XOF, défini manuellement par le
+   * SUPER_ADMIN (PlatformSettings.usdToXofRate) — utilisé pour deux
+   * choses distinctes : convertir automatiquement un prix XOF en USD
+   * quand aucun prix spécifique n'est configuré pour un pays hors
+   * zone XOF (voir getEffectivePricing), et agréger les revenus dans
+   * une devise unique au tableau de bord SUPER_ADMIN malgré des
+   * factures mêlant XOF et USD.
+   */
+  private async getUsdToXofRate(): Promise<number> {
+    const settings = await this.prisma.platformSettings.findUnique({ where: { id: 'platform' } });
+    return Number(settings?.usdToXofRate ?? 600);
+  }
+
   private async getCountryTaxRatePct(subscriptionId: string): Promise<number> {
     const sub = await this.prisma.saasSubscription.findUniqueOrThrow({
       where: { id: subscriptionId },
       select: { proprietaire: { select: { country: { select: { taxRatePct: true } } } } },
     });
     return Number(sub.proprietaire.country?.taxRatePct ?? 0);
+  }
+
+  /**
+   * §14.x — Devise de facturation SaaS effective pour un abonnement :
+   * XOF pour les pays de la zone XOF, USD comme devise universelle
+   * pour tous les autres (principe validé avec l'utilisateur — pas de
+   * devise propre par pays hors zone XOF, pour éviter de multiplier
+   * les devises à gérer/réconcilier pour un nombre de pays qui reste
+   * pour l'instant marginal). Remplace 8 occurrences de `currency:
+   * 'XOF'` codées en dur à travers ce fichier, jusqu'ici correctes en
+   * pratique (tous les pays couverts étaient en zone XOF) mais fausses
+   * dès qu'un propriétaire d'un pays différent s'inscrirait.
+   *
+   * Pas de pays associé (countryId jamais renseigné, cas résiduel
+   * antérieur au correctif sur Proprietaire.countryId) : XOF par
+   * défaut, cohérent avec le comportement historique.
+   */
+  private async getEffectiveCurrency(subscriptionId: string): Promise<string> {
+    const sub = await this.prisma.saasSubscription.findUniqueOrThrow({
+      where: { id: subscriptionId },
+      select: { proprietaire: { select: { country: { select: { currency: true } } } } },
+    });
+    const countryCurrency = sub.proprietaire.country?.currency;
+    if (!countryCurrency || countryCurrency === 'XOF') return 'XOF';
+    return 'USD';
+  }
+
+  /**
+   * §14.x — Prix effectif d'un add-on (toujours défini en XOF sur
+   * SaasAddon.price, sans mécanisme de prix par pays comme les plans
+   * — inutile d'en construire un séparé pour un montant unitaire
+   * généralement modeste ; la conversion automatique via le taux de
+   * change suffit, sans avoir besoin d'un prix "psychologique" comme
+   * pour un plan). Retourne aussi la devise, pour éviter un second
+   * appel séparé chez l'appelant.
+   */
+  private async getEffectiveAddonPrice(
+    subscriptionId: string,
+    baseXofPrice: number,
+  ): Promise<{ amount: number; currency: string }> {
+    const currency = await this.getEffectiveCurrency(subscriptionId);
+    if (currency === 'XOF') return { amount: baseXofPrice, currency };
+    const rate = await this.getUsdToXofRate();
+    return { amount: Math.round((baseXofPrice / rate) * 100) / 100, currency };
   }
 
   /**
@@ -1011,10 +1130,8 @@ export class SaasBillingService {
 
     const periodStart = now;
     const periodEnd = subscription.currentPeriodEnd;
-    const rawAmount =
-      subscription.billingCycle === 'ANNUEL'
-        ? subscription.saasPlan.priceAnnual
-        : subscription.saasPlan.priceMonthly;
+    const effectivePricing = await this.getEffectivePricingForSubscription(subscription.id);
+    const rawAmount = subscription.billingCycle === 'ANNUEL' ? effectivePricing.priceAnnual : effectivePricing.priceMonthly;
     const { discountedAmount: baseAmount, totalDiscountApplied: discountAmount } = this.applyDiscounts(
       Number(rawAmount),
       subscription.billingCycle,
@@ -1028,6 +1145,7 @@ export class SaasBillingService {
     // différents payaient jusqu'ici exactement la même taxe.
     const taxRatePct = await this.getCountryTaxRatePct(subscription.id);
     const taxAmount = (baseAmount * taxRatePct) / 100;
+    const renewalCurrency = effectivePricing.currency;
     // §14.x — les add-ons ne sont JAMAIS mêlés à cette facture : ils
     // ont leur propre circuit dédié et déjà correct (prix × durée
     // exacte, via processAddonRenewals/requestAddonActivation), qui
@@ -1052,7 +1170,7 @@ export class SaasBillingService {
         addonsAmount: 0,
         taxAmount,
         totalAmount: Number(baseAmount) + taxAmount,
-        currency: 'XOF', // TODO: dériver de Country.currency selon proprietaire.countryId
+        currency: renewalCurrency,
         status: 'EMISE',
       },
     });
@@ -1118,6 +1236,7 @@ export class SaasBillingService {
     // de taxe vient du pays du propriétaire, pas du plan.
     const renewalTaxRatePct = await this.getCountryTaxRatePct(subscription.id);
     const taxAmount = ((baseAmount + extraSallesAmount) * renewalTaxRatePct) / 100;
+    const extraSallesRenewalCurrency = await this.getEffectiveCurrency(subscription.id);
     // §14.x — les add-ons restent sur leur propre circuit dédié, voir
     // le commentaire équivalent dans getOrCreateCurrentInvoice.
 
@@ -1135,7 +1254,7 @@ export class SaasBillingService {
         addonsAmount: 0,
         taxAmount,
         totalAmount: baseAmount + extraSallesAmount + taxAmount,
-        currency: 'XOF', // TODO: dériver de Country.currency selon proprietaire.countryId
+        currency: extraSallesRenewalCurrency,
         status: 'EMISE',
       },
     });
@@ -1232,11 +1351,20 @@ export class SaasBillingService {
         0,
         Math.ceil((subscription.currentPeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
       );
+      // §14.x — prix effectif (converti/spécifique au pays) pour
+      // l'ancien ET le nouveau plan — un changement de plan ne
+      // change jamais le pays du propriétaire, donc les deux
+      // partagent la même devise, mais chacun son propre prix.
+      const [oldEffectivePricing, newEffectivePricing] = await Promise.all([
+        this.getEffectivePricingForSubscription(subscriptionId, oldPlan.id),
+        this.getEffectivePricingForSubscription(subscriptionId, newPlan.id),
+      ]);
       const oldDailyRate =
-        Number(subscription.billingCycle === 'ANNUEL' ? oldPlan.priceAnnual : oldPlan.priceMonthly) /
+        Number(subscription.billingCycle === 'ANNUEL' ? oldEffectivePricing.priceAnnual : oldEffectivePricing.priceMonthly) /
         oldCycleLengthDays;
       const newDailyRate =
-        Number(targetBillingCycle === 'ANNUEL' ? newPlan.priceAnnual : newPlan.priceMonthly) / newCycleLengthDays;
+        Number(targetBillingCycle === 'ANNUEL' ? newEffectivePricing.priceAnnual : newEffectivePricing.priceMonthly) /
+        newCycleLengthDays;
       const creditForUnusedOldPlan = oldDailyRate * remainingDays;
       const chargeForNewPlanRemainder = newDailyRate * remainingDays;
       prorataDifference = Math.round((chargeForNewPlanRemainder - creditForUnusedOldPlan) * 100) / 100;
@@ -1253,10 +1381,11 @@ export class SaasBillingService {
         const prorataTaxAmount = Math.round(((prorataDifference * prorataTaxRatePct) / 100) * 100) / 100;
         const prorataTotalWithTax = prorataDifference + prorataTaxAmount;
         const isAmountDue = prorataDifference > 0;
+        const prorataCurrency = await this.getEffectiveCurrency(subscriptionId);
 
         if (isAmountDue && !payment) {
           throw new BadRequestException(
-            `Un complément de ${prorataTotalWithTax} XOF (taxe comprise) est dû au prorata — précisez une méthode de paiement pour l'encaisser`,
+            `Un complément de ${prorataTotalWithTax} ${prorataCurrency} (taxe comprise) est dû au prorata — précisez une méthode de paiement pour l'encaisser`,
           );
         }
 
@@ -1279,7 +1408,7 @@ export class SaasBillingService {
             addonsAmount: 0,
             taxAmount: prorataTaxAmount,
             totalAmount: prorataTotalWithTax,
-            currency: 'XOF',
+            currency: prorataCurrency,
             status: isAmountDue ? 'EMISE' : 'PAYEE',
             paidAt: isAmountDue ? null : now,
             // Le changement n'est écrit sur la souscription qu'après
@@ -1345,6 +1474,7 @@ export class SaasBillingService {
       // facture à 0 XOF, auto-déclarée (rien à encaisser), qui
       // attend malgré tout une approbation avant d'appliquer le
       // changement — même mécanisme que pour un montant réellement dû.
+      const trialChangeCurrency = await this.getEffectiveCurrency(subscriptionId);
       const prorataInvoice = await this.prisma.saasInvoice.create({
         data: {
           id: randomUUID(),
@@ -1358,7 +1488,7 @@ export class SaasBillingService {
           addonsAmount: 0,
           taxAmount: 0,
           totalAmount: 0,
-          currency: 'XOF',
+          currency: trialChangeCurrency,
           status: 'EMISE',
           declaredPaymentMethod: 'ESSAI_GRATUIT',
           declaredAt: now,
@@ -1477,11 +1607,12 @@ export class SaasBillingService {
         select: { user: { select: { firstName: true, lastName: true } } },
       });
       if (proprietaireUser) {
+        const pendingChangeCurrency = await this.getEffectiveCurrency(subscriptionId);
         await this.notifications.notifySuperAdminsPlanChangePending(
           `${proprietaireUser.user.firstName} ${proprietaireUser.user.lastName}`,
           newPlan.name,
           Math.abs(prorataDifference),
-          'XOF', // §9.3 — les plans SaaS eux-mêmes sont toujours tarifés en XOF
+          pendingChangeCurrency,
         );
       }
     }

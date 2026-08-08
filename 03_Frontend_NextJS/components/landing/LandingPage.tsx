@@ -22,6 +22,8 @@ interface PublicPlan {
   description: string | null;
   priceMonthly: number;
   priceAnnual: number;
+  priceMonthlyUsd: number;
+  priceAnnualUsd: number;
   trialDays: number;
   quotaSalles: number;
   quotaGestionnaires: number | null;
@@ -510,6 +512,9 @@ export function LandingPage() {
                     <span className={c('amount')}>{Math.round(plan.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')}</span>
                     <span className={c('unit')}>XOF / mois</span>
                   </div>
+                  <div className={c('plan-price-usd')}>
+                    ≈ {plan.priceMonthlyUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD / mois
+                  </div>
                   <ul className={c('plan-feats')}>
                     {buildPlanFeatures(plan).map((feat) => (
                       <li key={feat}>
@@ -756,7 +761,7 @@ export function LandingPage() {
                       </option>
                       {plans.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} — {Math.round(p.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF/mois
+                          {p.name} — {Math.round(p.priceMonthly).toLocaleString('fr-FR').replace(/\u202f/g, ' ')} XOF/mois (≈ {p.priceMonthlyUsd.toFixed(2)} USD)
                         </option>
                       ))}
                     </select>
