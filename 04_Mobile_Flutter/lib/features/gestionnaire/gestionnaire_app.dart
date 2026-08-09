@@ -17,32 +17,42 @@ class GestionnaireApp extends StatefulWidget {
 class _GestionnaireAppState extends State<GestionnaireApp> {
   int _currentIndex = 0;
   final _dashboardKey = GlobalKey<DashboardScreenState>();
-  final _pendingPaymentsKey = GlobalKey<PendingPaymentsScreenState>();
+  // §14.x — reconstruit entièrement l'écran Paiements à chaque fois
+  // qu'on le sélectionne (compteur qui change à chaque tap), plutôt
+  // que de dépendre d'un GlobalKey.currentState?.refresh() qui s'est
+  // avéré ne pas suffire en pratique pour ce cas précis — changer la
+  // Key d'un widget force Flutter à le détruire et le reconstruire
+  // intégralement (nouvel appel à initState), une garantie plus
+  // robuste qu'une méthode appelée sur un état potentiellement pas
+  // encore prêt au moment exact du tap.
+  int _pendingPaymentsRebuildCount = 0;
 
-  late final _screens = [
-    DashboardScreen(key: _dashboardKey),
-    const ScannerScreen(),
-    const AdherentsListScreen(),
-    PendingPaymentsScreen(key: _pendingPaymentsKey),
-    const ProspectsScreen(),
-    const BoutiqueScreen(),
-    const FinancesScreen(),
-  ];
+  List<Widget> get _screens => [
+        DashboardScreen(key: _dashboardKey),
+        const ScannerScreen(),
+        const AdherentsListScreen(),
+        PendingPaymentsScreen(key: ValueKey('pending-payments-$_pendingPaymentsRebuildCount')),
+        const ProspectsScreen(),
+        const BoutiqueScreen(),
+        const FinancesScreen(),
+      ];
 
   void _onTap(int index) {
+    // §14.x — incrémenté AVANT setState pour que la nouvelle Key soit
+    // déjà en place au moment où _screens est reconstruit par le
+    // setState ci-dessous — sinon l'ancien écran (avec son ancien
+    // état encore chargé) resterait affiché un instant de plus.
+    if (index == 3) {
+      _pendingPaymentsRebuildCount++;
+    }
     setState(() => _currentIndex = index);
-    // §11.x, §14.x — Les chiffres du jour (revenu, adhérents actifs...)
+    // §11.x — Les chiffres du jour (revenu, adhérents actifs...)
     // doivent refléter ce qui vient d'être fait ailleurs (nouvel
     // adhérent, paiement validé) ; l'IndexedStack garde cet écran en
     // mémoire sans jamais le recharger tout seul, donc on force un
-    // rafraîchissement à chaque fois qu'on y revient. Même principe
-    // pour "Paiements" : une demande de réabonnement soumise par un
-    // adhérent pendant que le gestionnaire était sur un autre onglet
-    // restait invisible jusqu'ici.
+    // rafraîchissement à chaque fois qu'on y revient.
     if (index == 0) {
       _dashboardKey.currentState?.refresh();
-    } else if (index == 3) {
-      _pendingPaymentsKey.currentState?.refresh();
     }
   }
 
