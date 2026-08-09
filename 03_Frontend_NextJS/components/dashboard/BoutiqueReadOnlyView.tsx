@@ -5,7 +5,7 @@ import { ShoppingBag } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 interface Product {
   id: string;
@@ -29,6 +29,16 @@ interface SalesByProductSummary {
   totalRevenue: number;
 }
 
+interface StockMovement {
+  id: string;
+  previousQty: number;
+  newQty: number;
+  delta: number;
+  createdAt: string;
+  actor: { firstName: string; lastName: string };
+  product: { name: string };
+}
+
 /**
  * §14.x — Suivi boutique en lecture seule : stock et ventes, sans
  * aucune action de création/modification/vente — le propriétaire
@@ -44,6 +54,7 @@ export function BoutiqueReadOnlyView({ salleId, currency = 'XOF' }: { salleId: s
     `/salles/${salleId}/boutique/sales-by-product?period=${period}`,
     [period],
   );
+  const { data: movements } = useApi<StockMovement[]>(`/salles/${salleId}/boutique/stock-movements`);
 
   if (isLoadingProducts) return <div className="h-40 animate-pulse rounded-xl bg-ink-50" />;
 
@@ -58,6 +69,7 @@ export function BoutiqueReadOnlyView({ salleId, currency = 'XOF' }: { salleId: s
   const lowStock = (products ?? []).filter((p) => p.active && p.stockQty <= 5);
 
   return (
+    <div className="space-y-6">
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <Card className="p-0">
         <div className="p-5 pb-0">
@@ -136,6 +148,41 @@ export function BoutiqueReadOnlyView({ salleId, currency = 'XOF' }: { salleId: s
           </div>
         )}
       </Card>
+    </div>
+
+      {movements && movements.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Historique des ajustements de stock</CardTitle>
+          </CardHeader>
+          <p className="mb-3 text-xs text-ink-400">
+            Ajustements manuels des 2 derniers mois — les ventes ne sont pas comptées ici (voir Ventes ci-dessus).
+          </p>
+          <div className="divide-y divide-ink-100">
+            {movements.map((m) => (
+              <div key={m.id} className="flex items-center justify-between py-2.5 text-sm">
+                <div>
+                  <span className="font-medium text-ink-900">{m.product.name}</span>
+                  <span className="ml-2 text-ink-500">
+                    {m.previousQty} → {m.newQty}
+                    <span className={m.delta > 0 ? ' text-primary-600' : ' text-red-600'}>
+                      {' '}
+                      ({m.delta > 0 ? '+' : ''}
+                      {m.delta})
+                    </span>
+                  </span>
+                </div>
+                <div className="text-right text-xs text-ink-400">
+                  <p>
+                    {m.actor.firstName} {m.actor.lastName}
+                  </p>
+                  <p>{formatDateTime(m.createdAt)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

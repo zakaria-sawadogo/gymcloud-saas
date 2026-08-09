@@ -118,6 +118,27 @@ export class BoutiqueService {
     });
   }
 
+  /**
+   * §14.x — Même historique que listStockMovements, mais à l'échelle
+   * de toute la salle plutôt qu'un seul produit — pour le suivi du
+   * propriétaire (vue en lecture seule), qui doit voir les
+   * ajustements sans avoir à ouvrir chaque produit individuellement.
+   * Limité aux 50 plus récents, cohérent avec la rétention de 2 mois
+   * (pas pensé pour un historique exhaustif de long terme).
+   */
+  async listSalleStockMovements(salleId: string) {
+    await this.assertHasBoutiqueAccess(salleId);
+    return this.prisma.stockMovement.findMany({
+      where: { salleId },
+      include: {
+        actor: { select: { firstName: true, lastName: true } },
+        product: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
   async updateProductImage(
     productId: string,
     file: { buffer: Buffer; originalname: string; mimetype: string },

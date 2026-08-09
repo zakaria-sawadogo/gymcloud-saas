@@ -84,6 +84,13 @@ export class BoutiqueController {
     return this.boutiqueService.listSales(salleId, date);
   }
 
+  @Get('stock-movements')
+  @RequirePermission('read', 'Product')
+  @ApiOperation({ summary: "Historique des ajustements manuels de stock, toute la salle (§14.x) — suivi propriétaire" })
+  listSalleStockMovements(@Param('salleId') salleId: string) {
+    return this.boutiqueService.listSalleStockMovements(salleId);
+  }
+
   @Get('caisse')
   @RequirePermission('read', 'Product')
   @ApiOperation({ summary: 'Synthèse de caisse boutique journalière par moyen de paiement' })
