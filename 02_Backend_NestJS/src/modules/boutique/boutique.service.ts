@@ -75,6 +75,25 @@ export class BoutiqueService {
         ...(dto.active !== undefined ? { active: dto.active } : {}),
       },
     });
+
+    // §14.x — journalise uniquement un vrai changement de quantité,
+    // pas chaque appel à updateProduct (qui peut ne toucher que le
+    // nom ou le prix) — et jamais les décréments de vente, qui ont
+    // déjà leur propre historique permanent via ProductSale.
+    if (dto.stockQty !== undefined && dto.stockQty !== product.stockQty) {
+      await this.prisma.stockMovement.create({
+        data: {
+          id: randomUUID(),
+          productId,
+          salleId: product.salleId,
+          previousQty: product.stockQty,
+          newQty: dto.stockQty,
+          delta: dto.stockQty - product.stockQty,
+          actorUserId,
+        },
+      });
+    }
+
     await this.audit.log({
       userId: actorUserId,
       action: 'product.update',
@@ -83,6 +102,20 @@ export class BoutiqueService {
       salleId: product.salleId,
     });
     return updated;
+  }
+
+  /**
+   * §14.x — Historique des ajustements manuels de stock d'un produit,
+   * du plus récent au plus ancien. Purgé après 2 mois (voir
+   * BoutiqueSchedulerService.purgeOldStockMovements).
+   */
+  async listStockMovements(productId: string, salleId: string) {
+    await this.assertHasBoutiqueAccess(salleId);
+    return this.prisma.stockMovement.findMany({
+      where: { productId, salleId },
+      include: { actor: { select: { firstName: true, lastName: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async updateProductImage(
@@ -246,5 +279,21 @@ export class BoutiqueService {
       totalQuantity: items.reduce((sum, i) => sum + i.quantity, 0),
       totalRevenue: items.reduce((sum, i) => sum + i.revenue, 0),
     };
+  }
+
+  /**
+   * §14.x — Purge les ajustements manuels de stock de plus de 2 mois
+   * (voir BoutiqueSchedulerService, exécuté chaque nuit) — rétention
+   * volontairement courte, ce journal sert à comprendre un écart
+   * récent, pas à faire un audit comptable de long terme (contrairement
+   * à ProductSale, jamais purgé).
+   */
+  async purgeOldStockMovements(): Promise<{ deleted: number }> {
+    const twoMonthsAgo = new Date();
+    twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+    const result = await this.prisma.stockMovement.deleteMany({
+      where: { createdAt: { lt: twoMonthsAgo } },
+    });
+    return { deleted: result.count };
   }
 }

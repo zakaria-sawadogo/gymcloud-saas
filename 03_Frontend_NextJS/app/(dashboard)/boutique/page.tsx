@@ -21,6 +21,15 @@ interface Product {
   imageUrl: string | null;
 }
 
+interface StockMovement {
+  id: string;
+  previousQty: number;
+  newQty: number;
+  delta: number;
+  createdAt: string;
+  actor: { firstName: string; lastName: string };
+}
+
 interface Sale {
   id: string;
   quantity: number;
@@ -413,6 +422,10 @@ function EditProductModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { data: movements } = useApi<StockMovement[]>(
+    `/salles/${salleId}/boutique/products/${product.id}/stock-movements`,
+  );
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setError(null);
@@ -441,6 +454,31 @@ function EditProductModal({
       <Field label="Stock">
         <Input type="number" min="0" value={stockQty} onChange={(e) => setStockQty(e.target.value)} />
       </Field>
+
+      {movements && movements.length > 0 && (
+        <div className="mb-4">
+          <p className="mb-1.5 text-xs font-medium uppercase text-ink-400">
+            Historique des ajustements (2 derniers mois)
+          </p>
+          <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border border-ink-100 p-2">
+            {movements.map((m) => (
+              <div key={m.id} className="flex items-center justify-between text-xs text-ink-600">
+                <span>
+                  {m.previousQty} → {m.newQty}
+                  <span className={m.delta > 0 ? 'text-primary-600' : 'text-red-600'}>
+                    {' '}
+                    ({m.delta > 0 ? '+' : ''}
+                    {m.delta})
+                  </span>
+                  {' · '}
+                  {m.actor.firstName} {m.actor.lastName}
+                </span>
+                <span className="text-ink-400">{formatDateTime(m.createdAt)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <label className="mb-4 flex items-center gap-2 text-sm text-ink-700">
         <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
         Produit actif (vendable)

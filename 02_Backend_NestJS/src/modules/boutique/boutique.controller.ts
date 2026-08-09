@@ -41,6 +41,13 @@ export class BoutiqueController {
     return this.boutiqueService.updateProduct(productId, dto, user.userId);
   }
 
+  @Get('products/:productId/stock-movements')
+  @RequirePermission('read', 'Product')
+  @ApiOperation({ summary: 'Historique des ajustements manuels de stock (§14.x) — purgé après 2 mois' })
+  listStockMovements(@Param('productId') productId: string, @Param('salleId') salleId: string) {
+    return this.boutiqueService.listStockMovements(productId, salleId);
+  }
+
   @Patch('products/:productId/image')
   @RequirePermission('manage', 'Product')
   @UseInterceptors(FileInterceptor('image'))

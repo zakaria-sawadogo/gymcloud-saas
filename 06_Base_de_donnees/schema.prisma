@@ -164,6 +164,7 @@ model User {
   auditLogs       AuditLog[]
   loginHistory    LoginHistory[]
   additionalRoles UserAdditionalRole[]
+  stockMovements  StockMovement[]
 
   @@index([roleId])
   @@map("users")
@@ -660,6 +661,7 @@ model Salle {
   payments        Payment[]
   products        Product[]
   productSales    ProductSale[]
+  stockMovements  StockMovement[]
   expenses        Expense[]
   expenseBudgets  ExpenseBudget[]
   accessLogs      AccessLog[]
@@ -1152,9 +1154,35 @@ model Product {
 
   createdAt DateTime @default(now())
   sales     ProductSale[]
+  stockMovements StockMovement[]
 
   @@index([salleId])
   @@map("products")
+}
+
+// §14.x — Historique des ajustements manuels de stock (formulaire de
+// modification du produit uniquement — les ventes ont déjà leur
+// propre historique permanent via ProductSale, pas dupliqué ici).
+// Purge automatique après 2 mois (voir BoutiqueSchedulerService) —
+// volontairement une rétention courte, ce journal sert à comprendre
+// un écart récent, pas à faire un audit comptable de long terme.
+model StockMovement {
+  id          String   @id @default(uuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  salleId     String
+  salle       Salle    @relation(fields: [salleId], references: [id])
+  previousQty Int
+  newQty      Int
+  delta       Int
+  actorUserId String
+  actor       User     @relation(fields: [actorUserId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([salleId])
+  @@index([productId])
+  @@index([createdAt])
+  @@map("stock_movements")
 }
 
 model ProductSale {
