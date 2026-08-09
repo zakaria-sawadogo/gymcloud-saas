@@ -131,7 +131,8 @@ export function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose
         )}
       >
         <div className="flex items-center gap-2 px-5 py-5">
-          <div className="h-8 w-8 rounded-lg bg-primary-500" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/logo-icon.png" alt="" className="h-8 w-8" />
           <span className="font-display text-lg font-semibold text-ink-900">GymCloud</span>
         </div>
 

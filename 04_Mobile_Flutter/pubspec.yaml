@@ -37,8 +37,26 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/icon/
+
+# §14.x — Icône de l'app, reprenant le vrai logo de marque GymCloud
+# (nuage bicolore navy/turquoise avec haltère et flèche montante) —
+# jusqu'ici l'icône par défaut de Flutter s'affichait encore sur
+# l'écran d'accueil. Exécuter `dart run flutter_launcher_icons` après
+# `flutter pub get` pour générer les fichiers natifs Android/iOS à
+# partir de ces sources — non fait automatiquement ici, cette commande
+# doit tourner en local (accès au dossier android/ios, absent de cet
+# environnement).
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  remove_alpha_ios: true

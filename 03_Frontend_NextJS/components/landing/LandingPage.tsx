@@ -522,10 +522,8 @@ export function LandingPage() {
       <header>
         <nav className={c('wrap')}>
           <a href="#top" className={c('logo')}>
-            <svg className={c('logo-mark')} viewBox="0 0 26 26" fill="none">
-              <rect width="26" height="26" rx="7" fill="#3DFF9A" />
-              <path d="M8 13.2l3 3L18 9" stroke="#14432F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/logo-icon.png" alt="" className={c('logo-mark')} />
             GymCloud
           </a>
           <div className={c('nav-links')}>
@@ -1130,10 +1128,8 @@ export function LandingPage() {
           <div className={c('foot-grid')}>
             <div className={c('foot-col')}>
               <div className={c('foot-logo')}>
-                <svg width="22" height="22" viewBox="0 0 26 26" fill="none">
-                  <rect width="26" height="26" rx="7" fill="#3DFF9A" />
-                  <path d="M8 13.2l3 3L18 9" stroke="#14432F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/images/logo-icon.png" alt="" width={22} height={22} />
                 GymCloud
               </div>
               <p style={{ maxWidth: '240px', lineHeight: '1.6' }}>{t.footer.tagline}</p>
