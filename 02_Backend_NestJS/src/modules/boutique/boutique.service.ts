@@ -247,6 +247,90 @@ export class BoutiqueService {
     return { total, byMethod, salesCount: sales.length, sales };
   }
 
+  // §14.x — Date du jour tronquée à minuit, pour une comparaison
+  // fiable avec businessDate (@db.Date, pas d'heure) — sert à la fois
+  // à la clôture et à la vérification "déjà clôturé aujourd'hui".
+  private todayAsDate(): Date {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  /**
+   * §14.x — Clôture de caisse boutique : fige l'état du jour (total,
+   * répartition par moyen de paiement) plutôt que de laisser
+   * getDailyCaisse recalculer indéfiniment — une fois clôturée, la
+   * journée ne peut plus être re-clôturée (contrainte unique en base,
+   * @@unique([salleId, businessDate])), et le propriétaire retrouve
+   * exactement ce qui a été validé, même si des ventes sont
+   * corrigées après coup.
+   */
+  async closeDailyCaisse(salleId: string, actorUserId: string) {
+    await this.assertHasBoutiqueAccess(salleId);
+    const businessDate = this.todayAsDate();
+
+    const existing = await this.prisma.dailyCaisseClosing.findUnique({
+      where: { salleId_businessDate: { salleId, businessDate } },
+    });
+    if (existing) {
+      throw new BadRequestException('La caisse boutique du jour a déjà été clôturée.');
+    }
+
+    const caisse = await this.getDailyCaisse(salleId);
+    const closing = await this.prisma.dailyCaisseClosing.create({
+      data: {
+        id: randomUUID(),
+        salleId,
+        businessDate,
+        totalAmount: caisse.total,
+        byMethodJson: caisse.byMethod,
+        salesCount: caisse.salesCount,
+        closedByUserId: actorUserId,
+      },
+    });
+
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'boutique.caisse_closed',
+      entityType: 'DailyCaisseClosing',
+      entityId: closing.id,
+      salleId,
+      metadata: { total: caisse.total, salesCount: caisse.salesCount },
+    });
+
+    return closing;
+  }
+
+  /**
+   * §14.x — Statut de la clôture du jour — alimente le bouton côté
+   * web ("Clôturer" vs "Déjà clôturée à HH:MM par X").
+   */
+  async getTodayClosingStatus(salleId: string) {
+    await this.assertHasBoutiqueAccess(salleId);
+    const businessDate = this.todayAsDate();
+    const closing = await this.prisma.dailyCaisseClosing.findUnique({
+      where: { salleId_businessDate: { salleId, businessDate } },
+      include: { closedBy: { select: { firstName: true, lastName: true } } },
+    });
+    return { isClosed: closing !== null, closing };
+  }
+
+  /**
+   * §14.x — Historique des clôtures passées — consultable par le
+   * propriétaire pour suivre l'activité boutique jour par jour,
+   * salle par salle. Les 90 plus récentes (3 mois), pas de purge
+   * automatique contrairement à StockMovement — un historique de
+   * clôtures a une vraie valeur comptable de long terme.
+   */
+  async listClosings(salleId: string) {
+    await this.assertHasBoutiqueAccess(salleId);
+    return this.prisma.dailyCaisseClosing.findMany({
+      where: { salleId },
+      include: { closedBy: { select: { firstName: true, lastName: true } } },
+      orderBy: { businessDate: 'desc' },
+      take: 90,
+    });
+  }
+
   /**
    * §14.x — Quantités vendues par produit, sur le jour ou le mois
    * complet contenant la date donnée (aujourd'hui par défaut) — utile

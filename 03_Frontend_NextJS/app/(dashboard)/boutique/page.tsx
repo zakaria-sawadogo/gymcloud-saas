@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, ShoppingBag, Pencil, Camera } from 'lucide-react';
+import { Plus, ShoppingBag, Pencil, Camera, Lock } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
+import { CaisseClosureCard } from '@/components/dashboard/CaisseClosureCard';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 interface Product {
@@ -79,6 +80,7 @@ function BoutiqueView({ salleId, currency }: { salleId: string; currency: string
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [activeTab, setActiveTab] = useState<'vente' | 'catalogue' | 'caisse'>('vente');
 
   const refetchAll = () => {
     refetchProducts();
@@ -111,6 +113,26 @@ function BoutiqueView({ salleId, currency }: { salleId: string; currency: string
         </Button>
       </div>
 
+      <div className="mb-6 flex overflow-hidden rounded-lg border border-ink-200" style={{ width: 'fit-content' }}>
+        {(
+          [
+            ['vente', 'Vente'],
+            ['catalogue', 'Catalogue'],
+            ['caisse', 'Caisse & Clôture'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 py-2 text-sm ${activeTab === key ? 'bg-primary-600 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'vente' && (
+        <>
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <p className="text-sm text-ink-500">Ventes aujourd&apos;hui</p>
@@ -137,14 +159,52 @@ function BoutiqueView({ salleId, currency }: { salleId: string; currency: string
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Vente au comptoir</CardTitle>
           </CardHeader>
           <SalePanel salleId={salleId} products={products ?? []} currency={currency} onSold={refetchAll} />
         </Card>
+      </div>
 
+      {caisse && caisse.sales.length > 0 && (
+        <Card className="mt-6 p-0">
+          <div className="p-5 pb-0">
+            <CardHeader>
+              <CardTitle>Ventes du jour</CardTitle>
+            </CardHeader>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-ink-100 text-left text-xs font-medium uppercase tracking-wide text-ink-400">
+                <th className="px-5 py-2">Heure</th>
+                <th className="px-5 py-2">Produit</th>
+                <th className="px-5 py-2">Qté</th>
+                <th className="px-5 py-2">Montant</th>
+                <th className="px-5 py-2">Paiement</th>
+              </tr>
+            </thead>
+            <tbody>
+              {caisse.sales.map((sale) => (
+                <tr key={sale.id} className="border-b border-ink-50 last:border-0">
+                  <td className="px-5 py-2 text-ink-600">{formatDateTime(sale.createdAt)}</td>
+                  <td className="px-5 py-2 text-ink-900">{sale.product.name}</td>
+                  <td className="px-5 py-2 text-ink-600">{sale.quantity}</td>
+                  <td className="px-5 py-2 font-medium text-ink-900">{formatCurrency(sale.totalAmount, currency)}</td>
+                  <td className="px-5 py-2 text-ink-600">
+                    {PAYMENT_METHOD_LABELS[sale.paymentMethod] ?? sale.paymentMethod}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+        </>
+      )}
+
+      {activeTab === 'catalogue' && (
         <Card className="p-0">
           <div className="p-5 pb-0">
             <CardHeader>
@@ -185,42 +245,13 @@ function BoutiqueView({ salleId, currency }: { salleId: string; currency: string
             </div>
           )}
         </Card>
-      </div>
+      )}
 
-      <SalesByProductPanel salleId={salleId} currency={currency} />
-
-      {caisse && caisse.sales.length > 0 && (
-        <Card className="mt-6 p-0">
-          <div className="p-5 pb-0">
-            <CardHeader>
-              <CardTitle>Ventes du jour</CardTitle>
-            </CardHeader>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-ink-100 text-left text-xs font-medium uppercase tracking-wide text-ink-400">
-                <th className="px-5 py-2">Heure</th>
-                <th className="px-5 py-2">Produit</th>
-                <th className="px-5 py-2">Qté</th>
-                <th className="px-5 py-2">Montant</th>
-                <th className="px-5 py-2">Paiement</th>
-              </tr>
-            </thead>
-            <tbody>
-              {caisse.sales.map((sale) => (
-                <tr key={sale.id} className="border-b border-ink-50 last:border-0">
-                  <td className="px-5 py-2 text-ink-600">{formatDateTime(sale.createdAt)}</td>
-                  <td className="px-5 py-2 text-ink-900">{sale.product.name}</td>
-                  <td className="px-5 py-2 text-ink-600">{sale.quantity}</td>
-                  <td className="px-5 py-2 font-medium text-ink-900">{formatCurrency(sale.totalAmount, currency)}</td>
-                  <td className="px-5 py-2 text-ink-600">
-                    {PAYMENT_METHOD_LABELS[sale.paymentMethod] ?? sale.paymentMethod}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+      {activeTab === 'caisse' && (
+        <div className="space-y-6">
+          <SalesByProductPanel salleId={salleId} currency={currency} />
+          <CaisseClosureCard salleId={salleId} currency={currency} canClose />
+        </div>
       )}
 
       <CreateProductModal

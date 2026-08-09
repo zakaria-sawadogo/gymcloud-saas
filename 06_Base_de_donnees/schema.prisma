@@ -165,6 +165,7 @@ model User {
   loginHistory    LoginHistory[]
   additionalRoles UserAdditionalRole[]
   stockMovements  StockMovement[]
+  dailyCaisseClosings DailyCaisseClosing[]
 
   @@index([roleId])
   @@map("users")
@@ -662,6 +663,7 @@ model Salle {
   products        Product[]
   productSales    ProductSale[]
   stockMovements  StockMovement[]
+  dailyCaisseClosings DailyCaisseClosing[]
   expenses        Expense[]
   expenseBudgets  ExpenseBudget[]
   accessLogs      AccessLog[]
@@ -1183,6 +1185,31 @@ model StockMovement {
   @@index([productId])
   @@index([createdAt])
   @@map("stock_movements")
+}
+
+// §14.x — Clôture de caisse boutique : le gestionnaire fige l'état du
+// jour en fin de service (total, répartition par moyen de paiement),
+// consultable ensuite par le propriétaire. Distinct d'une simple
+// requête recalculée à la volée (getDailyCaisse) — une fois clôturée,
+// une journée ne peut plus être re-clôturée (@@unique sur
+// salleId+businessDate empêche un double clic ou deux gestionnaires
+// clôturant la même journée), et l'état reste fidèle à ce qu'il était
+// AU MOMENT de la clôture même si des corrections surviennent après.
+model DailyCaisseClosing {
+  id            String   @id @default(uuid())
+  salleId       String
+  salle         Salle    @relation(fields: [salleId], references: [id])
+  businessDate  DateTime @db.Date
+  totalAmount   Decimal  @db.Decimal(10, 2)
+  byMethodJson  Json
+  salesCount    Int
+  closedByUserId String
+  closedBy      User     @relation(fields: [closedByUserId], references: [id])
+  closedAt      DateTime @default(now())
+
+  @@unique([salleId, businessDate])
+  @@index([salleId, businessDate])
+  @@map("daily_caisse_closings")
 }
 
 model ProductSale {

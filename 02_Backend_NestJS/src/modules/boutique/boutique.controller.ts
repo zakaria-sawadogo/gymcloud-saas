@@ -98,6 +98,27 @@ export class BoutiqueController {
     return this.boutiqueService.getDailyCaisse(salleId, date);
   }
 
+  @Post('caisse/close')
+  @RequirePermission('manage', 'Product')
+  @ApiOperation({ summary: 'Clôturer la caisse boutique du jour (§14.x) — fige le total, impossible de re-clôturer' })
+  closeDailyCaisse(@Param('salleId') salleId: string, @CurrentUser() user: TenantContext) {
+    return this.boutiqueService.closeDailyCaisse(salleId, user.userId);
+  }
+
+  @Get('caisse/today-status')
+  @RequirePermission('read', 'Product')
+  @ApiOperation({ summary: "Statut de la clôture du jour — pour afficher le bon état du bouton côté web" })
+  getTodayClosingStatus(@Param('salleId') salleId: string) {
+    return this.boutiqueService.getTodayClosingStatus(salleId);
+  }
+
+  @Get('caisse/closings')
+  @RequirePermission('read', 'Product')
+  @ApiOperation({ summary: 'Historique des clôtures passées (§14.x) — suivi propriétaire' })
+  listClosings(@Param('salleId') salleId: string) {
+    return this.boutiqueService.listClosings(salleId);
+  }
+
   @Get('sales-by-product')
   @RequirePermission('read', 'Product')
   @ApiOperation({ summary: 'Quantités vendues par produit, sur le jour ou le mois (§14.x)' })
