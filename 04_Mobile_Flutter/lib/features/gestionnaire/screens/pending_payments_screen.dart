@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
@@ -24,12 +25,28 @@ class PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
   String? _actioningId;
 
   String? _error;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     _repo = GestionnaireRepository(context.read());
     _load();
+    // §14.x — reconstruire l'écran au changement d'onglet ne suffit
+    // pas : si le gestionnaire reste sur cet écran (le cas le plus
+    // fréquent en pratique — il vient justement consulter les
+    // demandes), une nouvelle demande soumise pendant ce temps
+    // n'apparaissait jamais tant qu'il ne quittait pas l'écran pour y
+    // revenir. Vérification périodique en tâche de fond, même
+    // principe que NotificationBell (30s) — attrape le cas où
+    // l'utilisateur reste sur place.
+    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => _load(silent: true));
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   /// §14.x — appelée par GestionnaireApp quand on revient sur cet
@@ -41,25 +58,31 @@ class PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
   /// se déconnectait/reconnectait) — ni intuitif ni découvrable.
   Future<void> refresh() => _load();
 
-  Future<void> _load() async {
+  Future<void> _load({bool silent = false}) async {
     final salleId = context.read<AuthProvider>().user?.salle?.id;
     if (salleId == null) return;
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
     try {
       final payments = await _repo.getPendingPayments(salleId);
-      setState(() => _payments = payments);
+      if (mounted) setState(() => _payments = payments);
     } catch (e) {
       // §14.x — rendu visible plutôt qu'avalé silencieusement : une
       // erreur (permission, réseau, session expirée) affichait
       // jusqu'ici exactement le même écran qu'une liste réellement
       // vide, impossible à distinguer pour l'utilisateur comme pour
-      // nous en diagnostic.
-      setState(() => _error = e.toString());
+      // nous en diagnostic. En mode silencieux (vérification
+      // périodique en tâche de fond) : une erreur ponctuelle
+      // (coupure réseau passagère) ne doit pas faire disparaître une
+      // liste déjà affichée et fonctionnelle — seul le chargement
+      // explicite (bouton, premier affichage) remonte l'erreur.
+      if (!silent && mounted) setState(() => _error = e.toString());
     } finally {
-      setState(() => _isLoading = false);
+      if (!silent && mounted) setState(() => _isLoading = false);
     }
   }
 
