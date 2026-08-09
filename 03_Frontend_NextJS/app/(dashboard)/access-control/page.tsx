@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { QrCode, LogIn, LogOut, Users, Ban, RotateCcw } from 'lucide-react';
+import { QrCode, LogIn, LogOut, Users, Ban, RotateCcw, Camera } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { QrCameraScanner } from '@/components/dashboard/QrCameraScanner';
 import { formatDateTime } from '@/lib/utils';
 import type { AccessLog, AdherentProfile } from '@/types';
 
@@ -23,23 +24,25 @@ export default function AccessControlPage() {
   );
   const [isScanning, setIsScanning] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
 
   const { data: occupancy, refetch: refetchOccupancy } = useApi<AccessLog[]>(
     salleId ? `/access-control/salle/${salleId}/current` : null,
   );
 
-  const handleScan = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!salleId || !qrCodeToken) return;
+  // §14.x — extrait de handleScan (formulaire) pour être appelable
+  // directement avec un jeton explicite depuis la caméra aussi — lire
+  // qrCodeToken depuis l'état juste après un setQrCodeToken(token)
+  // exposerait une valeur pas encore à jour (mise à jour d'état React
+  // asynchrone), d'où le passage explicite du jeton en paramètre.
+  const processScan = async (token: string) => {
+    if (!salleId || !token) return;
     setIsScanning(true);
     setScanResult(null);
     setIdentifiedAdherent(null);
 
-    // Identifie toujours l'adhérent en premier — même si le scan
-    // échoue ensuite (suspendu/expiré), le gestionnaire sait qui s'est
-    // présenté et peut agir immédiatement (§6.13).
     try {
-      const adherent = await apiClient.get<AdherentProfile>(`/adherents/qr/${qrCodeToken}`);
+      const adherent = await apiClient.get<AdherentProfile>(`/adherents/qr/${token}`);
       setIdentifiedAdherent(adherent);
     } catch {
       // Jeton totalement inconnu — pas d'adhérent à afficher, le scan
@@ -48,7 +51,7 @@ export default function AccessControlPage() {
 
     try {
       const result = await apiClient.post<{ direction: 'ENTREE' | 'SORTIE' }>('/access-control/scan', {
-        qrCodeToken,
+        qrCodeToken: token,
         salleId,
       });
       setScanResult({
@@ -66,6 +69,16 @@ export default function AccessControlPage() {
     } finally {
       setIsScanning(false);
     }
+  };
+
+  const handleScan = async (e: FormEvent) => {
+    e.preventDefault();
+    await processScan(qrCodeToken);
+  };
+
+  const handleCameraScan = (token: string) => {
+    setIsCameraOpen(false);
+    processScan(token);
   };
 
   const handleToggleStatus = async () => {
@@ -95,6 +108,17 @@ export default function AccessControlPage() {
           <CardHeader>
             <CardTitle>Scanner un QR Code</CardTitle>
           </CardHeader>
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="mb-3 w-full"
+            onClick={() => setIsCameraOpen(true)}
+          >
+            <Camera className="h-4 w-4" />
+            Scanner avec la caméra
+          </Button>
+
           <form onSubmit={handleScan}>
             <div className="mb-3 flex items-center gap-2">
               <QrCode className="h-5 w-5 text-ink-400" />
@@ -183,6 +207,7 @@ export default function AccessControlPage() {
         </Card>
       </div>
 
+      {isCameraOpen && <QrCameraScanner onScan={handleCameraScan} onClose={() => setIsCameraOpen(false)} />}
     </div>
   );
 }
