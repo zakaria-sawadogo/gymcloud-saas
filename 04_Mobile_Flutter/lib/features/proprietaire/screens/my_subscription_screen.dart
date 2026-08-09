@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/currency_format.dart';
 import '../proprietaire_repository.dart';
 
-/// §9.3, §9.4, §9.8 — Équivalent mobile de la page web "Mon
-/// abonnement" : plan actuel + add-ons activables à tout moment,
-/// jamais automatiques, facturés séparément au prorata dès leur
-/// activation (voir SaasBillingService.attachAddon côté backend).
 class MySubscriptionScreen extends StatefulWidget {
   const MySubscriptionScreen({super.key});
 
@@ -30,6 +28,8 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
   String? _error;
   String? _togglingAddonId;
   String? _downloadingInvoiceId;
+  String? _referralCode;
+  bool _referralCopied = false;
 
   @override
   void initState() {
@@ -50,6 +50,16 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
       final selectedSalleId = _selectedSalleId ?? (salles.isNotEmpty ? salles.first['id'] as String : null);
       final activeAddons = selectedSalleId != null ? await _repo.getActiveAddons(selectedSalleId) : <Map<String, dynamic>>[];
       final invoices = await _repo.getMyInvoices();
+      // §14.x — tentative séparée, volontairement isolée : un souci
+      // sur le parrainage (fonctionnalité secondaire) ne doit jamais
+      // empêcher l'affichage de l'abonnement lui-même (fonctionnalité
+      // principale de cet écran).
+      String? referralCode;
+      try {
+        referralCode = await _repo.getMyReferralCode();
+      } catch (_) {
+        referralCode = null;
+      }
       setState(() {
         _subscription = subscription;
         _salles = salles;
@@ -57,6 +67,7 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
         _allAddons = allAddons;
         _activeAddons = activeAddons;
         _invoices = invoices;
+        _referralCode = referralCode;
       });
     } catch (e) {
       setState(() => _error = e.toString());
@@ -85,7 +96,11 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
 
     final durationMonths = await showDialog<int>(
       context: context,
-      builder: (ctx) => _DurationPickerDialog(addonName: addon['name'] ?? '', pricePerMonth: addon['price'] ?? 0),
+      builder: (ctx) => _DurationPickerDialog(
+        addonName: addon['name'] ?? '',
+        pricePerMonth: addon['price'] ?? 0,
+        currency: addon['currency'] as String?,
+      ),
     );
     if (durationMonths == null) return;
 
@@ -147,10 +162,19 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
     }
   }
 
+  Future<void> _copyReferralCode() async {
+    final code = _referralCode;
+    if (code == null) return;
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!mounted) return;
+    setState(() => _referralCopied = true);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _referralCopied = false);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Mon abonnement')),
       body: _isLoading
@@ -196,6 +220,74 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
+                      if (_referralCode != null) ...[
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.card_giftcard, color: AppColors.primary, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Programme de parrainage',
+                                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Partagez votre code — dès que la personne parrainée règle sa première '
+                                        'facture, vous recevez un mois gratuit.',
+                                        style: TextStyle(color: AppColors.ink400, fontSize: 12.5),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.ink50,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              _referralCode!,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 14,
+                                                fontFamily: 'monospace',
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          TextButton.icon(
+                                            onPressed: _copyReferralCode,
+                                            icon: Icon(
+                                              _referralCopied ? Icons.check : Icons.copy_outlined,
+                                              size: 16,
+                                            ),
+                                            label: Text(_referralCopied ? 'Copié' : 'Copier'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                       if (_salles.length > 1) ...[
                         DropdownButtonFormField<String>(
                           value: _selectedSalleId,
@@ -259,7 +351,7 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                                 ],
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${currencyFormat.format(double.parse((addon['price'] ?? 0).toString()))} / mois',
+                                  '${_currencyFormatFor(addon['currency']).format(double.parse((addon['price'] ?? 0).toString()))} / mois',
                                   style: const TextStyle(color: AppColors.ink600, fontSize: 13),
                                 ),
                                 if (status == 'ACTIF' && current['endDate'] != null) ...[
@@ -326,7 +418,7 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                             child: ListTile(
                               title: Text(invoice['invoiceNumber'] ?? ''),
                               subtitle: Text(
-                                '${currencyFormat.format(double.parse((invoice['totalAmount'] ?? 0).toString()))} · '
+                                '${_currencyFormatFor(invoice['currency']).format(double.parse((invoice['totalAmount'] ?? 0).toString()))} · '
                                 '${status == 'PAYEE' ? 'Payée' : status ?? ''}',
                               ),
                               trailing: isDownloading
@@ -373,7 +465,8 @@ class _InfoColumn extends StatelessWidget {
 class _DurationPickerDialog extends StatefulWidget {
   final String addonName;
   final dynamic pricePerMonth;
-  const _DurationPickerDialog({required this.addonName, required this.pricePerMonth});
+  final String? currency;
+  const _DurationPickerDialog({required this.addonName, required this.pricePerMonth, this.currency});
 
   @override
   State<_DurationPickerDialog> createState() => _DurationPickerDialogState();
@@ -384,7 +477,7 @@ class _DurationPickerDialogState extends State<_DurationPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = _currencyFormatFor(widget.currency);
     final pricePerMonth = double.parse(widget.pricePerMonth.toString());
     final total = pricePerMonth * _months;
 

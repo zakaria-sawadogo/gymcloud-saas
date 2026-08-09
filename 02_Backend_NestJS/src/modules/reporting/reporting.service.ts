@@ -54,6 +54,18 @@ export class ReportingService {
     const weekAhead = new Date(now);
     weekAhead.setDate(weekAhead.getDate() + 7);
 
+    // §14.x — même principe que getProprietaireDashboard : la devise
+    // de la salle (celle du pays du propriétaire, pas le binaire
+    // XOF/USD de la facturation SaaS) accompagne les chiffres, pour
+    // que web et mobile n'aient plus besoin de la supposer (bug réel
+    // — "FCFA" était codé en dur dans plusieurs écrans mobile faute
+    // de cette donnée ici).
+    const salleCountry = await this.prisma.salle.findUnique({
+      where: { id: salleId },
+      select: { country: { select: { currency: true } } },
+    });
+    const currency = salleCountry?.country?.currency ?? 'XOF';
+
     const [
       activeAdherents,
       enGraceAdherents,
@@ -87,6 +99,7 @@ export class ReportingService {
     ]);
 
     return {
+      currency,
       adherents: {
         actifs: activeAdherents,
         enGrace: enGraceAdherents,
@@ -193,13 +206,13 @@ export class ReportingService {
   async getProprietaireDashboard(proprietaireId: string) {
     const salles = await this.prisma.salle.findMany({
       where: { proprietaireId },
-      include: { country: { select: { currency: true } } },
+      select: { id: true, name: true },
     });
 
     const perSalle = await Promise.all(
-      salles.map(async (salle: { id: string; name: string; country: { currency: string } | null }) => {
+      salles.map(async (salle: { id: string; name: string }) => {
         const dashboard = await this.getGestionnaireDashboard(salle.id);
-        return { salleId: salle.id, salleName: salle.name, currency: salle.country?.currency ?? 'XOF', ...dashboard };
+        return { salleId: salle.id, salleName: salle.name, ...dashboard };
       }),
     );
 

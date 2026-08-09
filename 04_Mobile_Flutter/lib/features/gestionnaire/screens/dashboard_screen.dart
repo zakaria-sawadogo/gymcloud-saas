@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/stat_card.dart';
 import '../gestionnaire_repository.dart';
 import '../../shared/logout_button.dart';
@@ -46,7 +46,10 @@ class DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final salle = context.watch<AuthProvider>().user?.salle;
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    // §14.x — corrige "FCFA" codé en dur : devise réelle de la salle
+    // du gestionnaire, potentiellement différente de XOF selon le
+    // pays du propriétaire.
+    final currencyFormat = currencyFormatFor(salle?.currency);
 
     return Scaffold(
       appBar: AppBar(

@@ -91,8 +91,32 @@ export class SaasBillingService {
   // montant ne doit être codé en dur dans l'application »).
   // ─────────────────────────────────────────────────────────────
 
-  async listAddons() {
-    return this.prisma.saasAddon.findMany({ orderBy: { name: 'asc' } });
+  /**
+   * §14.x — Corrige un trou partagé par le web ET le mobile : le
+   * catalogue d'add-ons affichait toujours le prix XOF brut, même
+   * pour un propriétaire facturé en USD (voir getEffectivePricing
+   * pour le même principe côté plans). `proprietaireId` optionnel
+   * pour le catalogue public (site vitrine, pas de propriétaire
+   * connu) — converti seulement quand fourni.
+   */
+  async listAddons(proprietaireId?: string) {
+    const addons = await this.prisma.saasAddon.findMany({ orderBy: { name: 'asc' } });
+    if (!proprietaireId) return addons;
+
+    const proprietaire = await this.prisma.proprietaire.findUnique({
+      where: { id: proprietaireId },
+      select: { country: { select: { currency: true } } },
+    });
+    const countryCurrency = proprietaire?.country?.currency;
+    const isXof = !countryCurrency || countryCurrency === 'XOF';
+    if (isXof) return addons.map((a: { price: unknown }) => ({ ...a, currency: 'XOF' }));
+
+    const rate = await this.getUsdToXofRate();
+    return addons.map((a: { price: unknown }) => ({
+      ...a,
+      price: Math.round((Number(a.price) / rate) * 100) / 100,
+      currency: 'USD',
+    }));
   }
 
   /**

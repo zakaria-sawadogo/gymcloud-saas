@@ -56,7 +56,6 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
     final dateFormat = DateFormat('dd MMM yyyy · HH:mm', 'fr_FR');
 
     return Scaffold(
@@ -102,7 +101,14 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     Text(
-                                      currencyFormat.format(p.amount),
+                                      // §14.x — corrige "FCFA" codé en dur : la
+                                      // devise adhérent est celle du pays de la
+                                      // salle (p.currency), potentiellement
+                                      // différente de XOF selon le pays du
+                                      // propriétaire — jamais le binaire XOF/USD
+                                      // qui ne concerne que la facturation SaaS.
+                                      NumberFormat.currency(locale: 'fr_FR', symbol: p.currency, decimalDigits: 0)
+                                          .format(p.amount),
                                       style: const TextStyle(fontWeight: FontWeight.w700),
                                     ),
                                     const SizedBox(height: 4),

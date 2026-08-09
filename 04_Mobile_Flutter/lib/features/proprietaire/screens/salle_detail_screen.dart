@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/stat_card.dart';
 import '../proprietaire_repository.dart';
 import 'team_management_screen.dart';
@@ -13,7 +13,8 @@ import 'finances_screen.dart';
 class SalleDetailScreen extends StatefulWidget {
   final String salleId;
   final String salleName;
-  const SalleDetailScreen({super.key, required this.salleId, required this.salleName});
+  final String? currency;
+  const SalleDetailScreen({super.key, required this.salleId, required this.salleName, this.currency});
 
   @override
   State<SalleDetailScreen> createState() => _SalleDetailScreenState();
@@ -42,7 +43,7 @@ class _SalleDetailScreenState extends State<SalleDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = currencyFormatFor(widget.currency);
 
     return Scaffold(
       appBar: AppBar(
@@ -64,7 +65,11 @@ class _SalleDetailScreenState extends State<SalleDetailScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => BoutiqueSummaryScreen(salleId: widget.salleId, salleName: widget.salleName),
+                builder: (_) => BoutiqueSummaryScreen(
+                  salleId: widget.salleId,
+                  salleName: widget.salleName,
+                  currency: widget.currency,
+                ),
               ),
             ),
           ),
@@ -74,7 +79,11 @@ class _SalleDetailScreenState extends State<SalleDetailScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => ProprietaireFinancesScreen(salleId: widget.salleId, salleName: widget.salleName),
+                builder: (_) => ProprietaireFinancesScreen(
+                  salleId: widget.salleId,
+                  salleName: widget.salleName,
+                  currency: widget.currency,
+                ),
               ),
             ),
           ),

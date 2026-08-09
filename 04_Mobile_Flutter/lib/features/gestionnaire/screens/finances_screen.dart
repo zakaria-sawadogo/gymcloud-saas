@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/currency_format.dart';
 import '../gestionnaire_repository.dart';
 import '../../shared/logout_button.dart';
 import '../../shared/notification_bell.dart';
@@ -78,7 +78,8 @@ class _FinancesScreenState extends State<FinancesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    // §14.x — corrige "FCFA" codé en dur : devise réelle de la salle.
+    final currencyFormat = currencyFormatFor(context.watch<AuthProvider>().user?.salle?.currency);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Finances'),

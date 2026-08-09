@@ -131,8 +131,8 @@ export class SaasPlansController {
     summary:
       'Add-ons SaaS disponibles (§9.3) — fonctionnalités optionnelles jamais incluses automatiquement dans un plan.',
   })
-  listAddons() {
-    return this.saasBillingService.listAddons();
+  listAddons(@CurrentUser() user?: TenantContext) {
+    return this.saasBillingService.listAddons(user?.proprietaireId ?? undefined);
   }
 
   @Patch('addons/:id')

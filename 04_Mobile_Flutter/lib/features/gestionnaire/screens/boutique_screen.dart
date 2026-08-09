@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/currency_format.dart';
 import '../gestionnaire_repository.dart';
 import '../../shared/logout_button.dart';
 import '../../shared/notification_bell.dart';
@@ -130,7 +130,7 @@ class _SellTabState extends State<_SellTab> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = currencyFormatFor(context.watch<AuthProvider>().user?.salle?.currency);
     final available = widget.products
         .where((p) => p['active'] == true && (p['stockQty'] as num) > 0)
         .toList();
@@ -255,7 +255,7 @@ class _CatalogueTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = currencyFormatFor(context.watch<AuthProvider>().user?.salle?.currency);
     return Scaffold(
       body: products.isEmpty
           ? const Center(
@@ -466,7 +466,7 @@ class _CaisseTabState extends State<_CaisseTab> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = currencyFormatFor(context.watch<AuthProvider>().user?.salle?.currency);
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     final byMethod = (_caisse?['byMethod'] as Map<String, dynamic>?) ?? {};

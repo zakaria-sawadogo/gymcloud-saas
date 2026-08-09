@@ -23,6 +23,15 @@ class ProprietaireRepository {
   Future<Map<String, dynamic>> getMySubscription() =>
       _api.get<Map<String, dynamic>>('/saas/invoices/me/subscription');
 
+  /// §14.x — Code de parrainage du propriétaire, généré à la volée
+  /// côté backend s'il n'existe pas encore (voir
+  /// UsersService.getOrCreateReferralCode) — même endpoint que la
+  /// page web "Mon abonnement", jamais construit côté mobile jusqu'ici.
+  Future<String> getMyReferralCode() async {
+    final data = await _api.get<Map<String, dynamic>>('/proprietaires/me/referral');
+    return data['referralCode'] as String;
+  }
+
   /// §9.9 — Mes factures SaaS (historique complet).
   Future<List<Map<String, dynamic>>> getMyInvoices() async {
     final data = await _api.get<List<dynamic>>('/saas/invoices/me/invoices');

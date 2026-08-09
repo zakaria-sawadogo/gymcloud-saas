@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/currency_format.dart';
 import '../proprietaire_repository.dart';
 
 /// §14.x — Suivi boutique en lecture seule pour le propriétaire :
@@ -10,7 +10,8 @@ import '../proprietaire_repository.dart';
 class BoutiqueSummaryScreen extends StatefulWidget {
   final String salleId;
   final String salleName;
-  const BoutiqueSummaryScreen({super.key, required this.salleId, required this.salleName});
+  final String? currency;
+  const BoutiqueSummaryScreen({super.key, required this.salleId, required this.salleName, this.currency});
 
   @override
   State<BoutiqueSummaryScreen> createState() => _BoutiqueSummaryScreenState();
@@ -62,7 +63,7 @@ class _BoutiqueSummaryScreenState extends State<BoutiqueSummaryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = currencyFormatFor(widget.currency);
     final items = (_sales?['items'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
     final lowStock = _products.where((p) => p['active'] == true && (p['stockQty'] as num) <= 5).length;
 

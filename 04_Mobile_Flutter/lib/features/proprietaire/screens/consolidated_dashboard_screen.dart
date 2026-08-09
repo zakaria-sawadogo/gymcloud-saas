@@ -171,7 +171,11 @@ class _SalleRow extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => SalleDetailScreen(salleId: salle['salleId'], salleName: salle['salleName'] ?? ''),
+            builder: (_) => SalleDetailScreen(
+              salleId: salle['salleId'],
+              salleName: salle['salleName'] ?? '',
+              currency: salle['currency'] as String?,
+            ),
           ),
         ),
       ),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/currency_format.dart';
 import '../adherent_repository.dart';
 
 /// §14.x — Catalogue boutique consultable par l'adhérent : ce qui est
@@ -45,7 +46,7 @@ class _BoutiqueCatalogScreenState extends State<BoutiqueCatalogScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = currencyFormatFor(context.watch<AuthProvider>().user?.salle?.currency);
     final available = _products.where((p) => p['active'] == true && (p['stockQty'] as num) > 0).toList();
 
     return Scaffold(

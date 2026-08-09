@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/currency_format.dart';
 import '../proprietaire_repository.dart';
 
 const List<String> _suggestedCategories = [
@@ -18,7 +18,8 @@ const List<String> _monthLabels = [
 class ProprietaireFinancesScreen extends StatefulWidget {
   final String salleId;
   final String salleName;
-  const ProprietaireFinancesScreen({super.key, required this.salleId, required this.salleName});
+  final String? currency;
+  const ProprietaireFinancesScreen({super.key, required this.salleId, required this.salleName, this.currency});
 
   @override
   State<ProprietaireFinancesScreen> createState() => _ProprietaireFinancesScreenState();
@@ -73,7 +74,7 @@ class _ProprietaireFinancesScreenState extends State<ProprietaireFinancesScreen>
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = currencyFormatFor(widget.currency);
     return Scaffold(
       appBar: AppBar(title: Text('Finances — ${widget.salleName}')),
       body: _isLoading
@@ -289,7 +290,12 @@ class _ProprietaireFinancesScreenState extends State<ProprietaireFinancesScreen>
     final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _BudgetManagerSheet(repo: _repo, salleId: widget.salleId, budgets: _budgets),
+      builder: (_) => _BudgetManagerSheet(
+        repo: _repo,
+        salleId: widget.salleId,
+        budgets: _budgets,
+        currency: widget.currency,
+      ),
     );
     if (changed == true) _load();
   }
@@ -556,7 +562,8 @@ class _BudgetManagerSheet extends StatefulWidget {
   final ProprietaireRepository repo;
   final String salleId;
   final List<Map<String, dynamic>> budgets;
-  const _BudgetManagerSheet({required this.repo, required this.salleId, required this.budgets});
+  final String? currency;
+  const _BudgetManagerSheet({required this.repo, required this.salleId, required this.budgets, this.currency});
 
   @override
   State<_BudgetManagerSheet> createState() => _BudgetManagerSheetState();
@@ -605,7 +612,7 @@ class _BudgetManagerSheetState extends State<_BudgetManagerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'fr_FR', symbol: 'FCFA', decimalDigits: 0);
+    final currencyFormat = currencyFormatFor(widget.currency);
     return Padding(
       padding: EdgeInsets.only(
         left: 20,

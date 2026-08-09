@@ -389,7 +389,7 @@ function AddonsPanel({ salles }: { salles: { id: string; name: string }[] }) {
   const salleId = selectedSalleId || salles[0]?.id || '';
 
   const { data: allAddonsRaw, isLoading: isLoadingAddons } = useApi<
-    { id: string; name: string; description: string | null; price: number; active: boolean }[]
+    { id: string; name: string; description: string | null; price: number; currency?: string; active: boolean }[]
   >('/saas/plans/addons');
   const {
     data: activeAddons,
@@ -483,7 +483,7 @@ function AddonsPanel({ salles }: { salles: { id: string; name: string }[] }) {
                     {current?.status === 'ACTIF' && <StatusBadge status="ACTIF" />}
                   </div>
                   {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
-                  <p className="text-sm text-ink-600">{formatCurrency(addon.price)} / mois</p>
+                  <p className="text-sm text-ink-600">{formatCurrency(addon.price, addon.currency)} / mois</p>
                   {current?.status === 'ACTIF' && current.endDate && (
                     <p className="text-xs text-ink-400">Jusqu&apos;au {formatDate(current.endDate)}</p>
                   )}
@@ -690,7 +690,7 @@ function RequestAddonModal({
   onRequested,
 }: {
   salleId: string;
-  addon: { id: string; name: string; price: number };
+  addon: { id: string; name: string; price: number; currency?: string };
   onClose: () => void;
   onRequested: () => void;
 }) {
@@ -723,7 +723,7 @@ function RequestAddonModal({
         />
       </Field>
       <p className="mb-4 text-sm text-ink-600">
-        Total : <span className="font-semibold text-ink-900">{formatCurrency(totalAmount)}</span> pour {durationMonths}{' '}
+        Total : <span className="font-semibold text-ink-900">{formatCurrency(totalAmount, addon.currency)}</span> pour {durationMonths}{' '}
         mois — une facture sera générée, à régler pour activer l&apos;add-on.
       </p>
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
