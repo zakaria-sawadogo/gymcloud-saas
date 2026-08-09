@@ -11,7 +11,7 @@ import type { SaasPlan } from '@/types';
 
 interface ChangePlanResult {
   planChangeApplied: boolean;
-  prorata: { difference: number; invoiceId: string | null };
+  prorata: { difference: number; invoiceId: string | null; currency: string };
   payment: { immediate?: boolean; pendingValidation?: boolean; devOtpCode?: string } | null;
 }
 
@@ -135,8 +135,8 @@ export function ChangePlanModal({
           {result.prorata.difference !== 0 && (
             <p className="mb-4 text-sm text-ink-600">
               {result.prorata.difference > 0
-                ? `Un complément de ${formatCurrency(result.prorata.difference)} a été encaissé au prorata des jours restants.`
-                : `Un crédit de ${formatCurrency(Math.abs(result.prorata.difference))} a été appliqué au prorata des jours restants.`}
+                ? `Un complément de ${formatCurrency(result.prorata.difference, result.prorata.currency)} a été encaissé au prorata des jours restants.`
+                : `Un crédit de ${formatCurrency(Math.abs(result.prorata.difference), result.prorata.currency)} a été appliqué au prorata des jours restants.`}
             </p>
           )}
           <Button onClick={handleClose} className="w-full">
@@ -152,7 +152,7 @@ export function ChangePlanModal({
           </p>
           <p className="mb-4 text-sm text-ink-600">
             {result.prorata.difference > 0
-              ? `Le complément de ${formatCurrency(result.prorata.difference)} a été enregistré. Votre nouveau plan prendra effet dès que le règlement sera vérifié — généralement sous peu.`
+              ? `Le complément de ${formatCurrency(result.prorata.difference, result.prorata.currency)} a été enregistré. Votre nouveau plan prendra effet dès que le règlement sera vérifié — généralement sous peu.`
               : 'Aucun montant à régler pendant votre période d\'essai. Votre nouveau plan prendra effet dès que la demande sera validée — généralement sous peu.'}
           </p>
           <Button onClick={handleClose} className="w-full">

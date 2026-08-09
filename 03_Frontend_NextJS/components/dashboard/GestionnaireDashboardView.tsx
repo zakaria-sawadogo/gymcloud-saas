@@ -30,7 +30,7 @@ export function GestionnaireDashboardView({ salleId }: { salleId: string }) {
         />
         <StatCard
           label="Revenus aujourd'hui"
-          value={formatCurrency(data.revenus.aujourdHui)}
+          value={formatCurrency(data.revenus.aujourdHui, data.currency)}
           icon={<Wallet className="h-5 w-5" />}
           accent="accent"
         />
@@ -55,7 +55,7 @@ export function GestionnaireDashboardView({ salleId }: { salleId: string }) {
       <div className="mt-6">
         <StatCard
           label="Revenus ce mois"
-          value={formatCurrency(data.revenus.ceMois)}
+          value={formatCurrency(data.revenus.ceMois, data.currency)}
           icon={<Wallet className="h-5 w-5" />}
           accent="primary"
         />

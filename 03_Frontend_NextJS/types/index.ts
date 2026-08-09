@@ -300,6 +300,7 @@ export interface AccessLog {
 // ── Reporting ─────────────────────────────────────────────────
 
 export interface GestionnaireDashboard {
+  currency: string;
   adherents: {
     actifs: number;
     enGrace: number;

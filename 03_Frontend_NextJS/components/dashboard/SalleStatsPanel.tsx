@@ -49,7 +49,7 @@ function toSeries(byDay: Record<string, number>): Array<{ date: string; value: n
  * (salle sélectionnée) — mêmes endpoints, mêmes vérifications
  * d'appartenance déjà en place côté API.
  */
-export function SalleStatsPanel({ salleId }: { salleId: string }) {
+export function SalleStatsPanel({ salleId, currency }: { salleId: string; currency?: string }) {
   const { from, to } = useMemo(() => {
     const to = new Date();
     const from = new Date();
@@ -77,7 +77,7 @@ export function SalleStatsPanel({ salleId }: { salleId: string }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           label="Revenus (30 jours)"
-          value={revenue ? formatCurrency(revenue.total) : '—'}
+          value={revenue ? formatCurrency(revenue.total, currency) : '—'}
           icon={<TrendingUp className="h-5 w-5" />}
           accent="primary"
         />
@@ -108,7 +108,7 @@ export function SalleStatsPanel({ salleId }: { salleId: string }) {
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7E8" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              <Tooltip formatter={(value: number) => formatCurrency(value, currency)} />
               <Line type="monotone" dataKey="value" stroke="#0F6E56" strokeWidth={2} dot={false} name="Revenus" />
             </LineChart>
           </ResponsiveContainer>
@@ -146,7 +146,7 @@ export function SalleStatsPanel({ salleId }: { salleId: string }) {
               {Object.entries(revenue.byMethod).map(([method, amount]) => (
                 <div key={method} className="flex items-center justify-between">
                   <span className="text-sm font-medium text-ink-800">{METHOD_LABELS[method] ?? method}</span>
-                  <span className="font-display text-sm font-semibold text-ink-900">{formatCurrency(amount)}</span>
+                  <span className="font-display text-sm font-semibold text-ink-900">{formatCurrency(amount, currency)}</span>
                 </div>
               ))}
             </div>

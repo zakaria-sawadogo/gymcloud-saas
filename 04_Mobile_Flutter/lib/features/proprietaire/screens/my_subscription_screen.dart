@@ -351,7 +351,7 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                                 ],
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${_currencyFormatFor(addon['currency']).format(double.parse((addon['price'] ?? 0).toString()))} / mois',
+                                  '${currencyFormatFor(addon['currency']).format(double.parse((addon['price'] ?? 0).toString()))} / mois',
                                   style: const TextStyle(color: AppColors.ink600, fontSize: 13),
                                 ),
                                 if (status == 'ACTIF' && current['endDate'] != null) ...[
@@ -418,7 +418,7 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                             child: ListTile(
                               title: Text(invoice['invoiceNumber'] ?? ''),
                               subtitle: Text(
-                                '${_currencyFormatFor(invoice['currency']).format(double.parse((invoice['totalAmount'] ?? 0).toString()))} · '
+                                '${currencyFormatFor(invoice['currency']).format(double.parse((invoice['totalAmount'] ?? 0).toString()))} · '
                                 '${status == 'PAYEE' ? 'Payée' : status ?? ''}',
                               ),
                               trailing: isDownloading
@@ -477,7 +477,7 @@ class _DurationPickerDialogState extends State<_DurationPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = _currencyFormatFor(widget.currency);
+    final currencyFormat = currencyFormatFor(widget.currency);
     final pricePerMonth = double.parse(widget.pricePerMonth.toString());
     final total = pricePerMonth * _months;
 

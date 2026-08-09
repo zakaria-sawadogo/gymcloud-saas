@@ -17,6 +17,13 @@ export function ProprietaireDashboardView({ proprietaireId }: { proprietaireId: 
   if (isLoading) return <p className="text-sm text-ink-400">Chargement...</p>;
   if (error || !data) return <p className="text-sm text-red-600">{error ?? 'Aucune donnée'}</p>;
 
+  // §14.x — les figures consolidées agrègent toutes les salles ; on
+  // suppose qu'un propriétaire opère dans un seul pays (hypothèse
+  // validée), donc la devise de la première salle vaut pour
+  // l'ensemble — évite d'avoir à gérer un mélange de devises dans un
+  // seul total, ce qui n'aurait pas de sens.
+  const consolidatedCurrency = data.salles[0]?.currency ?? 'XOF';
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -36,13 +43,13 @@ export function ProprietaireDashboardView({ proprietaireId }: { proprietaireId: 
         />
         <StatCard
           label="Revenus aujourd'hui"
-          value={formatCurrency(data.consolidated.revenusAujourdHui)}
+          value={formatCurrency(data.consolidated.revenusAujourdHui, consolidatedCurrency)}
           icon={<Wallet className="h-5 w-5" />}
           accent="accent"
         />
         <StatCard
           label="Revenus ce mois"
-          value={formatCurrency(data.consolidated.revenusCeMois)}
+          value={formatCurrency(data.consolidated.revenusCeMois, consolidatedCurrency)}
           icon={<Wallet className="h-5 w-5" />}
         />
         <StatCard
@@ -69,7 +76,7 @@ export function ProprietaireDashboardView({ proprietaireId }: { proprietaireId: 
               </div>
               <div className="flex items-center gap-6 text-sm text-ink-600">
                 <span>{salle.adherents.actifs} adhérents</span>
-                <span>{formatCurrency(salle.revenus.ceMois)}</span>
+                <span>{formatCurrency(salle.revenus.ceMois, salle.currency)}</span>
               </div>
             </Link>
           ))}

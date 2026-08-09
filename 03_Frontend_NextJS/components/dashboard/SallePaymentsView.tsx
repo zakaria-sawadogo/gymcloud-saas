@@ -59,7 +59,7 @@ export function SallePaymentsView({ salleId, currency }: { salleId: string; curr
         <Card>
           <p className="mb-1 text-sm text-ink-400">Total encaissé aujourd'hui</p>
           <p className="font-display text-2xl font-semibold text-primary-600">
-            {formatCurrency(caisse?.total ?? 0)}
+            {formatCurrency(caisse?.total ?? 0, currency)}
           </p>
         </Card>
         <Card>
@@ -71,7 +71,7 @@ export function SallePaymentsView({ salleId, currency }: { salleId: string; curr
           .map(([method, amount]) => (
             <Card key={method}>
               <p className="mb-1 text-sm text-ink-400">{METHOD_LABELS[method] ?? method}</p>
-              <p className="font-display text-2xl font-semibold text-ink-900">{formatCurrency(amount)}</p>
+              <p className="font-display text-2xl font-semibold text-ink-900">{formatCurrency(amount, currency)}</p>
             </Card>
           ))}
       </div>

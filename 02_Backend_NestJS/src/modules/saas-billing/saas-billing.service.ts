@@ -1648,6 +1648,7 @@ export class SaasBillingService {
         remainingDays,
         difference: prorataDifference,
         invoiceId: prorataInvoiceId,
+        currency: await this.getEffectiveCurrency(subscriptionId),
       },
       payment: paymentResult,
       nouvelleEcheance: updated.currentPeriodEnd, // modifiée si l'essai vient d'être clos par ce changement de plan

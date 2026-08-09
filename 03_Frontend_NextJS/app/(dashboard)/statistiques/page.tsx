@@ -30,7 +30,9 @@ export default function StatistiquesPage() {
       <h1 className="font-display mb-6 text-2xl font-semibold text-ink-900">Statistiques</h1>
       {user?.roleCode === 'SUPER_ADMIN' && <SuperAdminStats />}
       {user?.roleCode === 'PROPRIETAIRE' && <ProprietaireStats />}
-      {user?.roleCode === 'GESTIONNAIRE' && user.salle && <SalleStatsPanel salleId={user.salle.id} />}
+      {user?.roleCode === 'GESTIONNAIRE' && user.salle && (
+        <SalleStatsPanel salleId={user.salle.id} currency={user.salle.currency} />
+      )}
     </div>
   );
 }
@@ -124,6 +126,7 @@ function ProprietaireStats() {
   const [selectedSalleId, setSelectedSalleId] = useState<string>('');
 
   const activeSalleId = selectedSalleId || salles?.[0]?.id;
+  const activeSalleCurrency = salles?.find((s) => s.id === activeSalleId)?.country?.currency;
 
   if (isLoading) return <p className="text-sm text-ink-400">Chargement...</p>;
   if (!salles || salles.length === 0) {
@@ -141,7 +144,7 @@ function ProprietaireStats() {
           ))}
         </Select>
       </div>
-      {activeSalleId && <SalleStatsPanel salleId={activeSalleId} />}
+      {activeSalleId && <SalleStatsPanel salleId={activeSalleId} currency={activeSalleCurrency} />}
     </div>
   );
 }
