@@ -14,14 +14,16 @@ class PendingPaymentsScreen extends StatefulWidget {
   const PendingPaymentsScreen({super.key});
 
   @override
-  State<PendingPaymentsScreen> createState() => _PendingPaymentsScreenState();
+  State<PendingPaymentsScreen> createState() => PendingPaymentsScreenState();
 }
 
-class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
+class PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
   late final GestionnaireRepository _repo;
   List<PendingPayment> _payments = [];
   bool _isLoading = true;
   String? _actioningId;
+
+  String? _error;
 
   @override
   void initState() {
@@ -30,15 +32,32 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
     _load();
   }
 
+  /// §14.x — appelée par GestionnaireApp quand on revient sur cet
+  /// onglet (même patron que DashboardScreenState.refresh) —
+  /// l'IndexedStack garde cet écran en mémoire sans jamais le
+  /// recharger tout seul ; sans ça, une nouvelle demande de
+  /// réabonnement soumise par un adhérent restait invisible tant que
+  /// le gestionnaire ne tirait pas explicitement pour rafraîchir (ou
+  /// se déconnectait/reconnectait) — ni intuitif ni découvrable.
+  Future<void> refresh() => _load();
+
   Future<void> _load() async {
     final salleId = context.read<AuthProvider>().user?.salle?.id;
     if (salleId == null) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
       final payments = await _repo.getPendingPayments(salleId);
       setState(() => _payments = payments);
-    } catch (_) {
-      // liste vide en cas d'erreur — l'utilisateur peut tirer pour rafraîchir
+    } catch (e) {
+      // §14.x — rendu visible plutôt qu'avalé silencieusement : une
+      // erreur (permission, réseau, session expirée) affichait
+      // jusqu'ici exactement le même écran qu'une liste réellement
+      // vide, impossible à distinguer pour l'utilisateur comme pour
+      // nous en diagnostic.
+      setState(() => _error = e.toString());
     } finally {
       setState(() => _isLoading = false);
     }
@@ -98,7 +117,23 @@ class _PendingPaymentsScreenState extends State<PendingPaymentsScreen> {
       appBar: AppBar(title: const Text('Paiements en attente'), actions: const [LogoutButton()]),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _payments.isEmpty
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, color: AppColors.danger, size: 32),
+                        const SizedBox(height: 12),
+                        Text(_error!, style: const TextStyle(color: AppColors.danger), textAlign: TextAlign.center),
+                        const SizedBox(height: 12),
+                        OutlinedButton(onPressed: _load, child: const Text('Réessayer')),
+                      ],
+                    ),
+                  ),
+                )
+              : _payments.isEmpty
               ? const Center(
                   child: Text('Aucune demande en attente', style: TextStyle(color: AppColors.ink400)),
                 )

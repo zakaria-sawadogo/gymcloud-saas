@@ -17,12 +17,13 @@ class GestionnaireApp extends StatefulWidget {
 class _GestionnaireAppState extends State<GestionnaireApp> {
   int _currentIndex = 0;
   final _dashboardKey = GlobalKey<DashboardScreenState>();
+  final _pendingPaymentsKey = GlobalKey<PendingPaymentsScreenState>();
 
   late final _screens = [
     DashboardScreen(key: _dashboardKey),
     const ScannerScreen(),
     const AdherentsListScreen(),
-    const PendingPaymentsScreen(),
+    PendingPaymentsScreen(key: _pendingPaymentsKey),
     const ProspectsScreen(),
     const BoutiqueScreen(),
     const FinancesScreen(),
@@ -30,13 +31,18 @@ class _GestionnaireAppState extends State<GestionnaireApp> {
 
   void _onTap(int index) {
     setState(() => _currentIndex = index);
-    // §11.x — Les chiffres du jour (revenu, adhérents actifs...)
+    // §11.x, §14.x — Les chiffres du jour (revenu, adhérents actifs...)
     // doivent refléter ce qui vient d'être fait ailleurs (nouvel
     // adhérent, paiement validé) ; l'IndexedStack garde cet écran en
     // mémoire sans jamais le recharger tout seul, donc on force un
-    // rafraîchissement à chaque fois qu'on y revient.
+    // rafraîchissement à chaque fois qu'on y revient. Même principe
+    // pour "Paiements" : une demande de réabonnement soumise par un
+    // adhérent pendant que le gestionnaire était sur un autre onglet
+    // restait invisible jusqu'ici.
     if (index == 0) {
       _dashboardKey.currentState?.refresh();
+    } else if (index == 3) {
+      _pendingPaymentsKey.currentState?.refresh();
     }
   }
 
