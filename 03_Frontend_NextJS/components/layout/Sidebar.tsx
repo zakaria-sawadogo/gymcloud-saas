@@ -131,8 +131,10 @@ export function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose
         )}
       >
         <div className="flex items-center gap-2 px-5 py-5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo-icon.png" alt="" className="h-8 w-8" />
+          <svg width="32" height="32" viewBox="0 0 26 26" fill="none" className="h-8 w-8">
+            <rect width="26" height="26" rx="7" fill="#3DFF9A" />
+            <path d="M8 13.2l3 3L18 9" stroke="#14432F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           <span className="font-display text-lg font-semibold text-ink-900">GymCloud</span>
         </div>
 
