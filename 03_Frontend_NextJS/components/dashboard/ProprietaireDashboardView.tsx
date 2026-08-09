@@ -17,12 +17,12 @@ export function ProprietaireDashboardView({ proprietaireId }: { proprietaireId: 
   if (isLoading) return <p className="text-sm text-ink-400">Chargement...</p>;
   if (error || !data) return <p className="text-sm text-red-600">{error ?? 'Aucune donnée'}</p>;
 
-  // §14.x — les figures consolidées agrègent toutes les salles ; on
-  // suppose qu'un propriétaire opère dans un seul pays (hypothèse
-  // validée), donc la devise de la première salle vaut pour
-  // l'ensemble — évite d'avoir à gérer un mélange de devises dans un
-  // seul total, ce qui n'aurait pas de sens.
-  const consolidatedCurrency = data.salles[0]?.currency ?? 'XOF';
+  // §14.x — utilise le signal explicite du backend
+  // (currency/hasMixedCurrencies) plutôt que de supposer la devise de
+  // la première salle — un propriétaire peut avoir des salles dans
+  // des pays différents, auquel cas additionner les montants n'aurait
+  // aucun sens (voir ReportingService.getProprietaireDashboard).
+  const consolidatedCurrency = data.currency ?? undefined;
 
   return (
     <div>
@@ -34,6 +34,13 @@ export function ProprietaireDashboardView({ proprietaireId }: { proprietaireId: 
         />
       </div>
 
+      {data.hasMixedCurrencies && (
+        <p className="mb-4 rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700">
+          Vos salles sont dans des pays à devises différentes — les revenus consolidés ne sont pas additionnés (voir
+          le détail par salle ci-dessous pour les montants exacts).
+        </p>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Adhérents actifs (toutes salles)"
@@ -43,13 +50,13 @@ export function ProprietaireDashboardView({ proprietaireId }: { proprietaireId: 
         />
         <StatCard
           label="Revenus aujourd'hui"
-          value={formatCurrency(data.consolidated.revenusAujourdHui, consolidatedCurrency)}
+          value={data.hasMixedCurrencies ? '—' : formatCurrency(data.consolidated.revenusAujourdHui, consolidatedCurrency)}
           icon={<Wallet className="h-5 w-5" />}
           accent="accent"
         />
         <StatCard
           label="Revenus ce mois"
-          value={formatCurrency(data.consolidated.revenusCeMois, consolidatedCurrency)}
+          value={data.hasMixedCurrencies ? '—' : formatCurrency(data.consolidated.revenusCeMois, consolidatedCurrency)}
           icon={<Wallet className="h-5 w-5" />}
         />
         <StatCard

@@ -330,6 +330,8 @@ export interface ProprietaireDashboard {
     presentsActuellement: number;
   };
   salles: Array<{ salleId: string; salleName: string } & GestionnaireDashboard>;
+  currency: string | null;
+  hasMixedCurrencies: boolean;
 }
 
 export interface SuperAdminDashboard {

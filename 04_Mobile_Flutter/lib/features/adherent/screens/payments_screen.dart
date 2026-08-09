@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../shared/logout_button.dart';
 import '../../../core/models/adherent.dart';
@@ -107,8 +108,7 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
                                       // différente de XOF selon le pays du
                                       // propriétaire — jamais le binaire XOF/USD
                                       // qui ne concerne que la facturation SaaS.
-                                      NumberFormat.currency(locale: 'fr_FR', symbol: p.currency, decimalDigits: 0)
-                                          .format(p.amount),
+                                      currencyFormatFor(p.currency).format(p.amount),
                                       style: const TextStyle(fontWeight: FontWeight.w700),
                                     ),
                                     const SizedBox(height: 4),

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/stat_card.dart';
 import '../proprietaire_repository.dart';
 import 'salle_detail_screen.dart';
@@ -57,11 +57,7 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
     final salles = (_data?['salles'] as List<dynamic>?) ?? [];
     final hasMixedCurrencies = _data?['hasMixedCurrencies'] == true;
     final topCurrency = _data?['currency'] as String?;
-    final currencyFormat = NumberFormat.currency(
-      locale: 'fr_FR',
-      symbol: topCurrency ?? 'XOF',
-      decimalDigits: 0,
-    );
+    final currencyFormat = currencyFormatFor(topCurrency);
 
     return Scaffold(
       appBar: AppBar(
@@ -150,11 +146,7 @@ class _SalleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(
-      locale: 'fr_FR',
-      symbol: (salle['currency'] as String?) ?? 'XOF',
-      decimalDigits: 0,
-    );
+    final currencyFormat = currencyFormatFor(salle['currency'] as String?);
     final adherentsActifs = salle['adherents']?['actifs'] ?? 0;
     final revenusCeMois = double.parse((salle['revenus']?['ceMois'] ?? 0).toString());
 
