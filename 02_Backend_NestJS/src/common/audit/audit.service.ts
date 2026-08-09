@@ -48,7 +48,7 @@ export class AuditService {
    */
   async list(
     salleId: string,
-    filters: { userId?: string; action?: string; page?: number } = {},
+    filters: { userId?: string; action?: string; page?: number; since?: Date } = {},
   ) {
     const page = filters.page && filters.page > 0 ? filters.page : 1;
     const pageSize = 50;
@@ -56,6 +56,7 @@ export class AuditService {
       salleId,
       ...(filters.userId ? { userId: filters.userId } : {}),
       ...(filters.action ? { action: filters.action } : {}),
+      ...(filters.since ? { createdAt: { gte: filters.since } } : {}),
     };
 
     const [entries, total] = await Promise.all([

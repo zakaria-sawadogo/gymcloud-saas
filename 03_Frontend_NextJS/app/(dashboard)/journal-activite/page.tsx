@@ -91,9 +91,23 @@ export default function JournalActivitePage() {
   const [selectedSalleId, setSelectedSalleId] = useState('');
   const [selectedActorId, setSelectedActorId] = useState('');
   const [selectedAction, setSelectedAction] = useState('');
+  const [period, setPeriod] = useState<'today' | '7d' | '30d' | 'all'>('7d');
   const [page, setPage] = useState(1);
 
   const activeSalleId = selectedSalleId || salles?.[0]?.id;
+
+  // §14.x — calculé côté client plutôt que d'envoyer "today"/"7d" au
+  // serveur : évite tout souci de fuseau horaire entre client et
+  // serveur pour un filtre qui n'a de sens que du point de vue de
+  // l'utilisateur qui regarde l'écran.
+  const sinceDate = (() => {
+    if (period === 'all') return null;
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    if (period === '7d') d.setDate(d.getDate() - 6);
+    if (period === '30d') d.setDate(d.getDate() - 29);
+    return d;
+  })();
 
   const { data: actors } = useApi<Actor[]>(
     activeSalleId ? `/reporting/salle/${activeSalleId}/audit-logs/actors` : null,
@@ -103,11 +117,12 @@ export default function JournalActivitePage() {
   const queryParams = new URLSearchParams();
   if (selectedActorId) queryParams.set('userId', selectedActorId);
   if (selectedAction) queryParams.set('action', selectedAction);
+  if (sinceDate) queryParams.set('since', sinceDate.toISOString());
   queryParams.set('page', String(page));
 
   const { data: log, isLoading: isLoadingLog } = useApi<AuditLogResponse>(
     activeSalleId ? `/reporting/salle/${activeSalleId}/audit-logs?${queryParams.toString()}` : null,
-    [activeSalleId, selectedActorId, selectedAction, page],
+    [activeSalleId, selectedActorId, selectedAction, period, page],
   );
 
   if (isLoadingSalles) return <p className="text-sm text-ink-400">Chargement...</p>;
@@ -122,7 +137,29 @@ export default function JournalActivitePage() {
         Qui a fait quoi sur votre salle — utile dès que plusieurs gestionnaires y opèrent.
       </p>
 
-      <div className="mb-6 flex flex-wrap gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="flex overflow-hidden rounded-lg border border-ink-200">
+          {(
+            [
+              ['today', "Aujourd'hui"],
+              ['7d', '7 jours'],
+              ['30d', '30 jours'],
+              ['all', 'Tout'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => {
+                setPeriod(key);
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 text-sm ${period === key ? 'bg-primary-600 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {salles.length > 1 && (
           <Select
             className="max-w-xs"

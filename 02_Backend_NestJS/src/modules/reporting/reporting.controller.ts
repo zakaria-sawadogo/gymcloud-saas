@@ -65,12 +65,14 @@ export class ReportingController {
     @Query('userId') userId?: string,
     @Query('action') action?: string,
     @Query('page') page?: string,
+    @Query('since') since?: string,
   ) {
     await this.assertCanAccessSalle(salleId, user);
     return this.auditService.list(salleId, {
       userId,
       action,
       page: page ? Number(page) : undefined,
+      since: since ? new Date(since) : undefined,
     });
   }
 
