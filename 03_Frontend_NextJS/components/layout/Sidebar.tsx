@@ -17,6 +17,7 @@ import {
   Settings,
   Globe,
   BarChart3,
+  History,
   LogOut,
   Mail,
   ShoppingBag,
@@ -52,6 +53,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   PROPRIETAIRE: [
     { label: 'Vue consolidée', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Mes salles', href: '/salles', icon: Building2 },
+    { label: 'Journal d\'activité', href: '/journal-activite', icon: History },
     { label: 'Statistiques', href: '/statistiques', icon: BarChart3 },
     { label: 'Mon abonnement', href: '/mon-abonnement', icon: Layers },
   ],

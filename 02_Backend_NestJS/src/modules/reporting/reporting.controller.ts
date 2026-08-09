@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ReportingService } from './reporting.service';
 import { ReportPdfService } from './report-pdf.service';
+import { AuditService } from '../../common/audit/audit.service';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
@@ -24,6 +25,7 @@ export class ReportingController {
   constructor(
     private readonly reportingService: ReportingService,
     private readonly reportPdfService: ReportPdfService,
+    private readonly auditService: AuditService,
   ) {}
 
   private async assertCanAccessSalle(salleId: string, user: TenantContext): Promise<void> {
@@ -49,6 +51,35 @@ export class ReportingController {
   async gestionnaireDashboard(@Param('salleId') salleId: string, @CurrentUser() user: TenantContext) {
     await this.assertCanAccessSalle(salleId, user);
     return this.reportingService.getGestionnaireDashboard(salleId);
+  }
+
+  @Get('salle/:salleId/audit-logs')
+  @RequirePermission('read', 'Payment')
+  @ApiOperation({
+    summary:
+      "Journal d'activité de la salle (§14.x) — qui a fait quoi, utile dès que plusieurs gestionnaires opèrent sur la même salle. Paginé, filtrable par auteur et par type d'action.",
+  })
+  async listAuditLogs(
+    @Param('salleId') salleId: string,
+    @CurrentUser() user: TenantContext,
+    @Query('userId') userId?: string,
+    @Query('action') action?: string,
+    @Query('page') page?: string,
+  ) {
+    await this.assertCanAccessSalle(salleId, user);
+    return this.auditService.list(salleId, {
+      userId,
+      action,
+      page: page ? Number(page) : undefined,
+    });
+  }
+
+  @Get('salle/:salleId/audit-logs/actors')
+  @RequirePermission('read', 'Payment')
+  @ApiOperation({ summary: 'Liste des auteurs distincts ayant une entrée dans le journal — alimente le filtre par gestionnaire' })
+  async listAuditLogActors(@Param('salleId') salleId: string, @CurrentUser() user: TenantContext) {
+    await this.assertCanAccessSalle(salleId, user);
+    return this.auditService.listDistinctActors(salleId);
   }
 
   @Get('salle/:salleId/revenue')
