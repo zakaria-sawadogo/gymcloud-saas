@@ -96,6 +96,13 @@ export class PaymentsController {
     return this.paymentsService.getTodayPaymentsClosingStatus(salleId);
   }
 
+  @Get('salle/:salleId/caisse/closings')
+  @RequirePermission('read', 'Payment')
+  @ApiOperation({ summary: 'Historique des clôtures de paiements passées (§14.x) — suivi propriétaire' })
+  listPaymentsClosings(@Param('salleId') salleId: string) {
+    return this.paymentsService.listPaymentsClosings(salleId);
+  }
+
   @Get('salle/:salleId/caisse/general-closing')
   @RequirePermission('read', 'Payment')
   @ApiOperation({

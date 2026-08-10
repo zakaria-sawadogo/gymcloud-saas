@@ -438,6 +438,20 @@ export class PaymentsService {
   }
 
   /**
+   * §14.x — Historique des clôtures de paiements passées — même
+   * principe que BoutiqueService.listClosings, pour le suivi
+   * propriétaire.
+   */
+  async listPaymentsClosings(salleId: string) {
+    return this.prisma.dailyPaymentsClosing.findMany({
+      where: { salleId },
+      include: { closedBy: { select: { firstName: true, lastName: true } } },
+      orderBy: { businessDate: 'desc' },
+      take: 90,
+    });
+  }
+
+  /**
    * §14.x — Clôture générale du jour : agrège automatiquement les
    * deux mini-clôtures (boutique + paiements) dès qu'elles existent,
    * plutôt qu'une troisième action de clôture séparée — évite au

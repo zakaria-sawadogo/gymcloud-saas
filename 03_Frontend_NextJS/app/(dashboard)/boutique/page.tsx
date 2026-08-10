@@ -11,8 +11,6 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, Select } from '@/components/ui/Input';
 import { CaisseClosureCard } from '@/components/dashboard/CaisseClosureCard';
-import { PaymentsClosureCard } from '@/components/dashboard/PaymentsClosureCard';
-import { GeneralClosingSummary } from '@/components/dashboard/GeneralClosingSummary';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 interface Product {
@@ -253,8 +251,6 @@ function BoutiqueView({ salleId, currency }: { salleId: string; currency: string
         <div className="space-y-6">
           <SalesByProductPanel salleId={salleId} currency={currency} />
           <CaisseClosureCard salleId={salleId} currency={currency} canClose />
-          <PaymentsClosureCard salleId={salleId} currency={currency} canClose />
-          <GeneralClosingSummary salleId={salleId} currency={currency} />
         </div>
       )}
 

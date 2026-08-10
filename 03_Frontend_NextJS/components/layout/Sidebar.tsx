@@ -18,10 +18,10 @@ import {
   Globe,
   BarChart3,
   History,
+  Wallet,
   LogOut,
   Mail,
   ShoppingBag,
-  Wallet,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/lib/utils';
@@ -53,6 +53,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   PROPRIETAIRE: [
     { label: 'Vue consolidée', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Mes salles', href: '/salles', icon: Building2 },
+    { label: 'Clôture', href: '/cloture', icon: Wallet },
     { label: 'Journal d\'activité', href: '/journal-activite', icon: History },
     { label: 'Statistiques', href: '/statistiques', icon: BarChart3 },
     { label: 'Mon abonnement', href: '/mon-abonnement', icon: Layers },

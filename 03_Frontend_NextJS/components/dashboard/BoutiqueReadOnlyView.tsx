@@ -5,9 +5,6 @@ import { ShoppingBag } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { CaisseClosureCard } from '@/components/dashboard/CaisseClosureCard';
-import { PaymentsClosureCard } from '@/components/dashboard/PaymentsClosureCard';
-import { GeneralClosingSummary } from '@/components/dashboard/GeneralClosingSummary';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 interface Product {
@@ -186,10 +183,6 @@ export function BoutiqueReadOnlyView({ salleId, currency = 'XOF' }: { salleId: s
           </div>
         </Card>
       )}
-
-      <CaisseClosureCard salleId={salleId} currency={currency} canClose={false} />
-      <PaymentsClosureCard salleId={salleId} currency={currency} canClose={false} />
-      <GeneralClosingSummary salleId={salleId} currency={currency} />
     </div>
   );
 }

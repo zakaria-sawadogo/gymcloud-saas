@@ -6,6 +6,7 @@ import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 interface PaymentsClosingStatus {
@@ -18,6 +19,16 @@ interface PaymentsClosingStatus {
     closedAt: string;
     closedBy: { firstName: string; lastName: string };
   } | null;
+}
+
+interface Closing {
+  id: string;
+  businessDate: string;
+  cashAmount: number;
+  mobileMoneyAmount: number;
+  paymentsCount: number;
+  closedAt: string;
+  closedBy: { firstName: string; lastName: string };
 }
 
 /**
@@ -40,6 +51,7 @@ export function PaymentsClosureCard({
     isLoading,
     refetch,
   } = useApi<PaymentsClosingStatus>(`/payments/salle/${salleId}/caisse/today-status`);
+  const { data: closings } = useApi<Closing[]>(`/payments/salle/${salleId}/caisse/closings`);
 
   const [isClosing, setIsClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +72,7 @@ export function PaymentsClosureCard({
   };
 
   return (
+    <div className="space-y-6">
     <Card>
       <CardHeader>
         <CardTitle>Clôture des paiements du jour</CardTitle>
@@ -110,5 +123,42 @@ export function PaymentsClosureCard({
         <p className="text-sm text-ink-400">Aucune clôture pour aujourd&apos;hui.</p>
       )}
     </Card>
+
+      <Card className="p-0">
+        <div className="p-5 pb-0">
+          <CardHeader>
+            <CardTitle>Historique des clôtures</CardTitle>
+          </CardHeader>
+        </div>
+        {!closings || closings.length === 0 ? (
+          <div className="p-5">
+            <EmptyState icon={<Lock className="h-6 w-6" />} title="Aucune clôture pour le moment" />
+          </div>
+        ) : (
+          <div className="divide-y divide-ink-100">
+            {closings.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <div>
+                  <p className="text-sm font-medium text-ink-900">
+                    {new Date(c.businessDate).toLocaleDateString('fr-FR', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                    })}
+                  </p>
+                  <p className="text-xs text-ink-400">
+                    {c.closedBy.firstName} {c.closedBy.lastName} · {c.paymentsCount} paiement
+                    {c.paymentsCount > 1 ? 's' : ''}
+                  </p>
+                </div>
+                <span className="whitespace-nowrap text-sm font-semibold text-ink-900">
+                  {formatCurrency(c.cashAmount, currency)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }

@@ -57,6 +57,7 @@ export function CaisseClosureCard({
   const {
     data: status,
     isLoading,
+    error: statusError,
     refetch,
   } = useApi<ClosingStatus>(`/salles/${salleId}/boutique/caisse/today-status`);
   const { data: closings } = useApi<Closing[]>(`/salles/${salleId}/boutique/caisse/closings`);
@@ -78,6 +79,12 @@ export function CaisseClosureCard({
       setIsClosing(false);
     }
   };
+
+  // §14.x — utilisée aussi sur la page Clôture du propriétaire, où
+  // une salle sans l'add-on boutique actif ne doit pas afficher une
+  // erreur — juste ne rien montrer, silencieusement (l'add-on est
+  // optionnel, contrairement aux paiements toujours actifs).
+  if (statusError) return null;
 
   return (
     <div className="space-y-6">
