@@ -76,10 +76,7 @@ export class PaymentsController {
   @RequirePermission('read', 'Payment')
   @ApiOperation({ summary: 'Synthèse de caisse journalière, par moyen de paiement' })
   caisse(@Param('salleId') salleId: string, @Query('date') date?: string) {
-    return this.paymentsService.dailyCashRegisterSummary(
-      salleId,
-      date ? new Date(date) : new Date(),
-    );
+    return this.paymentsService.dailyCashRegisterSummary(salleId, date);
   }
 
   @Post('salle/:salleId/caisse/close')

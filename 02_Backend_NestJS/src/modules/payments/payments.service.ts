@@ -319,11 +319,41 @@ export class PaymentsService {
    * paiement, utile pour la clôture de caisse quotidienne du
    * gestionnaire.
    */
-  async dailyCashRegisterSummary(salleId: string, date: Date) {
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
+  /**
+   * §14.x — Même principe que BoutiqueService.getOpenPeriodStart :
+   * depuis la dernière clôture des paiements plutôt que strictement
+   * minuit, pour qu'un paiement validé après une clôture ne reste
+   * jamais orphelin — il compte pour la prochaine clôture.
+   */
+  private async getOpenPeriodStart(salleId: string): Promise<Date> {
+    const lastClosing = await this.prisma.dailyPaymentsClosing.findFirst({
+      where: { salleId },
+      orderBy: { closedAt: 'desc' },
+      select: { closedAt: true },
+    });
+    if (lastClosing) return lastClosing.closedAt;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }
+
+  async dailyCashRegisterSummary(salleId: string, date?: string) {
+    let dayStart: Date;
+    let dayEnd: Date;
+
+    if (date) {
+      // Date explicite = consultation d'un jour précis dans le passé
+      // (calendaire, comportement inchangé).
+      const ref = new Date(date);
+      dayStart = new Date(ref);
+      dayStart.setHours(0, 0, 0, 0);
+      dayEnd = new Date(ref);
+      dayEnd.setHours(23, 59, 59, 999);
+    } else {
+      // Pas de date = période "en cours", depuis la dernière clôture.
+      dayStart = await this.getOpenPeriodStart(salleId);
+      dayEnd = new Date();
+    }
 
     const payments = await this.prisma.payment.findMany({
       where: { salleId, status: 'VALIDE', validatedAt: { gte: dayStart, lte: dayEnd } },
@@ -400,7 +430,7 @@ export class PaymentsService {
       throw new BadRequestException('Les paiements du jour ont déjà été clôturés.');
     }
 
-    const summary = await this.dailyCashRegisterSummary(salleId, new Date());
+    const summary = await this.dailyCashRegisterSummary(salleId);
     const cashAmount = summary.byMethod['ESPECES'] ?? 0;
     const mobileMoneyAmount = summary.total - cashAmount;
 

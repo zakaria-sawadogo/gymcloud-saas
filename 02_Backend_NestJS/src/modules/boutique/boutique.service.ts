@@ -215,16 +215,48 @@ export class BoutiqueService {
     return sale;
   }
 
+  /**
+   * §14.x — Début de la période "en cours" pour la caisse — depuis la
+   * dernière clôture plutôt que strictement minuit, pour qu'une vente
+   * effectuée après une clôture (même le même jour calendaire) ne
+   * reste jamais orpheline : elle compte pour la prochaine clôture,
+   * pas pour aucune. Sans clôture antérieure, on retombe sur le début
+   * de la journée calendaire (comportement historique, premier jour).
+   */
+  private async getOpenPeriodStart(salleId: string): Promise<Date> {
+    const lastClosing = await this.prisma.dailyCaisseClosing.findFirst({
+      where: { salleId },
+      orderBy: { closedAt: 'desc' },
+      select: { closedAt: true },
+    });
+    if (lastClosing) return lastClosing.closedAt;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }
+
   async listSales(salleId: string, date?: string) {
     await this.assertHasBoutiqueAccess(salleId);
-    const day = date ? new Date(date) : new Date();
-    const dayStart = new Date(day);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(day);
-    dayEnd.setHours(23, 59, 59, 999);
 
+    // Une date explicite = consultation d'un jour précis dans le
+    // passé (calendaire, comportement inchangé). Sans date = "période
+    // en cours", depuis la dernière clôture plutôt que minuit.
+    if (date) {
+      const day = new Date(date);
+      const dayStart = new Date(day);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(day);
+      dayEnd.setHours(23, 59, 59, 999);
+      return this.prisma.productSale.findMany({
+        where: { salleId, createdAt: { gte: dayStart, lte: dayEnd } },
+        include: { product: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    const periodStart = await this.getOpenPeriodStart(salleId);
     return this.prisma.productSale.findMany({
-      where: { salleId, createdAt: { gte: dayStart, lte: dayEnd } },
+      where: { salleId, createdAt: { gte: periodStart } },
       include: { product: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
     });
