@@ -82,6 +82,30 @@ export class PaymentsController {
     );
   }
 
+  @Post('salle/:salleId/caisse/close')
+  @RequirePermission('manage', 'Payment')
+  @ApiOperation({ summary: 'Clôturer les paiements en espèces du jour (§14.x) — fige le total, impossible de re-clôturer' })
+  closeDailyPayments(@Param('salleId') salleId: string, @CurrentUser() user: TenantContext) {
+    return this.paymentsService.closeDailyPayments(salleId, user.userId);
+  }
+
+  @Get('salle/:salleId/caisse/today-status')
+  @RequirePermission('read', 'Payment')
+  @ApiOperation({ summary: 'Statut de la clôture des paiements du jour' })
+  getTodayPaymentsClosingStatus(@Param('salleId') salleId: string) {
+    return this.paymentsService.getTodayPaymentsClosingStatus(salleId);
+  }
+
+  @Get('salle/:salleId/caisse/general-closing')
+  @RequirePermission('read', 'Payment')
+  @ApiOperation({
+    summary:
+      'Clôture générale du jour (§14.x) — agrège automatiquement boutique + paiements dès que leurs mini-clôtures existent',
+  })
+  getGeneralClosingView(@Param('salleId') salleId: string) {
+    return this.paymentsService.getGeneralClosingView(salleId);
+  }
+
   @Get('adherent/:adherentId')
   @RequirePermission('read', 'Payment')
   @ApiOperation({ summary: 'Historique des paiements d\'un adhérent' })

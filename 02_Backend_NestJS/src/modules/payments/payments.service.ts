@@ -373,4 +373,104 @@ export class PaymentsService {
   private generateOperatorReference(method: string): string {
     return `${method}-${randomUUID().slice(0, 10).toUpperCase()}`;
   }
+
+  // §14.x — Date du jour tronquée à minuit, même principe que
+  // BoutiqueService.todayAsDate() — comparaison fiable avec
+  // businessDate (@db.Date, pas d'heure).
+  private todayAsDate(): Date {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  /**
+   * §14.x — Clôture des paiements d'abonnements en espèces du jour —
+   * même principe que BoutiqueService.closeDailyCaisse (fige l'état,
+   * une seule clôture par jour). Volontairement limité aux espèces :
+   * le Mobile Money est déjà tracé numériquement, sans tiroir-caisse
+   * physique à réconcilier. Réutilise dailyCashRegisterSummary
+   * (existante) plutôt que de dupliquer le calcul.
+   */
+  async closeDailyPayments(salleId: string, actorUserId: string) {
+    const businessDate = this.todayAsDate();
+
+    const existing = await this.prisma.dailyPaymentsClosing.findUnique({
+      where: { salleId_businessDate: { salleId, businessDate } },
+    });
+    if (existing) {
+      throw new BadRequestException('Les paiements du jour ont déjà été clôturés.');
+    }
+
+    const summary = await this.dailyCashRegisterSummary(salleId, new Date());
+    const cashAmount = summary.byMethod['ESPECES'] ?? 0;
+    const mobileMoneyAmount = summary.total - cashAmount;
+
+    const closing = await this.prisma.dailyPaymentsClosing.create({
+      data: {
+        id: randomUUID(),
+        salleId,
+        businessDate,
+        cashAmount,
+        mobileMoneyAmount,
+        paymentsCount: summary.transactionCount,
+        closedByUserId: actorUserId,
+      },
+    });
+
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'payments.caisse_closed',
+      entityType: 'DailyPaymentsClosing',
+      entityId: closing.id,
+      salleId,
+      metadata: { cashAmount, paymentsCount: summary.transactionCount },
+    });
+
+    return closing;
+  }
+
+  async getTodayPaymentsClosingStatus(salleId: string) {
+    const businessDate = this.todayAsDate();
+    const closing = await this.prisma.dailyPaymentsClosing.findUnique({
+      where: { salleId_businessDate: { salleId, businessDate } },
+      include: { closedBy: { select: { firstName: true, lastName: true } } },
+    });
+    return { isClosed: closing !== null, closing };
+  }
+
+  /**
+   * §14.x — Clôture générale du jour : agrège automatiquement les
+   * deux mini-clôtures (boutique + paiements) dès qu'elles existent,
+   * plutôt qu'une troisième action de clôture séparée — évite au
+   * gestionnaire de se demander s'il a "bien tout clôturé". Le champ
+   * `cashToVerify` est le seul chiffre qui compte pour la
+   * vérification physique du tiroir-caisse ; le reste est informatif.
+   */
+  async getGeneralClosingView(salleId: string) {
+    const businessDate = this.todayAsDate();
+    const [paymentsClosing, boutiqueClosing] = await Promise.all([
+      this.prisma.dailyPaymentsClosing.findUnique({
+        where: { salleId_businessDate: { salleId, businessDate } },
+      }),
+      this.prisma.dailyCaisseClosing.findUnique({
+        where: { salleId_businessDate: { salleId, businessDate } },
+      }),
+    ]);
+
+    const boutiqueByMethod = (boutiqueClosing?.byMethodJson as Record<string, number>) ?? {};
+    const boutiqueCash = boutiqueByMethod['ESPECES'] ?? 0;
+    const boutiqueMobileMoney = Object.entries(boutiqueByMethod)
+      .filter(([method]) => method !== 'ESPECES')
+      .reduce((sum, [, amount]) => sum + amount, 0);
+
+    const paymentsCash = paymentsClosing ? Number(paymentsClosing.cashAmount) : 0;
+    const paymentsMobileMoney = paymentsClosing ? Number(paymentsClosing.mobileMoneyAmount) : 0;
+    const boutiqueTotal = boutiqueClosing ? Number(boutiqueClosing.totalAmount) : 0;
+
+    return {
+      boutique: { isClosed: boutiqueClosing !== null, cash: boutiqueCash, mobileMoney: boutiqueMobileMoney, total: boutiqueTotal },
+      payments: { isClosed: paymentsClosing !== null, cash: paymentsCash, mobileMoney: paymentsMobileMoney },
+      cashToVerify: boutiqueCash + paymentsCash,
+      grandTotal: boutiqueTotal + paymentsCash + paymentsMobileMoney,
+    };
+  }
 }

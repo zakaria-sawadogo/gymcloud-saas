@@ -2,6 +2,8 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { SallePaymentsView } from '@/components/dashboard/SallePaymentsView';
+import { PaymentsClosureCard } from '@/components/dashboard/PaymentsClosureCard';
+import { GeneralClosingSummary } from '@/components/dashboard/GeneralClosingSummary';
 
 /**
  * Route Gestionnaire — délègue au composant partagé, paramétré par sa
@@ -13,5 +15,12 @@ export default function PaymentsPage() {
   const salleId = user?.salle?.id;
 
   if (!salleId) return null;
-  return <SallePaymentsView salleId={salleId} currency={user?.salle?.currency ?? 'XOF'} />;
+  const currency = user?.salle?.currency ?? 'XOF';
+  return (
+    <div className="space-y-6">
+      <SallePaymentsView salleId={salleId} currency={currency} />
+      <PaymentsClosureCard salleId={salleId} currency={currency} canClose />
+      <GeneralClosingSummary salleId={salleId} currency={currency} />
+    </div>
+  );
 }

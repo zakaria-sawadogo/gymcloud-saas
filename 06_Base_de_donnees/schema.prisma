@@ -166,6 +166,7 @@ model User {
   additionalRoles UserAdditionalRole[]
   stockMovements  StockMovement[]
   dailyCaisseClosings DailyCaisseClosing[]
+  dailyPaymentsClosings DailyPaymentsClosing[]
 
   @@index([roleId])
   @@map("users")
@@ -664,6 +665,7 @@ model Salle {
   productSales    ProductSale[]
   stockMovements  StockMovement[]
   dailyCaisseClosings DailyCaisseClosing[]
+  dailyPaymentsClosings DailyPaymentsClosing[]
   expenses        Expense[]
   expenseBudgets  ExpenseBudget[]
   accessLogs      AccessLog[]
@@ -1210,6 +1212,31 @@ model DailyCaisseClosing {
   @@unique([salleId, businessDate])
   @@index([salleId, businessDate])
   @@map("daily_caisse_closings")
+}
+
+// §14.x — Même principe que DailyCaisseClosing, mais pour les
+// paiements d'abonnements adhérents en espèces — flux de revenu
+// distinct de la boutique (cœur du modèle économique d'une salle,
+// pas un achat annexe). Volontairement limité aux espèces
+// (cashAmount) : le Mobile Money est déjà tracé numériquement, sans
+// tiroir-caisse physique à réconcilier — cashAmount est donc le seul
+// chiffre qui compte pour cette clôture, même si mobileMoneyAmount
+// est conservé à titre informatif.
+model DailyPaymentsClosing {
+  id                String   @id @default(uuid())
+  salleId           String
+  salle             Salle    @relation(fields: [salleId], references: [id])
+  businessDate      DateTime @db.Date
+  cashAmount        Decimal  @db.Decimal(10, 2)
+  mobileMoneyAmount Decimal  @db.Decimal(10, 2)
+  paymentsCount     Int
+  closedByUserId    String
+  closedBy          User     @relation(fields: [closedByUserId], references: [id])
+  closedAt          DateTime @default(now())
+
+  @@unique([salleId, businessDate])
+  @@index([salleId, businessDate])
+  @@map("daily_payments_closings")
 }
 
 model ProductSale {
