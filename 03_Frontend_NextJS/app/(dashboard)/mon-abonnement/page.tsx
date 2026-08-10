@@ -45,6 +45,7 @@ async function downloadInvoicePdf(invoiceId: string, invoiceNumber: string) {
 export default function MonAbonnementPage() {
   const [isChangePlanOpen, setIsChangePlanOpen] = useState(false);
   const [invoiceToPay, setInvoiceToPay] = useState<SaasInvoice | null>(null);
+  const [activeTab, setActiveTab] = useState<'abonnement' | 'addons' | 'factures'>('abonnement');
 
   const {
     data: subscription,
@@ -63,6 +64,26 @@ export default function MonAbonnementPage() {
     <div>
       <h1 className="font-display mb-6 text-2xl font-semibold text-ink-900">Mon abonnement</h1>
 
+      <div className="mb-6 flex overflow-hidden rounded-lg border border-ink-200" style={{ width: 'fit-content' }}>
+        {(
+          [
+            ['abonnement', 'Abonnement'],
+            ['addons', 'Add-ons disponibles'],
+            ['factures', 'Mes factures'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 py-2 text-sm ${activeTab === key ? 'bg-primary-600 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'abonnement' && (
+        <>
       <Card className="mb-6">
         <div className="mb-4 flex items-start justify-between">
           <div>
@@ -97,8 +118,15 @@ export default function MonAbonnementPage() {
 
       {referral && <ReferralCard referralCode={referral.referralCode} />}
 
-      <AddonsPanel salles={salles ?? []} />
+      <div className="mt-6">
+        <SubscriptionHistoryTable apiPath="/saas/invoices/me/history" />
+      </div>
+        </>
+      )}
 
+      {activeTab === 'addons' && <AddonsPanel salles={salles ?? []} />}
+
+      {activeTab === 'factures' && (
       <Card className="p-0">
         <div className="p-5 pb-0">
           <CardHeader>
@@ -155,10 +183,7 @@ export default function MonAbonnementPage() {
           </table>
         )}
       </Card>
-
-      <div className="mt-6">
-        <SubscriptionHistoryTable apiPath="/saas/invoices/me/history" />
-      </div>
+      )}
 
       <ChangePlanModal
         subscriptionId={subscription.id}

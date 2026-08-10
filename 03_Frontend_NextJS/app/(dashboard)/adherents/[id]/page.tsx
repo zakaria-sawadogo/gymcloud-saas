@@ -237,17 +237,19 @@ function SubscribeModal({
         <div>
           <p className="mb-4 rounded-lg bg-primary-50 px-3 py-3 text-sm text-primary-700">
             {isMobileMoney
-              ? 'Réabonnement enregistré — paiement Mobile Money en attente de confirmation.'
+              ? "Demande enregistrée — l'abonnement sera activé dès que vous aurez confirmé la réception du paiement, depuis \"Paiements en attente\"."
               : 'Réabonnement enregistré et paiement encaissé avec succès.'}
           </p>
-          <Button
-            variant="secondary"
-            className="mb-4 w-full"
-            onClick={() => downloadPdf(`${API_URL}/payments/${result.paymentId}/receipt`, `recu-${result.paymentId}.pdf`)}
-          >
-            <Download className="h-4 w-4" />
-            Télécharger le reçu
-          </Button>
+          {!isMobileMoney && (
+            <Button
+              variant="secondary"
+              className="mb-4 w-full"
+              onClick={() => downloadPdf(`${API_URL}/payments/${result.paymentId}/receipt`, `recu-${result.paymentId}.pdf`)}
+            >
+              <Download className="h-4 w-4" />
+              Télécharger le reçu
+            </Button>
+          )}
           <Button onClick={handleClose} className="w-full">
             Fermer
           </Button>

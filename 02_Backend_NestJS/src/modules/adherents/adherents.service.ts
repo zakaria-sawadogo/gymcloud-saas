@@ -754,6 +754,17 @@ export class AdherentsService {
    * facturé est TOUJOURS celui du catalogue, jamais une valeur
    * transmise par le client.
    */
+  /**
+   * §14.x — Corrige un vrai trou : le choix Mobile Money passait par
+   * un faux flux OTP (aucune intégration réelle avec les opérateurs
+   * à ce stade — voir le commentaire sur requestSubscriptionFromMobile
+   * ci-dessous), sans aucun moyen réel de confirmer que l'argent est
+   * arrivé. Espèces reste immédiat (encaissement constaté sur place).
+   * Mobile Money passe maintenant par le même mécanisme "en attente +
+   * validation manuelle du gestionnaire" que la demande depuis l'app
+   * adhérent — réutilise approvePendingSubscription plutôt que de
+   * dupliquer la logique d'activation.
+   */
   async subscribeWithPayment(
     adherentId: string,
     dto: SubscribeAdherentDto,
@@ -765,26 +776,42 @@ export class AdherentsService {
       this.prisma.abonnementCatalogue.findUniqueOrThrow({ where: { id: dto.abonnementCatalogueId } }),
     ]);
 
-    const subscription = await this.subscribe(adherentId, dto, actorUserId);
+    if (payment.method === 'ESPECES') {
+      const subscription = await this.subscribe(adherentId, dto, actorUserId);
+      const paymentResult = await this.paymentsService.recordCashPayment(
+        {
+          salleId: adherent.salleId,
+          adherentId,
+          adherentAbonnementId: subscription.id,
+          type: PaymentTypeDto.ABONNEMENT,
+          amount: Number(catalogue.price),
+          currency: catalogue.currency,
+        },
+        actorUserId,
+      );
+      return { subscription, payment: paymentResult, pending: false };
+    }
 
-    const paymentPayload = {
-      salleId: adherent.salleId,
-      adherentId,
-      adherentAbonnementId: subscription.id,
-      type: PaymentTypeDto.ABONNEMENT,
-      amount: Number(catalogue.price),
-      currency: catalogue.currency,
-    };
+    // Mobile Money : paiement en attente, aucun abonnement créé tant
+    // que le gestionnaire n'a pas confirmé la réception réelle des
+    // fonds (relevé Mobile Money) — via la même file "Paiements en
+    // attente" que les demandes venues de l'app adhérent.
+    const pendingPayment = await this.prisma.payment.create({
+      data: {
+        id: randomUUID(),
+        salleId: adherent.salleId,
+        adherentId,
+        type: 'ABONNEMENT',
+        amount: catalogue.price,
+        currency: catalogue.currency,
+        method: payment.method,
+        status: 'EN_ATTENTE',
+        reference: payment.phoneNumber,
+        pendingAbonnementCatalogueId: catalogue.id,
+      },
+    });
 
-    const paymentResult =
-      payment.method === 'ESPECES'
-        ? await this.paymentsService.recordCashPayment(paymentPayload, actorUserId)
-        : await this.paymentsService.initiateMobileMoney(
-            { ...paymentPayload, method: payment.method, phoneNumber: payment.phoneNumber ?? '' },
-            actorUserId,
-          );
-
-    return { subscription, payment: paymentResult };
+    return { subscription: null, payment: { payment: pendingPayment }, pending: true };
   }
 
   // ─────────────────────────────────────────────────────────────
