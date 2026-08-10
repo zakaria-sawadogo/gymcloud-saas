@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Delete, Post } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { MarketingService } from './marketing.service';
 import { CreateMessageTemplateDto } from './dto/marketing.dto';
@@ -25,8 +25,32 @@ export class MessageTemplatesController {
   }
 
   @Get()
+  @RequirePermission('read', 'MarketingCampaign')
   @ApiOperation({ summary: 'Liste des modèles de la salle' })
   list(@Param('salleId') salleId: string) {
     return this.marketingService.listTemplates(salleId);
+  }
+
+  @Patch(':templateId')
+  @RequirePermission('manage', 'MarketingCampaign')
+  @ApiOperation({ summary: 'Modifier un modèle existant' })
+  update(
+    @Param('salleId') salleId: string,
+    @Param('templateId') templateId: string,
+    @Body() dto: Partial<CreateMessageTemplateDto>,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.marketingService.updateTemplate(salleId, templateId, dto, user.userId);
+  }
+
+  @Delete(':templateId')
+  @RequirePermission('manage', 'MarketingCampaign')
+  @ApiOperation({ summary: 'Supprimer un modèle' })
+  remove(
+    @Param('salleId') salleId: string,
+    @Param('templateId') templateId: string,
+    @CurrentUser() user: TenantContext,
+  ) {
+    return this.marketingService.deleteTemplate(salleId, templateId, user.userId);
   }
 }

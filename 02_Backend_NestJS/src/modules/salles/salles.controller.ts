@@ -64,8 +64,19 @@ export class SallesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Détail d\'une salle' })
-  findOne(@Param('id') id: string) {
-    return this.sallesService.findById(id);
+  async findOne(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    const salle = await this.sallesService.findById(id);
+    // §14.x — faille trouvée à l'audit : cette route n'avait AUCUNE
+    // vérification, n'importe quel utilisateur connecté pouvait
+    // consulter le détail de n'importe quelle salle, y compris sans
+    // aucun lien avec elle. Même logique que ReportingController
+    // .assertCanAccessSalle : accès global, salle propre
+    // (gestionnaire/coach/adhérent), ou salle appartenant à son
+    // propre compte propriétaire.
+    if (!user.isGlobalAccess && user.salleId !== id && salle.proprietaireId !== user.proprietaireId) {
+      throw new ForbiddenException('Vous n\'avez pas accès aux données de cette salle');
+    }
+    return salle;
   }
 
   @Get()

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { Plus, Megaphone, Tag } from 'lucide-react';
+import { Plus, Megaphone, Tag, FileText, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
@@ -36,6 +36,14 @@ interface Coupon {
   usedCount: number;
 }
 
+interface Template {
+  id: string;
+  name: string;
+  channel: string;
+  content: string;
+  createdAt: string;
+}
+
 const SEGMENT_LABELS: Record<string, string> = {
   TOUS: 'Tous les adhérents',
   ACTIFS: 'Adhérents actifs',
@@ -56,6 +64,7 @@ export default function MarketingPage() {
           tabs={[
             { id: 'campaigns', label: 'Campagnes', content: <CampaignsTab salleId={salleId} /> },
             { id: 'coupons', label: 'Coupons', content: <CouponsTab salleId={salleId} currency={user?.salle?.currency ?? 'XOF'} /> },
+            { id: 'templates', label: 'Modèles', content: <TemplatesTab salleId={salleId} /> },
           ]}
         />
       )}
@@ -69,7 +78,21 @@ export default function MarketingPage() {
 
 function CampaignsTab({ salleId }: { salleId: string }) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
   const { data: campaigns, refetch } = useApi<Campaign[]>(`/salles/${salleId}/campaigns`);
+
+  const handleSend = async (campaign: Campaign) => {
+    if (!confirm(`Envoyer "${campaign.name}" maintenant ? Cette action est définitive.`)) return;
+    setSendingId(campaign.id);
+    try {
+      await apiClient.post(`/salles/${salleId}/campaigns/${campaign.id}/send`, {});
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setSendingId(null);
+    }
+  };
 
   return (
     <div>
@@ -93,6 +116,7 @@ function CampaignsTab({ salleId }: { salleId: string }) {
                 <th className="px-5 py-3">Destinataires ciblés</th>
                 <th className="px-5 py-3">E-mails envoyés</th>
                 <th className="px-5 py-3">Statut</th>
+                <th className="px-5 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
@@ -116,6 +140,13 @@ function CampaignsTab({ salleId }: { salleId: string }) {
                   </td>
                   <td className="px-5 py-3">
                     <StatusBadge status={c.status} />
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    {c.status !== 'ENVOYEE' && (
+                      <Button size="sm" variant="secondary" isLoading={sendingId === c.id} onClick={() => handleSend(c)}>
+                        Envoyer
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -421,6 +452,166 @@ function CreateCouponModal({
 
         <Button type="submit" isLoading={isSubmitting} className="w-full">
           Créer le coupon
+        </Button>
+      </form>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Onglet Modèles
+// ─────────────────────────────────────────────────────────────
+
+const CHANNEL_LABELS: Record<string, string> = {
+  SMS: 'SMS',
+  EMAIL: 'E-mail',
+  WHATSAPP: 'WhatsApp',
+  PUSH: 'Notification push',
+};
+
+function TemplatesTab({ salleId }: { salleId: string }) {
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  const { data: templates, refetch } = useApi<Template[]>(`/salles/${salleId}/message-templates`);
+
+  const handleDelete = async (templateId: string) => {
+    if (!confirm('Supprimer ce modèle ?')) return;
+    try {
+      await apiClient.delete(`/salles/${salleId}/message-templates/${templateId}`);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-ink-500">Réutilisez un modèle prêt à l&apos;emploi en créant une campagne.</p>
+        <Button size="sm" onClick={() => setIsFormOpen(true)}>
+          <Plus className="h-4 w-4" />
+          Nouveau modèle
+        </Button>
+      </div>
+
+      <Card className="p-0">
+        {!templates || templates.length === 0 ? (
+          <EmptyState icon={<FileText className="h-6 w-6" />} title="Aucun modèle pour le moment" />
+        ) : (
+          <div className="divide-y divide-ink-100">
+            {templates.map((t) => (
+              <div key={t.id} className="flex items-start justify-between gap-3 px-5 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <p className="font-medium text-ink-900">{t.name}</p>
+                    <StatusBadge status={CHANNEL_LABELS[t.channel] ?? t.channel} />
+                  </div>
+                  <p className="truncate text-sm text-ink-500">{t.content}</p>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <button
+                    onClick={() => setEditingTemplate(t)}
+                    className="rounded-lg p-1.5 text-ink-400 hover:bg-ink-50 hover:text-ink-700"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(t.id)}
+                    className="rounded-lg p-1.5 text-ink-400 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {(isFormOpen || editingTemplate) && (
+        <TemplateFormModal
+          salleId={salleId}
+          template={editingTemplate}
+          onClose={() => {
+            setIsFormOpen(false);
+            setEditingTemplate(null);
+          }}
+          onSaved={() => {
+            setIsFormOpen(false);
+            setEditingTemplate(null);
+            refetch();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function TemplateFormModal({
+  salleId,
+  template,
+  onClose,
+  onSaved,
+}: {
+  salleId: string;
+  template: Template | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(template?.name ?? '');
+  const [channel, setChannel] = useState(template?.channel ?? 'WHATSAPP');
+  const [content, setContent] = useState(template?.content ?? '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      if (template) {
+        await apiClient.patch(`/salles/${salleId}/message-templates/${template.id}`, { name, channel, content });
+      } else {
+        await apiClient.post(`/salles/${salleId}/message-templates`, { name, channel, content });
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title={template ? 'Modifier le modèle' : 'Nouveau modèle'}>
+      <form onSubmit={handleSubmit}>
+        <Field label="Nom du modèle">
+          <Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : Bienvenue" />
+        </Field>
+        <Field label="Canal">
+          <Select value={channel} onChange={(e) => setChannel(e.target.value)}>
+            {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Contenu du message">
+          <textarea
+            required
+            rows={5}
+            className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Bonjour {prenom}, ..."
+          />
+        </Field>
+
+        {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        <Button type="submit" isLoading={isSubmitting} className="w-full">
+          {template ? 'Enregistrer' : 'Créer le modèle'}
         </Button>
       </form>
     </Modal>

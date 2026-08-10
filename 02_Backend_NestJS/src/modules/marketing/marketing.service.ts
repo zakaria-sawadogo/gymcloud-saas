@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
@@ -46,6 +46,51 @@ export class MarketingService {
 
   async listTemplates(salleId: string) {
     return this.prisma.messageTemplate.findMany({ where: { salleId }, orderBy: { createdAt: 'desc' } });
+  }
+
+  /**
+   * §14.x — Modifier/supprimer un modèle manquaient jusqu'ici — une
+   * gestion de modèles sans pouvoir corriger une coquille ou retirer
+   * un modèle obsolète n'aurait pas été vraiment utilisable.
+   */
+  async updateTemplate(
+    salleId: string,
+    templateId: string,
+    dto: Partial<CreateMessageTemplateDto>,
+    actorUserId: string,
+  ) {
+    const existing = await this.prisma.messageTemplate.findUniqueOrThrow({ where: { id: templateId } });
+    if (existing.salleId !== salleId) {
+      throw new ForbiddenException('Ce modèle n\'appartient pas à cette salle');
+    }
+    const template = await this.prisma.messageTemplate.update({
+      where: { id: templateId },
+      data: dto,
+    });
+    await this.audit.log({
+      userId: actorUserId,
+      salleId,
+      action: 'message_template.update',
+      entityType: 'MessageTemplate',
+      entityId: template.id,
+    });
+    return template;
+  }
+
+  async deleteTemplate(salleId: string, templateId: string, actorUserId: string) {
+    const existing = await this.prisma.messageTemplate.findUniqueOrThrow({ where: { id: templateId } });
+    if (existing.salleId !== salleId) {
+      throw new ForbiddenException('Ce modèle n\'appartient pas à cette salle');
+    }
+    await this.prisma.messageTemplate.delete({ where: { id: templateId } });
+    await this.audit.log({
+      userId: actorUserId,
+      salleId,
+      action: 'message_template.delete',
+      entityType: 'MessageTemplate',
+      entityId: templateId,
+    });
+    return { deleted: true };
   }
 
   // ─────────────────────────────────────────────────────────────
