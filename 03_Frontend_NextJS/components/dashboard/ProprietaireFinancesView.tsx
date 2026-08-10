@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Wallet, Pencil, Trash2, Lock, Download, TrendingUp, TrendingDown, Target, X } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError, tokenStorage } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -46,6 +46,7 @@ interface NetResult {
   resultatNetPrecedent: number;
   variationPct: number | null;
   budgetAlerts: BudgetAlert[];
+  depensesParCategorie: Record<string, number>;
 }
 
 interface Budget {
@@ -138,6 +139,9 @@ export function ProprietaireFinancesView({ salleId, currency }: { salleId: strin
     Dépenses: t.totalDepenses,
     'Résultat net': t.resultatNet,
   }));
+  const categoryData = Object.entries(netResult?.depensesParCategorie ?? {})
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
 
   return (
     <div>
@@ -241,6 +245,25 @@ export function ProprietaireFinancesView({ salleId, currency }: { salleId: strin
                 <Line type="monotone" dataKey="Dépenses" stroke="#dc2626" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Résultat net" stroke="#2563eb" strokeWidth={2} dot={false} />
               </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
+      {categoryData.length > 0 && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Dépenses par catégorie (ce mois)</CardTitle>
+          </CardHeader>
+          <div style={{ height: Math.max(160, categoryData.length * 40) }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={categoryData} layout="vertical" margin={{ left: 8, right: 24 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7E8" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="category" tick={{ fontSize: 12 }} width={100} />
+                <Tooltip formatter={(v: number) => formatCurrency(v, currency)} />
+                <Bar dataKey="amount" fill="#dc2626" radius={[0, 4, 4, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
