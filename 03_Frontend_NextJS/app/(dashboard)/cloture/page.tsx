@@ -18,6 +18,7 @@ import type { Salle } from '@/types';
 export default function CloturePage() {
   const { data: salles, isLoading } = useApi<Salle[]>('/salles');
   const [selectedSalleId, setSelectedSalleId] = useState('');
+  const [activeTab, setActiveTab] = useState<'generale' | 'paiements' | 'boutique'>('generale');
 
   const activeSalleId = selectedSalleId || salles?.[0]?.id;
   const activeSalleCurrency = salles?.find((s) => s.id === activeSalleId)?.country?.currency;
@@ -46,12 +47,36 @@ export default function CloturePage() {
         </div>
       )}
 
+      <div className="mb-6 flex overflow-hidden rounded-lg border border-ink-200" style={{ width: 'fit-content' }}>
+        {(
+          [
+            ['generale', 'Clôture générale'],
+            ['paiements', 'Clôture des paiements'],
+            ['boutique', 'Clôture mini caisse boutique'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`px-4 py-2 text-sm ${activeTab === key ? 'bg-primary-600 text-white' : 'text-ink-600 hover:bg-ink-50'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {activeSalleId && (
-        <div className="space-y-6">
-          <GeneralClosingSummary salleId={activeSalleId} currency={activeSalleCurrency ?? 'XOF'} />
-          <CaisseClosureCard salleId={activeSalleId} currency={activeSalleCurrency ?? 'XOF'} canClose={false} />
-          <PaymentsClosureCard salleId={activeSalleId} currency={activeSalleCurrency ?? 'XOF'} canClose={false} />
-        </div>
+        <>
+          {activeTab === 'generale' && (
+            <GeneralClosingSummary salleId={activeSalleId} currency={activeSalleCurrency ?? 'XOF'} />
+          )}
+          {activeTab === 'paiements' && (
+            <PaymentsClosureCard salleId={activeSalleId} currency={activeSalleCurrency ?? 'XOF'} canClose={false} />
+          )}
+          {activeTab === 'boutique' && (
+            <CaisseClosureCard salleId={activeSalleId} currency={activeSalleCurrency ?? 'XOF'} canClose={false} />
+          )}
+        </>
       )}
     </div>
   );
