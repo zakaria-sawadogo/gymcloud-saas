@@ -132,4 +132,4 @@ Dashboard (3 vues par rôle) · Adhérents · Contrôle d'accès · Paiements ·
 - **Module Notifications** transverse (SMS/Email/WhatsApp/Push) — 8 points d'intégration déjà marqués `TODO(module notifications)` dans le code ; nécessite le choix effectif des fournisseurs (Twilio, Africa's Talking, WhatsApp Business API...) avant implémentation
 - **Tests automatisés** (unitaires/e2e) — la CI est câblée pour les exécuter mais aucun test n'a encore été écrit
 - **Intégration réelle des API Mobile Money** (Orange/Moov/Wave) — actuellement simulée (le webhook existe, l'appel sortant vers l'opérateur est un `TODO`)
-- **Assets graphiques** (icônes d'app, splash screens, logo) — dossiers `public/`/`assets/` prêts à les recevoir
+- **Assets graphiques** (icônes d'app, splash screens, logo) — dossiers `public/`/`assets/` prêts à les recevo
