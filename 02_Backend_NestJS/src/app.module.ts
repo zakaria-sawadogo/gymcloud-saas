@@ -6,6 +6,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './common/audit/audit.module';
+import { EncryptionModule } from './common/encryption/encryption.module';
+import { ApiCredentialsModule } from './modules/api-credentials/api-credentials.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { AbilityFactory } from './common/casl/ability.factory';
 import { PoliciesGuard } from './common/casl/policies.guard';
@@ -44,6 +46,8 @@ import { SalleContentModule } from './modules/salle-content/salle-content.module
     JwtModule.register({ global: true }),
     PrismaModule,
     AuditModule,
+    EncryptionModule,
+    ApiCredentialsModule,
     AuthModule,
     SaasBillingModule,
     SallesModule,
