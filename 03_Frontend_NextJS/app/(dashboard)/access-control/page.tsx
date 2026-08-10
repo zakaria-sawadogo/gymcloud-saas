@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { QrCode, LogIn, LogOut, Users, Ban, RotateCcw, Camera } from 'lucide-react';
+import { QrCode, LogIn, LogOut, Users, Camera } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
@@ -23,7 +23,6 @@ export default function AccessControlPage() {
     null,
   );
   const [isScanning, setIsScanning] = useState(false);
-  const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
 
   const { data: occupancy, refetch: refetchOccupancy } = useApi<AccessLog[]>(
@@ -79,24 +78,6 @@ export default function AccessControlPage() {
   const handleCameraScan = (token: string) => {
     setIsCameraOpen(false);
     processScan(token);
-  };
-
-  const handleToggleStatus = async () => {
-    if (!identifiedAdherent) return;
-    setIsTogglingStatus(true);
-    try {
-      const action = identifiedAdherent.status === 'SUSPENDU' ? 'reactivate' : 'suspend';
-      const updated = await apiClient.patch<AdherentProfile>(`/adherents/${identifiedAdherent.id}/${action}`);
-      setIdentifiedAdherent(updated);
-    } catch (err) {
-      setScanResult({
-        direction: '',
-        message: err instanceof ApiClientError ? err.message : 'Une erreur est survenue',
-        isError: true,
-      });
-    } finally {
-      setIsTogglingStatus(false);
-    }
   };
 
   return (
@@ -162,26 +143,7 @@ export default function AccessControlPage() {
                 </span>
                 <StatusBadge status={identifiedAdherent.status} />
               </div>
-              <p className="mb-3 text-xs text-ink-400">{identifiedAdherent.memberCode}</p>
-              <Button
-                variant={identifiedAdherent.status === 'SUSPENDU' ? 'secondary' : 'danger'}
-                size="sm"
-                className="w-full"
-                isLoading={isTogglingStatus}
-                onClick={handleToggleStatus}
-              >
-                {identifiedAdherent.status === 'SUSPENDU' ? (
-                  <>
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Réactiver l'accès
-                  </>
-                ) : (
-                  <>
-                    <Ban className="h-3.5 w-3.5" />
-                    Suspendre l'accès
-                  </>
-                )}
-              </Button>
+              <p className="text-xs text-ink-400">{identifiedAdherent.memberCode}</p>
             </div>
           )}
         </Card>
