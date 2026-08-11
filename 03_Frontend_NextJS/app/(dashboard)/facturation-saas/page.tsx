@@ -331,6 +331,7 @@ const DECLARED_METHOD_LABELS: Record<string, string> = {
  */
 interface SubscriptionAddon {
   addonId: string;
+  status: 'ACTIF' | 'SUSPENDU';
   addon: { id: string; name: string; description: string | null; price: number };
 }
 
@@ -361,6 +362,7 @@ function MyAddonsSection() {
   if (!salles || salles.length === 0 || !allAddons) return null;
 
   const activeIds = new Set((activeAddons ?? []).map((a) => a.addonId));
+  const suspendedIds = new Set((activeAddons ?? []).filter((a) => a.status === 'SUSPENDU').map((a) => a.addonId));
 
   const toggle = async (addonId: string, isActive: boolean) => {
     setTogglingId(addonId);
@@ -370,6 +372,25 @@ function MyAddonsSection() {
       } else {
         await apiClient.post(`/saas/plans/salles/${salleId}/addons/${addonId}`);
       }
+      refetchActive();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  // §14.x — corrige un vrai trou : cette action existait côté serveur
+  // (impayé, litige...) mais n'avait jamais de bouton nulle part —
+  // distincte de désactiver (qui détache l'add-on) : suspendre garde
+  // la souscription en place, juste bloquée temporairement.
+  const toggleSuspend = async (addonId: string, isSuspended: boolean) => {
+    setTogglingId(addonId);
+    try {
+      await apiClient.patch(
+        `/saas/plans/salles/${salleId}/addons/${addonId}/${isSuspended ? 'reactivate' : 'suspend'}`,
+        {},
+      );
       refetchActive();
     } catch (err) {
       alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -398,21 +419,37 @@ function MyAddonsSection() {
       <div className="divide-y divide-ink-100">
         {allAddons.map((addon) => {
           const isActive = activeIds.has(addon.id);
+          const isSuspended = suspendedIds.has(addon.id);
           return (
             <div key={addon.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
               <div>
-                <p className="font-medium text-ink-900">{addon.name}</p>
+                <p className="font-medium text-ink-900">
+                  {addon.name}
+                  {isSuspended && <span className="ml-2 text-xs font-normal text-red-600">(suspendu — impayé)</span>}
+                </p>
                 {addon.description && <p className="text-sm text-ink-500">{addon.description}</p>}
                 <p className="text-sm text-ink-600">{formatCurrency(addon.price)} / mois</p>
               </div>
-              <Button
-                size="sm"
-                variant={isActive ? 'secondary' : 'primary'}
-                isLoading={togglingId === addon.id}
-                onClick={() => toggle(addon.id, isActive)}
-              >
-                {isActive ? 'Désactiver' : 'Activer'}
-              </Button>
+              <div className="flex gap-2">
+                {isActive && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isLoading={togglingId === addon.id}
+                    onClick={() => toggleSuspend(addon.id, isSuspended)}
+                  >
+                    {isSuspended ? 'Réactiver' : 'Suspendre (impayé)'}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant={isActive ? 'secondary' : 'primary'}
+                  isLoading={togglingId === addon.id}
+                  onClick={() => toggle(addon.id, isActive)}
+                >
+                  {isActive ? 'Désactiver' : 'Activer'}
+                </Button>
+              </div>
             </div>
           );
         })}

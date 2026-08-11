@@ -182,12 +182,28 @@ function CreateCampaignModal({
   const [name, setName] = useState('');
   const [channel, setChannel] = useState('EMAIL');
   const [content, setContent] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [segmentType, setSegmentType] = useState('ACTIFS');
   const [inactiveDays, setInactiveDays] = useState('30');
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
+
+  // §14.x — corrige un vrai trou signalé : les modèles existaient,
+  // jamais reliés à la création d'une campagne — on retapait tout à
+  // chaque fois. Choisir un modèle pré-remplit canal et message,
+  // toujours modifiables ensuite avant l'envoi.
+  const { data: templates } = useApi<Template[]>(`/salles/${salleId}/message-templates`);
+
+  const applyTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates?.find((t) => t.id === templateId);
+    if (template) {
+      setChannel(template.channel);
+      setContent(template.content);
+    }
+  };
 
   const targetSegment = {
     type: segmentType,
@@ -229,6 +245,19 @@ function CreateCampaignModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Nouvelle campagne">
       <form onSubmit={handleSubmit}>
+        {templates && templates.length > 0 && (
+          <Field label="Partir d'un modèle (optionnel)">
+            <Select value={selectedTemplateId} onChange={(e) => applyTemplate(e.target.value)}>
+              <option value="">— Rédiger un message —</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({CHANNEL_LABELS[t.channel] ?? t.channel})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+
         <Field label="Nom de la campagne">
           <Input required value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
