@@ -27,7 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _repo = AuthRepository(context.read<ApiClient>(), context.read());
+    _repo = context.read<AuthRepository>();
   }
 
   @override

@@ -29,6 +29,7 @@ class GymCloudApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<ApiClient>.value(value: apiClient),
+        Provider<AuthRepository>.value(value: authRepository),
         ChangeNotifierProvider<AuthProvider>(
           create: (_) {
             final provider = AuthProvider(authRepository);

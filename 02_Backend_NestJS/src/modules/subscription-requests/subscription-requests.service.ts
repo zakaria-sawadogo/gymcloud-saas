@@ -73,4 +73,28 @@ export class SubscriptionRequestsService {
     });
     return updated;
   }
+
+  /**
+   * §14.x — Supprimer une demande une fois traitée, pour garder la
+   * liste propre — jamais une demande encore "NOUVELLE" (non
+   * traitée) : la supprimer à ce stade perdrait une demande jamais
+   * suivie, sans aucune trace.
+   */
+  async delete(id: string, actorUserId: string) {
+    const request = await this.prisma.saasSubscriptionRequest.findUniqueOrThrow({ where: { id } });
+    if (request.status === 'NOUVELLE') {
+      throw new BadRequestException(
+        'Cette demande n\'a pas encore été traitée — contactez, convertissez ou rejetez-la avant de la supprimer.',
+      );
+    }
+    await this.prisma.saasSubscriptionRequest.delete({ where: { id } });
+    await this.audit.log({
+      userId: actorUserId,
+      action: 'saas_subscription_request.delete',
+      entityType: 'SaasSubscriptionRequest',
+      entityId: id,
+      metadata: { previousStatus: request.status },
+    });
+    return { deleted: true };
+  }
 }

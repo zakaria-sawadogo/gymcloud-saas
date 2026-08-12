@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { UserPlus, CheckCircle2, XCircle, PhoneCall, UserCog } from 'lucide-react';
+import { UserPlus, CheckCircle2, XCircle, PhoneCall, UserCog, Trash2 } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -56,6 +56,19 @@ export default function DemandesAbonnementPage() {
     setActioningId(id);
     try {
       await apiClient.patch(`/subscription-requests/${id}/converted`);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Supprimer définitivement cette demande ?')) return;
+    setActioningId(id);
+    try {
+      await apiClient.delete(`/subscription-requests/${id}`);
       refetch();
     } catch (err) {
       alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
@@ -143,7 +156,7 @@ export default function DemandesAbonnementPage() {
                     <StatusBadge status={r.status} />
                   </td>
                   <td className="px-5 py-3 text-right">
-                    {(r.status === 'NOUVELLE' || r.status === 'CONTACTEE') && (
+                    {(r.status === 'NOUVELLE' || r.status === 'CONTACTEE') ? (
                       <div className="flex justify-end gap-2">
                         {r.status === 'NOUVELLE' && (
                           <Button
@@ -174,6 +187,18 @@ export default function DemandesAbonnementPage() {
                           Rejeter
                         </Button>
                       </div>
+                    ) : (
+                      // §14.x — demande déjà traitée (CONVERTIE/REJETEE) :
+                      // seule action restante, garder la liste propre.
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        isLoading={actioningId === r.id}
+                        onClick={() => handleDelete(r.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Supprimer
+                      </Button>
                     )}
                   </td>
                 </tr>

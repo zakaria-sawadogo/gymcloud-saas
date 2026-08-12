@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionRequestsService } from './subscription-requests.service';
 import { RequirePermission } from '../../common/casl/policies.guard';
@@ -42,5 +42,12 @@ export class SubscriptionRequestsController {
   @ApiOperation({ summary: 'Rejeter une demande — motif obligatoire' })
   markRejected(@Param('id') id: string, @Body('note') note: string | undefined, @CurrentUser() user: TenantContext) {
     return this.service.markRejected(id, user.userId, note);
+  }
+
+  @Delete(':id')
+  @RequirePermission('manage', 'SaasSubscriptionRequest')
+  @ApiOperation({ summary: 'Supprimer une demande déjà traitée (§14.x) — jamais une demande encore NOUVELLE' })
+  delete(@Param('id') id: string, @CurrentUser() user: TenantContext) {
+    return this.service.delete(id, user.userId);
   }
 }
