@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, Param, Query, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ReportingService } from './reporting.service';
@@ -82,6 +82,51 @@ export class ReportingController {
   async listAuditLogActors(@Param('salleId') salleId: string, @CurrentUser() user: TenantContext) {
     await this.assertCanAccessSalle(salleId, user);
     return this.auditService.listDistinctActors(salleId);
+  }
+
+  @Get('admin/audit-logs')
+  @RequirePermission('read', 'SaasPlan')
+  @ApiOperation({
+    summary:
+      "Journal d'activité global, toutes salles confondues (§14.x) — exclusif SUPER_ADMIN, usage support. salleId optionnel pour filtrer sur une salle précise sans quitter la vue globale.",
+  })
+  listGlobalAuditLogs(
+    @Query('salleId') salleId?: string,
+    @Query('userId') userId?: string,
+    @Query('action') action?: string,
+    @Query('page') page?: string,
+    @Query('since') since?: string,
+  ) {
+    return this.auditService.listGlobal({
+      salleId,
+      userId,
+      action,
+      page: page ? Number(page) : undefined,
+      since: since ? new Date(since) : undefined,
+    });
+  }
+
+  @Post('admin/audit-logs/send-email')
+  @RequirePermission('read', 'SaasPlan')
+  @ApiOperation({
+    summary:
+      "Envoyer par e-mail les entrées correspondant aux filtres actuels (§14.x) — usage support, jusqu'à 500 entrées les plus récentes.",
+  })
+  async sendAuditLogsByEmail(
+    @Body('email') email: string,
+    @Body('salleId') salleId?: string,
+    @Body('userId') userId?: string,
+    @Body('action') action?: string,
+    @Body('since') since?: string,
+  ) {
+    if (!email) {
+      throw new BadRequestException('Une adresse e-mail est requise');
+    }
+    const sent = await this.auditService.sendByEmail(
+      { salleId, userId, action, since: since ? new Date(since) : undefined },
+      email,
+    );
+    return { sent };
   }
 
   @Get('salle/:salleId/revenue')
