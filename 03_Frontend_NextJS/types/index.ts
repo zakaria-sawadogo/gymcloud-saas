@@ -441,6 +441,7 @@ export interface SaasInvoice {
   pendingPlanId?: string;
   pendingAddonId?: string;
   pendingAddonName?: string;
+  pendingAddonSalleId?: string | null;
   pendingSalleRequest?: { id: string; name: string; city: string } | null;
   subscription: {
     proprietaire: {

@@ -46,6 +46,7 @@ export default function MonAbonnementPage() {
   const [isChangePlanOpen, setIsChangePlanOpen] = useState(false);
   const [invoiceToPay, setInvoiceToPay] = useState<SaasInvoice | null>(null);
   const [activeTab, setActiveTab] = useState<'abonnement' | 'addons' | 'factures'>('abonnement');
+  const [factureSalleId, setFactureSalleId] = useState('');
 
   const {
     data: subscription,
@@ -127,6 +128,26 @@ export default function MonAbonnementPage() {
       {activeTab === 'addons' && <AddonsPanel salles={salles ?? []} />}
 
       {activeTab === 'factures' && (
+      <>
+      {/* §14.x — corrige un vrai manque signalé : filtrer les
+          factures par salle, utile dès qu'on a plusieurs salles et
+          qu'on cherche celle liée à une salle supplémentaire ou un
+          add-on précis. Les factures d'abonnement générales (sans
+          salle associée — plan, cycle...) restent toujours visibles,
+          peu importe le filtre : elles ne concernent aucune salle en
+          particulier, les cacher serait trompeur. */}
+      {salles && salles.length > 1 && (
+        <div className="mb-4 max-w-xs">
+          <Select value={factureSalleId} onChange={(e) => setFactureSalleId(e.target.value)}>
+            <option value="">Toutes les salles</option>
+            {salles.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
       <Card className="p-0">
         <div className="p-5 pb-0">
           <CardHeader>
@@ -141,17 +162,27 @@ export default function MonAbonnementPage() {
               <tr className="border-b border-ink-100 text-left text-xs font-medium uppercase text-ink-400">
                 <th className="px-5 py-3">N° Facture</th>
                 <th className="px-5 py-3">Période</th>
+                <th className="px-5 py-3">Salle</th>
                 <th className="px-5 py-3">Montant</th>
                 <th className="px-5 py-3">Statut</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
-              {invoices.map((inv) => (
+              {invoices
+                .filter((inv) => !factureSalleId || inv.pendingAddonSalleId === factureSalleId)
+                .map((inv) => (
                 <tr key={inv.id}>
                   <td className="px-5 py-3 font-mono text-xs text-ink-600">{inv.invoiceNumber}</td>
                   <td className="px-5 py-3 text-ink-600">
                     {formatDate(inv.periodStart)} → {formatDate(inv.periodEnd)}
+                  </td>
+                  <td className="px-5 py-3 text-ink-600">
+                    {inv.pendingAddonSalleId
+                      ? (salles?.find((s) => s.id === inv.pendingAddonSalleId)?.name ?? '—')
+                      : inv.pendingSalleRequest
+                        ? `${inv.pendingSalleRequest.name} (nouvelle)`
+                        : '—'}
                   </td>
                   <td className="px-5 py-3 font-medium text-ink-900">{formatCurrency(inv.totalAmount, inv.currency)}</td>
                   <td className="px-5 py-3">
@@ -183,6 +214,7 @@ export default function MonAbonnementPage() {
           </table>
         )}
       </Card>
+      </>
       )}
 
       <ChangePlanModal
