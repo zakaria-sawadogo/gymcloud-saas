@@ -5,6 +5,7 @@ import '../../../core/auth/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../shared/logout_button.dart';
+import '../../shared/profile_screen.dart';
 import '../../../core/models/adherent.dart';
 import '../coach_repository.dart';
 
@@ -110,7 +111,17 @@ class _PlanningScreenState extends State<PlanningScreen> {
     final grouped = _groupedByDay;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mon planning'), actions: const [LogoutButton()]),
+      appBar: AppBar(
+        title: const Text('Mon planning'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profil',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+          ),
+          const LogoutButton(),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

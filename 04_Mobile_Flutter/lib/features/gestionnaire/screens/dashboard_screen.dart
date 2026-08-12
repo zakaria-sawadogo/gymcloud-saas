@@ -6,6 +6,7 @@ import '../../../core/widgets/stat_card.dart';
 import '../gestionnaire_repository.dart';
 import '../../shared/logout_button.dart';
 import '../../shared/notification_bell.dart';
+import '../../shared/profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -54,7 +55,15 @@ class DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(salle?.name ?? 'Tableau de bord'),
-        actions: const [NotificationBell(), LogoutButton()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profil',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+          ),
+          const NotificationBell(),
+          const LogoutButton(),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

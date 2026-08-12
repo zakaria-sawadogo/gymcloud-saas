@@ -127,6 +127,7 @@ export class AbilityFactory {
         can('create', 'Payment');
         can('read', 'Payment'); // ses propres paiements — restriction stricte en service
         can('create', 'AccessLog'); // §6.14 — auto-pointage via le QR fixe de sa salle, restriction fine en service
+        can('read', 'AccessLog'); // §14.x — son propre historique de fréquentation, restriction stricte en service (findUnique par userId, jamais un autre adherentId)
         can('read', 'Product'); // §14.x — catalogue boutique consultable, jamais de vente/paiement à distance
         break;
 

@@ -18,6 +18,16 @@ class AdherentRepository {
     return data.map((e) => AdherentAbonnement.fromJson(e)).toList();
   }
 
+  /// §14.x — corrige un vrai trou trouvé à l'audit : l'adhérent
+  /// pouvait pointer son entrée (self-checkin) mais n'avait aucun
+  /// moyen de revoir ses propres passages en salle. Nom distinct de
+  /// getHistory ci-dessus (qui concerne l'historique d'abonnement,
+  /// pas la fréquentation).
+  Future<List<Map<String, dynamic>>> getMyAccessHistory(String adherentId) async {
+    final data = await _api.get<List<dynamic>>('/access-control/adherent/$adherentId/history');
+    return data.cast<Map<String, dynamic>>();
+  }
+
   Future<List<Booking>> getBookings(String adherentId) async {
     final data = await _api.get<List<dynamic>>('/bookings/adherent/$adherentId');
     return data.map((e) => Booking.fromJson(e)).toList();

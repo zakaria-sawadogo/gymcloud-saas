@@ -7,6 +7,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../shared/logout_button.dart';
 import '../gestionnaire_repository.dart';
+import 'current_occupancy_screen.dart';
 
 /// Scanner QR mobile (§6.3) — équivalent terrain du champ de saisie
 /// manuel disponible côté web, pour un contrôle d'accès à l'entrée
@@ -72,7 +73,28 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scanner QR'), backgroundColor: Colors.black, foregroundColor: Colors.white, actions: const [LogoutButton()]),
+      appBar: AppBar(
+        title: const Text('Scanner QR'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.people_outline),
+            tooltip: 'Présents actuellement',
+            onPressed: () {
+              final salleId = context.read<AuthProvider>().user?.salle?.id;
+              if (salleId == null) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CurrentOccupancyScreen(repo: _repo, salleId: salleId),
+                ),
+              );
+            },
+          ),
+          const LogoutButton(),
+        ],
+      ),
       backgroundColor: Colors.black,
       body: Stack(
         children: [

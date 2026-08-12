@@ -1,17 +1,21 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AccessControlService } from './access-control.service';
 import { ScanQrDto, ManualAccessDto, SelfCheckinDto } from './dto/access-control.dto';
 import { RequirePermission } from '../../common/casl/policies.guard';
 import { CurrentUser, TenantContext } from '../../common/decorators/current-user.decorator';
 import { RequireModule } from '../../common/decorators/require-module.decorator';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @ApiTags('Contrôle d\'accès')
 @ApiBearerAuth()
 @RequireModule('qr_code')
 @Controller('access-control')
 export class AccessControlController {
-  constructor(private readonly accessControlService: AccessControlService) {}
+  constructor(
+    private readonly accessControlService: AccessControlService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post('scan')
   @RequirePermission('manage', 'AccessLog')
@@ -70,7 +74,17 @@ export class AccessControlController {
   @Get('adherent/:adherentId/history')
   @RequirePermission('read', 'AccessLog')
   @ApiOperation({ summary: 'Historique de fréquentation d\'un adhérent (§6.11)' })
-  adherentHistory(@Param('adherentId') adherentId: string) {
+  async adherentHistory(@Param('adherentId') adherentId: string, @CurrentUser() user: TenantContext) {
+    // §14.x — un ADHERENT n'a que 'read AccessLog' sur sa propre
+    // fiche (voir ability.factory.ts) — sans cette vérification,
+    // n'importe quel adhérent pourrait lire l'historique de
+    // n'importe quel autre en changeant juste l'id dans l'URL.
+    if (user.roleCode === 'ADHERENT') {
+      const own = await this.prisma.adherentProfile.findUnique({ where: { userId: user.userId } });
+      if (!own || own.id !== adherentId) {
+        throw new ForbiddenException('Vous ne pouvez consulter que votre propre historique');
+      }
+    }
     return this.accessControlService.adherentHistory(adherentId);
   }
 }

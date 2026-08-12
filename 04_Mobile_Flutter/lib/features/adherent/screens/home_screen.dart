@@ -10,6 +10,8 @@ import '../../shared/logout_button.dart';
 import '../../shared/notification_bell.dart';
 import 'renew_subscription_screen.dart';
 import 'boutique_catalog_screen.dart';
+import 'access_history_screen.dart';
+import '../../shared/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int tabIndex) onNavigateToTab;
@@ -64,7 +66,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Bonjour, ${user?.firstName ?? ''}'),
-        actions: const [NotificationBell(), LogoutButton()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profil',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+          ),
+          const NotificationBell(),
+          const LogoutButton(),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -176,37 +186,66 @@ class _QuickActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _ActionTile(
-            icon: Icons.qr_code_2,
-            label: 'Mon QR code',
-            onTap: () => onNavigateToTab(1),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _ActionTile(
+                icon: Icons.qr_code_2,
+                label: 'Mon QR code',
+                onTap: () => onNavigateToTab(1),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ActionTile(
+                icon: Icons.event,
+                label: 'Réserver une séance',
+                onTap: () => onNavigateToTab(2),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _ActionTile(
-            icon: Icons.event,
-            label: 'Réserver une séance',
-            onTap: () => onNavigateToTab(2),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _ActionTile(
-            icon: Icons.shopping_bag_outlined,
-            label: 'Boutique',
-            onTap: () {
-              final salleId = context.read<AuthProvider>().user?.salle?.id;
-              if (salleId == null) return;
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => BoutiqueCatalogScreen(salleId: salleId)),
-              );
-            },
-          ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _ActionTile(
+                icon: Icons.shopping_bag_outlined,
+                label: 'Boutique',
+                onTap: () {
+                  final salleId = context.read<AuthProvider>().user?.salle?.id;
+                  if (salleId == null) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => BoutiqueCatalogScreen(salleId: salleId)),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ActionTile(
+                icon: Icons.history,
+                label: 'Mes passages',
+                onTap: () {
+                  final auth = context.read<AuthProvider>();
+                  final adherentId = auth.user?.adherentId;
+                  if (adherentId == null) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AccessHistoryScreen(
+                        repo: AdherentRepository(context.read()),
+                        adherentId: adherentId,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ],
     );

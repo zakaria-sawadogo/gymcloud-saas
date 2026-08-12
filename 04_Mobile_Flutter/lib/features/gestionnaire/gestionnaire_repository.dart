@@ -14,6 +14,15 @@ class GestionnaireRepository {
         data: {'qrCodeToken': qrCodeToken, 'salleId': salleId},
       );
 
+  /// §14.x — corrige un vrai trou trouvé à l'audit : le gestionnaire
+  /// mobile pouvait scanner un QR code, mais n'avait aucun moyen de
+  /// voir qui était actuellement présent dans la salle — contrairement
+  /// au web, qui affiche cette liste juste à côté du scanner.
+  Future<List<Map<String, dynamic>>> getCurrentOccupancy(String salleId) async {
+    final data = await _api.get<List<dynamic>>('/access-control/salle/$salleId/current');
+    return data.cast<Map<String, dynamic>>();
+  }
+
   Future<List<AdherentProfile>> getAdherents(String salleId, {String? status}) async {
     final data = await _api.get<List<dynamic>>(
       '/adherents/salle/$salleId',

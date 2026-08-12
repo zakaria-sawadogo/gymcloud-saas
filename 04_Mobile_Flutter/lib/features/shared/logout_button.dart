@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/auth/auth_provider.dart';
+import 'profile_screen.dart';
 
-/// §2.3 — Bouton de déconnexion, présent sur l'écran principal de
-/// chaque rôle mobile (adhérent, coach, gestionnaire, propriétaire).
-/// Demande confirmation avant de couper la session, pour éviter une
-/// déconnexion accidentelle en appuyant dessus par erreur.
+/// §2.3, §14.x — Menu compte, présent sur l'écran principal de chaque
+/// rôle mobile (adhérent, coach, gestionnaire, propriétaire). Nom de
+/// classe conservé tel quel malgré l'ajout de "Profil" — évite de
+/// devoir modifier les quatorze écrans qui l'utilisent déjà pour un
+/// simple changement de nom.
 class LogoutButton extends StatelessWidget {
   const LogoutButton({super.key});
 
@@ -31,10 +33,20 @@ class LogoutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.logout),
-      tooltip: 'Se déconnecter',
-      onPressed: () => _confirmAndLogout(context),
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert),
+      tooltip: 'Mon compte',
+      onSelected: (value) {
+        if (value == 'profile') {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+        } else if (value == 'logout') {
+          _confirmAndLogout(context);
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: 'profile', child: Row(children: [Icon(Icons.person_outline, size: 20), SizedBox(width: 10), Text('Profil')])),
+        PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, size: 20), SizedBox(width: 10), Text('Se déconnecter')])),
+      ],
     );
   }
 }

@@ -8,6 +8,7 @@ import '../proprietaire_repository.dart';
 import 'salle_detail_screen.dart';
 import '../../shared/logout_button.dart';
 import '../../shared/notification_bell.dart';
+import '../../shared/profile_screen.dart';
 import 'my_subscription_screen.dart';
 
 /// Vue consolidée multi-salles (§2.3, §11) — équivalent mobile de
@@ -64,6 +65,11 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
         title: const Text('Vue consolidée'),
         actions: [
           const NotificationBell(),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profil',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.layers_outlined),
             tooltip: 'Mon abonnement',

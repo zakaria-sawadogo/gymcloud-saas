@@ -60,6 +60,15 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// §14.x — après une modification de profil réussie (écran
+  /// Paramètres), remet à jour l'utilisateur en cache dans toute
+  /// l'app (ex: "Bonjour, {prénom}" sur l'accueil) sans exiger un
+  /// redémarrage complet.
+  void updateUser(CurrentUser updated) {
+    _user = updated;
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     await _repository.logout();
     forceLogout();
