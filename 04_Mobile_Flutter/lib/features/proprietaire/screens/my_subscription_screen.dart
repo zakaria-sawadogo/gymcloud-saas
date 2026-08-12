@@ -8,6 +8,7 @@ import 'dart:io';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/currency_format.dart';
 import '../proprietaire_repository.dart';
+import 'change_plan_screen.dart';
 
 class MySubscriptionScreen extends StatefulWidget {
   const MySubscriptionScreen({super.key});
@@ -214,6 +215,26 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
                                         : '—',
                                   ),
                                 ],
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton(
+                                  onPressed: () async {
+                                    final changed = await Navigator.push<bool>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ChangePlanScreen(
+                                          repo: _repo,
+                                          currentSubscriptionId: _subscription!['id'],
+                                          currentPlanId: _subscription!['saasPlanId'],
+                                        ),
+                                      ),
+                                    );
+                                    if (changed == true) _load();
+                                  },
+                                  child: const Text('Changer de plan'),
+                                ),
                               ),
                             ],
                           ),

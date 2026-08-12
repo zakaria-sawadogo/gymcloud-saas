@@ -10,6 +10,9 @@ import '../../shared/logout_button.dart';
 import '../../shared/notification_bell.dart';
 import '../../shared/profile_screen.dart';
 import 'my_subscription_screen.dart';
+import 'request_salle_screen.dart';
+import 'change_plan_screen.dart';
+import 'request_salle_screen.dart';
 
 /// Vue consolidée multi-salles (§2.3, §11) — équivalent mobile de
 /// ProprietaireDashboardView.tsx côté web. Un propriétaire n'a pas
@@ -78,6 +81,40 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
               MaterialPageRoute(builder: (_) => const MySubscriptionScreen()),
             ),
           ),
+          PopupMenuButton<String>(
+            tooltip: 'Plus',
+            onSelected: (value) async {
+              if (value == 'change-plan') {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  final subscription = await _repo.getMySubscription();
+                  final saasPlan = subscription['saasPlan'] as Map<String, dynamic>;
+                  if (!mounted) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChangePlanScreen(
+                        repo: _repo,
+                        currentSubscriptionId: subscription['id'] as String,
+                        currentPlanId: saasPlan['id'] as String,
+                      ),
+                    ),
+                  );
+                } catch (e) {
+                  messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+                }
+              } else if (value == 'request-salle') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => RequestSalleScreen(repo: _repo)),
+                );
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'change-plan', child: Text('Changer de plan')),
+              PopupMenuItem(value: 'request-salle', child: Text('Demander une salle')),
+            ],
+          ),
           const LogoutButton(),
         ],
       ),
@@ -136,7 +173,20 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
                         ],
                       ),
                       const SizedBox(height: 24),
-                      const Text('Mes salles', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Mes salles', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                          TextButton.icon(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => RequestSalleScreen(repo: _repo)),
+                            ),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Demander'),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                       ...salles.map((s) => _SalleRow(salle: s as Map<String, dynamic>)),
                     ],

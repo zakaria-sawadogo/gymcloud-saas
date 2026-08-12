@@ -45,23 +45,4 @@ class AuthRepository {
   Future<void> logout() => _tokenStorage.clear();
 
   Future<bool> hasStoredSession() async => (await _tokenStorage.getAccessToken()) != null;
-
-  /// §14.x — corrige un vrai trou trouvé à l'audit : aucun écran de
-  /// profil/paramètres n'existait du tout, pour aucun rôle — personne
-  /// ne pouvait changer son mot de passe ni modifier ses infos depuis
-  /// le mobile.
-  Future<void> changePassword({required String currentPassword, required String newPassword}) =>
-      _apiClient.post('/auth/change-password', data: {
-        'currentPassword': currentPassword,
-        'newPassword': newPassword,
-      });
-
-  Future<CurrentUser> updateProfile({String? firstName, String? lastName, String? email}) async {
-    final data = await _apiClient.patch<Map<String, dynamic>>('/auth/me', data: {
-      if (firstName != null) 'firstName': firstName,
-      if (lastName != null) 'lastName': lastName,
-      if (email != null) 'email': email,
-    });
-    return CurrentUser.fromJson(data);
-  }
 }

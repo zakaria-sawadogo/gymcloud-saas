@@ -6,6 +6,9 @@ import '../proprietaire_repository.dart';
 import 'team_management_screen.dart';
 import 'boutique_summary_screen.dart';
 import 'finances_screen.dart';
+import 'finances_trend_screen.dart';
+import 'closing_status_screen.dart';
+import 'audit_log_screen.dart';
 
 /// Drill-down vers le détail d'une salle spécifique — mêmes
 /// indicateurs que le tableau de bord Gestionnaire, en lecture seule
@@ -86,6 +89,44 @@ class _SalleDetailScreenState extends State<SalleDetailScreen> {
                 ),
               ),
             ),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Plus',
+            onSelected: (value) {
+              if (value == 'trend') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FinancesTrendScreen(
+                      repo: _repo,
+                      salleId: widget.salleId,
+                      currency: widget.currency ?? 'XOF',
+                    ),
+                  ),
+                );
+              } else if (value == 'closing') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ClosingStatusScreen(
+                      repo: _repo,
+                      salleId: widget.salleId,
+                      currency: widget.currency ?? 'XOF',
+                    ),
+                  ),
+                );
+              } else if (value == 'audit') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AuditLogScreen(repo: _repo, salleId: widget.salleId)),
+                );
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'trend', child: Text('Évolution')),
+              PopupMenuItem(value: 'closing', child: Text('Clôture')),
+              PopupMenuItem(value: 'audit', child: Text('Journal d\'activité')),
+            ],
           ),
         ],
       ),

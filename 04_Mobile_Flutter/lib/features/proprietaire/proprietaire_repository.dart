@@ -211,4 +211,67 @@ class ProprietaireRepository {
 
   Future<void> deleteFinancesBudget(String salleId, String category) =>
       _api.delete<dynamic>('/salles/$salleId/finances/budgets?category=${Uri.encodeComponent(category)}');
+
+  // §14.x — corrige cinq trous trouvés à l'audit, absents côté mobile
+  // malgré une fonctionnalité complète côté web.
+
+  // 1. Journal d'activité
+  Future<Map<String, dynamic>> getAuditLogs(String salleId, {int page = 1}) =>
+      _api.get<Map<String, dynamic>>('/reporting/salle/$salleId/audit-logs?page=$page');
+
+  // 2. Évolution financière sur plusieurs mois
+  Future<List<Map<String, dynamic>>> getFinancesTrend(String salleId, {int months = 6}) async {
+    final data = await _api.get<List<dynamic>>('/salles/$salleId/finances/trend?months=$months');
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  // 3. Clôture caisse boutique + paiements (lecture seule, comme le web canClose=false)
+  Future<Map<String, dynamic>> getBoutiqueClosingStatus(String salleId) =>
+      _api.get<Map<String, dynamic>>('/salles/$salleId/boutique/caisse/today-status');
+
+  Future<Map<String, dynamic>> getPaymentsClosingStatus(String salleId) =>
+      _api.get<Map<String, dynamic>>('/payments/salle/$salleId/caisse/today-status');
+
+  Future<Map<String, dynamic>> getGeneralClosing(String salleId) =>
+      _api.get<Map<String, dynamic>>('/payments/salle/$salleId/caisse/general-closing');
+
+  // 4. Changer de plan SaaS
+  Future<List<Map<String, dynamic>>> getSaasPlans() async {
+    final data = await _api.get<List<dynamic>>('/saas/plans');
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<void> changeSaasPlan(String subscriptionId, String newPlanId, {Map<String, dynamic>? payment}) =>
+      _api.patch<dynamic>(
+        '/saas/plans/$subscriptionId/change-plan/$newPlanId',
+        data: payment != null ? {'payment': payment} : null,
+      );
+
+  // 5. Demande de création de salle
+  Future<List<Map<String, dynamic>>> getMySalleRequests() async {
+    final data = await _api.get<List<dynamic>>('/salles/requests/mine');
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> getCountries() async {
+    final data = await _api.get<List<dynamic>>('/countries');
+    return data.cast<Map<String, dynamic>>();
+  }
+
+  Future<void> requestNewSalle({
+    required String name,
+    required String phone,
+    required String address,
+    required String city,
+    required String countryId,
+    String? email,
+  }) =>
+      _api.post<dynamic>('/salles/requests', data: {
+        'name': name,
+        'phone': phone,
+        'address': address,
+        'city': city,
+        'countryId': countryId,
+        if (email != null && email.isNotEmpty) 'email': email,
+      });
 }
