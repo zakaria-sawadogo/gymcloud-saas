@@ -23,7 +23,7 @@ export default function SallesPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-ink-900">Salles</h1>
-        {user?.roleCode === 'SUPER_ADMIN' && (
+        {(user?.roleCode === 'SUPER_ADMIN' || user?.roleCode === 'ADMIN_GYMCLOUD') && (
           <Button onClick={() => setIsCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             Nouvelle salle

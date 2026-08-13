@@ -46,7 +46,6 @@ async function main() {
     { code: 'RESPONSABLE_SUPPORT', name: 'Responsable Support' },
     { code: 'RESPONSABLE_FINANCE', name: 'Responsable Finance' },
     { code: 'RESPONSABLE_COMMERCIAL', name: 'Responsable Commercial' },
-    { code: 'RESPONSABLE_MARKETING', name: 'Responsable Marketing' },
     { code: 'SUPERVISEUR_PAYS', name: 'Superviseur Pays' },
   ];
 

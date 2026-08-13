@@ -221,13 +221,29 @@ export class SallesService {
   }
 
   /** §3.3 — Suspension d'une salle (impayé SaaS, décision administrative...) */
-  async suspend(salleId: string, actorUserId: string, reason: string) {
+  /**
+   * §14.x — Superviseur Pays délégué depuis SUPER_ADMIN : ne peut
+   * suspendre/réactiver qu'une salle de SON pays (countryId du JWT).
+   * Les autres rôles autorisés (SUPER_ADMIN, ADMIN_GYMCLOUD via
+   * 'manage Salle') n'ont pas cette restriction.
+   */
+  private async assertCanManageSalleCountry(salleId: string, actor: TenantContext): Promise<void> {
+    if (actor.roleCode !== 'SUPERVISEUR_PAYS') return;
+    const salle = await this.prisma.salle.findUnique({ where: { id: salleId }, select: { countryId: true } });
+    if (!salle) throw new NotFoundException('Salle introuvable');
+    if (salle.countryId !== actor.countryId) {
+      throw new ForbiddenException('Vous ne pouvez gérer que les salles de votre pays');
+    }
+  }
+
+  async suspend(salleId: string, actor: TenantContext, reason: string) {
+    await this.assertCanManageSalleCountry(salleId, actor);
     const salle = await this.prisma.salle.update({
       where: { id: salleId },
       data: { status: 'SUSPENDU' },
     });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       salleId,
       action: 'salle.suspend',
       entityType: 'Salle',
@@ -237,13 +253,14 @@ export class SallesService {
     return salle;
   }
 
-  async reactivate(salleId: string, actorUserId: string) {
+  async reactivate(salleId: string, actor: TenantContext) {
+    await this.assertCanManageSalleCountry(salleId, actor);
     const salle = await this.prisma.salle.update({
       where: { id: salleId },
       data: { status: 'ACTIF' },
     });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       salleId,
       action: 'salle.reactivate',
       entityType: 'Salle',

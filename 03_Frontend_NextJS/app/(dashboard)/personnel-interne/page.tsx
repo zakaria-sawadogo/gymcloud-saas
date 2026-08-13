@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { Plus, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card } from '@/components/ui/Card';
@@ -20,7 +21,9 @@ import type { InternalUser, Role, Country } from '@/types';
  * SUPER_ADMIN.
  */
 export default function PersonnelInternePage() {
+  const { user } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateSuperAdminOpen, setIsCreateSuperAdminOpen] = useState(false);
   const [editingRoleFor, setEditingRoleFor] = useState<InternalUser | null>(null);
   const [managingRolesFor, setManagingRolesFor] = useState<InternalUser | null>(null);
   const { data: users, isLoading, error, refetch } = useApi<InternalUser[]>('/internal-users');
@@ -29,10 +32,18 @@ export default function PersonnelInternePage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold text-ink-900">Personnel interne GymCloud</h1>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Nouveau compte
-        </Button>
+        <div className="flex gap-2">
+          {user?.roleCode === 'SUPER_ADMIN' && (
+            <Button variant="secondary" onClick={() => setIsCreateSuperAdminOpen(true)}>
+              <ShieldCheck className="h-4 w-4" />
+              Créer un SUPER_ADMIN
+            </Button>
+          )}
+          <Button onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Nouveau compte
+          </Button>
+        </div>
       </div>
 
       <Card className="p-0">
@@ -115,6 +126,15 @@ export default function PersonnelInternePage() {
         onClose={() => setIsCreateOpen(false)}
         onCreated={() => {
           setIsCreateOpen(false);
+          refetch();
+        }}
+      />
+
+      <CreateSuperAdminModal
+        isOpen={isCreateSuperAdminOpen}
+        onClose={() => setIsCreateSuperAdminOpen(false)}
+        onCreated={() => {
+          setIsCreateSuperAdminOpen(false);
           refetch();
         }}
       />
@@ -389,6 +409,104 @@ function CreateInternalUserModal({
 
           <Button type="submit" isLoading={isSubmitting} className="w-full">
             Créer le compte
+          </Button>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * §14.x — Créer un second compte SUPER_ADMIN, plafonné à 2 au total
+ * côté serveur — ce modal n'a ni sélecteur de rôle (fixé) ni de pays
+ * (non pertinent), contrairement à CreateInternalUserModal. Le
+ * bouton qui ouvre ce modal n'est déjà visible que pour un SUPER_ADMIN
+ * connecté (vérifié côté page) ; la vraie garantie reste néanmoins le
+ * contrôle serveur (createAdditionalSuperAdmin).
+ */
+function CreateSuperAdminModal({
+  isOpen,
+  onClose,
+  onCreated,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [result, setResult] = useState<{ tempPassword: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const res = await apiClient.post<{ tempPassword: string }>('/internal-users/super-admin', {
+        firstName,
+        lastName,
+        phone,
+        email: email || undefined,
+      });
+      setResult(res);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setFirstName('');
+    setLastName('');
+    setPhone('');
+    setEmail('');
+    setResult(null);
+    onCreated();
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Créer un SUPER_ADMIN">
+      {result ? (
+        <div>
+          <p className="mb-3 rounded-lg bg-primary-50 px-3 py-3 text-sm text-primary-700">
+            Compte SUPER_ADMIN créé avec succès.
+          </p>
+          <p className="mb-1 text-sm text-ink-600">
+            Mot de passe temporaire (à communiquer, à changer à la première connexion) :
+          </p>
+          <p className="mb-4 rounded-lg bg-ink-50 px-3 py-2 font-mono text-sm text-ink-900">{result.tempPassword}</p>
+          <Button onClick={handleClose} className="w-full">
+            Fermer
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <p className="mb-4 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-700">
+            Plafonné à 2 comptes SUPER_ADMIN maximum sur la plateforme — un accès total, à réserver à une personne
+            de grande confiance.
+          </p>
+          <Field label="Prénom">
+            <Input required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          </Field>
+          <Field label="Nom">
+            <Input required value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          </Field>
+          <Field label="Téléphone">
+            <Input required value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </Field>
+          <Field label="Email (optionnel)">
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+
+          {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+          <Button type="submit" isLoading={isSubmitting} className="w-full">
+            Créer le compte SUPER_ADMIN
           </Button>
         </form>
       )}

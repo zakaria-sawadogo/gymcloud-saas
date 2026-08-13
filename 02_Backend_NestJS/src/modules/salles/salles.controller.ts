@@ -123,20 +123,20 @@ export class SallesController {
 
   @Patch(':id/suspend')
   @RequirePermission('manage', 'Salle')
-  @ApiOperation({ summary: 'Suspendre une salle (§3.3)' })
+  @ApiOperation({ summary: 'Suspendre une salle (§3.3) — Superviseur Pays limité à son pays (§14.x)' })
   suspend(
     @Param('id') id: string,
     @Body('reason') reason: string,
     @CurrentUser() user: TenantContext,
   ) {
-    return this.sallesService.suspend(id, user.userId, reason);
+    return this.sallesService.suspend(id, user, reason);
   }
 
   @Patch(':id/reactivate')
   @RequirePermission('manage', 'Salle')
-  @ApiOperation({ summary: 'Réactiver une salle (§3.3)' })
+  @ApiOperation({ summary: 'Réactiver une salle (§3.3) — Superviseur Pays limité à son pays (§14.x)' })
   reactivate(@Param('id') id: string, @CurrentUser() user: TenantContext) {
-    return this.sallesService.reactivate(id, user.userId);
+    return this.sallesService.reactivate(id, user);
   }
 
   @Get(':id/checkin-qr')

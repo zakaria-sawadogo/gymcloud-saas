@@ -15,6 +15,7 @@ export type Subjects =
   | 'AccessLog'
   | 'MarketingCampaign'
   | 'SaasPlan'
+  | 'SaasInvoice'
   | 'SaasSubscription'
   | 'AuditLog'
   | 'Role'
@@ -137,17 +138,20 @@ export class AbilityFactory {
       // reste un acte SUPER_ADMIN sauf mention contraire explicite.
 
       case 'ADMIN_GYMCLOUD':
-        // Bras droit du SUPER_ADMIN sur l'exploitation courante, sans
-        // les pouvoirs les plus sensibles (rôles internes, plans SaaS,
-        // création de salle/propriétaire — actions volontairement non
-        // couvertes par 'manage', qui inclurait 'create' à tort).
+        // §14.x — exercice de redistribution des tâches SUPER_ADMIN,
+        // validé explicitement : création de salle et gestion du
+        // personnel interne, en plus du périmètre déjà large. Reste
+        // exclu : rôles internes = 'manage Role' est accordé, mais la
+        // création de PROPRIETAIRE et la modification des tarifs de
+        // plans SaaS restent hors de ce rôle (pas demandées).
         can('read', 'Salle');
-        can('update', 'Salle'); // support/branding/paramètres — pas la création
-        cannot('create', 'Salle');
+        can('update', 'Salle'); // support/branding/paramètres
+        can('create', 'Salle'); // §14.x — délégué depuis SUPER_ADMIN
         can('read', 'User');
         can('read', 'SaasSubscription');
-        can('read', 'SaasPlan'); // consultation uniquement
+        can('read', 'SaasPlan'); // consultation uniquement, jamais modification des tarifs
         can('read', 'AuditLog');
+        can('manage', 'Role'); // §14.x — gestion des comptes de personnel interne (voir assertCanManageInternalUser)
         break;
 
       case 'RESPONSABLE_SUPPORT':
@@ -163,8 +167,14 @@ export class AbilityFactory {
 
       case 'RESPONSABLE_FINANCE':
         // Facturation SaaS et visibilité des revenus (§9.13).
+        // §14.x — corrigé : 'manage SaasPlan' donnait accidentellement
+        // aussi le droit de créer/modifier les TARIFS des plans (voir
+        // SaasPlansController), jamais l'intention initiale. Marquer
+        // une facture payée utilise maintenant un subject dédié
+        // ('SaasInvoice'), distinct de la définition des plans
+        // eux-mêmes, qui reste SUPER_ADMIN/ADMIN_GYMCLOUD (lecture seule).
         can('read', 'SaasPlan');
-        can('manage', 'SaasPlan'); // nécessaire pour marquer une facture payée (voir SaasInvoicesController)
+        can('manage', 'SaasInvoice'); // marquer une facture payée — voir SaasInvoicesController
         can('read', 'SaasSubscription');
         can('read', 'Payment');
         can('read', 'User'); // pour identifier le propriétaire facturé
@@ -175,30 +185,28 @@ export class AbilityFactory {
         // lecture seule, la création reste SUPER_ADMIN (§2.8). Le
         // traitement des demandes d'abonnement du site vitrine est en
         // revanche pleinement de son ressort (§3.2, §9.5).
+        // §14.x — délégué depuis SUPER_ADMIN : créer un propriétaire,
+        // logique puisque c'est lui qui convertit une demande en client
+        // (voir UsersService.createProprietaire).
         can('read', 'User');
+        can('create', 'User'); // §14.x — création de PROPRIETAIRE uniquement, restriction fine en service
         can('read', 'Salle');
         can('read', 'SaasSubscription');
         can('manage', 'SaasSubscriptionRequest');
-        break;
-
-      case 'RESPONSABLE_MARKETING':
-        // Périmètre volontairement réduit : le module Marketing actuel
-        // (campagnes, coupons) est à l'échelle d'une salle, pas de la
-        // plateforme — ce rôle s'étoffera avec un futur marketing
-        // corporate GymCloud. Lecture de base pour l'instant.
-        can('read', 'Salle');
-        can('read', 'User');
         break;
 
       case 'SUPERVISEUR_PAYS':
         // §14.x — countryId (User.countryId) désormais transmis dans le
         // JWT et utilisé pour filtrer GET /salles (SallesController) —
         // un superviseur ne voit que les salles de son pays, plus toute
-        // la plateforme. Reste à étendre si d'autres listes globales
-        // (ex: liste des propriétaires) doivent un jour être filtrées
-        // de la même façon — non fait ici, hors périmètre de cette
-        // correction précise.
+        // la plateforme. Délégué depuis SUPER_ADMIN : suspendre/
+        // réactiver une salle de son pays (litige, impayé signalé
+        // localement) — restriction par pays vérifiée en service, même
+        // principe que le filtrage de la liste.
         can('read', 'Salle');
+        can('manage', 'Salle'); // §14.x — suspend/reactivate, restriction par countryId en service
+        cannot('create', 'Salle'); // jamais la création — reste SUPER_ADMIN/ADMIN_GYMCLOUD
+        cannot('update', 'Salle'); // jamais le branding/paramètres d'une salle — hors de son rôle de supervision
         can('read', 'User');
         can('read', 'SaasSubscription');
         break;

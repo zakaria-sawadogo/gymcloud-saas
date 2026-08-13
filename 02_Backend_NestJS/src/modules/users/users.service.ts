@@ -106,8 +106,8 @@ export class UsersService {
   }
 
   async createProprietaire(dto: CreateProprietaireDto, actor: TenantContext) {
-    if (actor.roleCode !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Seul le SUPER_ADMIN peut créer un propriétaire (§2.8)');
+    if (actor.roleCode !== 'SUPER_ADMIN' && actor.roleCode !== 'RESPONSABLE_COMMERCIAL') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN ou le Responsable Commercial peut créer un propriétaire (§2.8, §14.x)');
     }
 
     const { user, tempPassword } = await this.createBaseUser({
@@ -851,8 +851,8 @@ export class UsersService {
     dto: { firstName: string; lastName: string; phone: string; email?: string; roleId: string; countryId?: string },
     actor: TenantContext,
   ) {
-    if (actor.roleCode !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Seul le SUPER_ADMIN peut créer un compte de personnel interne (§2.2)');
+    if (actor.roleCode !== 'SUPER_ADMIN' && actor.roleCode !== 'ADMIN_GYMCLOUD') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN ou l\'Administrateur GymCloud peut créer un compte de personnel interne (§2.2, §14.x)');
     }
 
     const role = await this.prisma.role.findUniqueOrThrow({ where: { id: dto.roleId } });
@@ -903,6 +903,57 @@ export class UsersService {
     return { user, tempPassword };
   }
 
+  /**
+   * §14.x — Créer un compte SUPER_ADMIN supplémentaire, plafonné à 2
+   * au total (jamais plus, y compris des comptes suspendus — on ne
+   * veut jamais qu'un 3e existe, même inactif). Volontairement
+   * exclusif au SUPER_ADMIN lui-même — contrairement à la création de
+   * personnel interne, déléguée à Administrateur GymCloud, celle-ci
+   * reste la plus sensible de toutes et n'est jamais déléguée.
+   * Distinct de createInternalUser : SUPER_ADMIN a un scope SYSTEM,
+   * pas INTERNAL, donc rejeté par le garde-fou de cette dernière.
+   */
+  async createAdditionalSuperAdmin(
+    dto: { firstName: string; lastName: string; phone: string; email?: string },
+    actor: TenantContext,
+  ) {
+    if (actor.roleCode !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Seul un SUPER_ADMIN peut créer un autre compte SUPER_ADMIN (§14.x)');
+    }
+
+    const superAdminRole = await this.prisma.role.findUniqueOrThrow({ where: { code: 'SUPER_ADMIN' } });
+    const existingCount = await this.prisma.user.count({ where: { roleId: superAdminRole.id } });
+    if (existingCount >= 2) {
+      throw new ForbiddenException(
+        'Le nombre maximal de comptes SUPER_ADMIN (2) est déjà atteint — désactivez-en un avant d\'en créer un nouveau.',
+      );
+    }
+
+    const { user, tempPassword } = await this.createBaseUser({
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      phone: dto.phone,
+      email: dto.email,
+      roleId: superAdminRole.id,
+    });
+
+    await this.audit.log({
+      userId: actor.userId,
+      action: 'super_admin.create',
+      entityType: 'User',
+      entityId: user.id,
+    });
+
+    const superAdminActivationLink = await this.authService.generateActivationLink(user.id);
+    await this.whatsAppService.send(dto.phone, 'bienvenue_personnel_interne', [
+      dto.firstName,
+      superAdminRole.name,
+      superAdminActivationLink,
+    ]);
+
+    return { user, tempPassword };
+  }
+
   /** Liste tous les comptes internes GymCloud (tous rôles à portée INTERNAL confondus). */
   /**
    * §2.2, §14.x — Un compte désactivé disparaît de cette liste (mais
@@ -939,8 +990,8 @@ export class UsersService {
    * création dédié.
    */
   async updateInternalUserRole(userId: string, newRoleId: string, actor: TenantContext) {
-    if (actor.roleCode !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Seul le SUPER_ADMIN peut modifier le rôle du personnel interne (§2.2)');
+    if (actor.roleCode !== 'SUPER_ADMIN' && actor.roleCode !== 'ADMIN_GYMCLOUD') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN ou l\'Administrateur GymCloud peut modifier le rôle du personnel interne (§2.2, §14.x)');
     }
 
     const targetUser = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
@@ -983,8 +1034,8 @@ export class UsersService {
    * uniquement, des deux côtés).
    */
   async addAdditionalRole(userId: string, additionalRoleId: string, actor: TenantContext) {
-    if (actor.roleCode !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Seul le SUPER_ADMIN peut modifier les rôles du personnel interne (§2.2)');
+    if (actor.roleCode !== 'SUPER_ADMIN' && actor.roleCode !== 'ADMIN_GYMCLOUD') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN ou l\'Administrateur GymCloud peut modifier les rôles du personnel interne (§2.2, §14.x)');
     }
 
     const targetUser = await this.prisma.user.findUnique({ where: { id: userId }, include: { role: true } });
@@ -1024,8 +1075,8 @@ export class UsersService {
   }
 
   async removeAdditionalRole(userId: string, additionalRoleId: string, actor: TenantContext) {
-    if (actor.roleCode !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Seul le SUPER_ADMIN peut modifier les rôles du personnel interne (§2.2)');
+    if (actor.roleCode !== 'SUPER_ADMIN' && actor.roleCode !== 'ADMIN_GYMCLOUD') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN ou l\'Administrateur GymCloud peut modifier les rôles du personnel interne (§2.2, §14.x)');
     }
 
     await this.prisma.userAdditionalRole
@@ -1052,8 +1103,8 @@ export class UsersService {
    * ici (le personnel interne n'est rattaché à aucune salle).
    */
   private assertCanManageInternalUser(actor: TenantContext) {
-    if (actor.roleCode !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Seul le SUPER_ADMIN peut gérer les comptes de personnel interne (§2.2)');
+    if (actor.roleCode !== 'SUPER_ADMIN' && actor.roleCode !== 'ADMIN_GYMCLOUD') {
+      throw new ForbiddenException('Seul le SUPER_ADMIN ou l\'Administrateur GymCloud peut gérer les comptes de personnel interne (§2.2, §14.x)');
     }
   }
 

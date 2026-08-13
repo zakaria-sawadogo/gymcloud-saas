@@ -45,6 +45,25 @@ export class AdditionalRoleDto {
   roleId!: string;
 }
 
+export class CreateSuperAdminDto {
+  @ApiProperty()
+  @IsString()
+  firstName!: string;
+
+  @ApiProperty()
+  @IsString()
+  lastName!: string;
+
+  @ApiProperty()
+  @IsString()
+  phone!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+}
+
 /**
  * §2.2 — Personnel interne GymCloud (Support, Finance, Commercial,
  * Marketing, Superviseur Pays...), distinct des comptes clients
@@ -62,6 +81,16 @@ export class InternalUsersController {
   @ApiOperation({ summary: 'Créer un compte de personnel interne (§2.2)' })
   create(@Body() dto: CreateInternalUserDto, @CurrentUser() user: TenantContext) {
     return this.usersService.createInternalUser(dto, user);
+  }
+
+  @Post('super-admin')
+  @RequirePermission('manage', 'Role')
+  @ApiOperation({
+    summary:
+      "Créer un compte SUPER_ADMIN supplémentaire, plafonné à 2 au total (§14.x) — exclusivement réservé à un SUPER_ADMIN existant, jamais délégué à l'Administrateur GymCloud malgré la permission technique partagée",
+  })
+  createSuperAdmin(@Body() dto: CreateSuperAdminDto, @CurrentUser() user: TenantContext) {
+    return this.usersService.createAdditionalSuperAdmin(dto, user);
   }
 
   @Get()

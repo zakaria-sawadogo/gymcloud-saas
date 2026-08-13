@@ -51,7 +51,6 @@ export class TenantMiddleware implements NestMiddleware {
     'RESPONSABLE_SUPPORT',
     'RESPONSABLE_FINANCE',
     'RESPONSABLE_COMMERCIAL',
-    'RESPONSABLE_MARKETING',
     'SUPERVISEUR_PAYS',
   ]);
 

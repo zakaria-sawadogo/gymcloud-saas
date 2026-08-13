@@ -78,7 +78,7 @@ export class SaasInvoicesController {
   }
 
   @Get('proprietaire/:proprietaireId/subscription')
-  @RequirePermission('manage', 'SaasPlan') // SUPER_ADMIN / RESPONSABLE_FINANCE uniquement — pas n'importe quel PROPRIETAIRE (IDOR)
+  @RequirePermission('manage', 'SaasInvoice') // SUPER_ADMIN / RESPONSABLE_FINANCE uniquement — pas n'importe quel PROPRIETAIRE (IDOR)
   @ApiOperation({ summary: 'Souscription d\'un propriétaire donné (SUPER_ADMIN — gestion depuis sa fiche)' })
   subscriptionForProprietaire(@Param('proprietaireId') proprietaireId: string) {
     return this.saasBillingService.getSubscriptionForProprietaire(proprietaireId);
@@ -111,7 +111,7 @@ export class SaasInvoicesController {
   }
 
   @Patch(':id/mark-paid')
-  @RequirePermission('manage', 'SaasPlan')
+  @RequirePermission('manage', 'SaasInvoice')
   @ApiOperation({ summary: 'Encaisser une facture SaaS — méthode et référence de paiement requises' })
   markPaid(
     @Param('id') id: string,
@@ -149,7 +149,7 @@ export class SaasInvoicesController {
   }
 
   @Get('pending-validation')
-  @RequirePermission('manage', 'SaasPlan')
+  @RequirePermission('manage', 'SaasInvoice')
   @ApiOperation({
     summary: 'Factures avec un paiement déclaré par le propriétaire, en attente de validation (§9.8, §9.12)',
   })
@@ -158,7 +158,7 @@ export class SaasInvoicesController {
   }
 
   @Get('export-excel')
-  @RequirePermission('manage', 'SaasPlan')
+  @RequirePermission('manage', 'SaasInvoice')
   @ApiOperation({ summary: 'Export comptable Excel des revenus SaaS de la plateforme (§14.x)' })
   async exportRevenueExcel(@Query('year') year: string, @Query('month') month: string, @Res() res: Response) {
     const buffer = await this.saasBillingService.exportSaasRevenueExcel(Number(year), Number(month));
@@ -171,7 +171,7 @@ export class SaasInvoicesController {
   }
 
   @Patch(':id/approve')
-  @RequirePermission('manage', 'SaasPlan')
+  @RequirePermission('manage', 'SaasInvoice')
   @ApiOperation({
     summary:
       'Valider un paiement déclaré par le propriétaire — règle la facture et applique le changement de plan en attente le cas échéant (§9.8, §9.12)',
@@ -181,7 +181,7 @@ export class SaasInvoicesController {
   }
 
   @Patch(':id/reject')
-  @RequirePermission('manage', 'SaasPlan')
+  @RequirePermission('manage', 'SaasInvoice')
   @ApiOperation({ summary: 'Rejeter un paiement déclaré (fonds non retrouvés) — le propriétaire peut resoumettre' })
   reject(@Param('id') id: string, @Body('reason') reason: string | undefined, @CurrentUser() user: TenantContext) {
     return this.saasBillingService.rejectDeclaredPayment(id, user.userId, reason);
