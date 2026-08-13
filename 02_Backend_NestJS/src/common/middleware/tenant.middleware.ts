@@ -8,6 +8,7 @@ export interface TenantContext {
   roleCode: string;
   salleId: string | null;
   proprietaireId: string | null; // renseigné uniquement pour le rôle PROPRIETAIRE
+  countryId: string | null; // §14.x — renseigné pour SUPERVISEUR_PAYS (filtrage par pays), ailleurs généralement null
   isGlobalAccess: boolean;
   additionalRoleCodes: string[]; // §14.x — rôles internes cumulés, en plus du rôle principal
 }
@@ -108,6 +109,7 @@ export class TenantMiddleware implements NestMiddleware {
         roleCode: payload.roleCode,
         salleId,
         proprietaireId: payload.proprietaireId ?? null,
+        countryId: payload.countryId ?? null,
         isGlobalAccess,
         additionalRoleCodes: payload.additionalRoleCodes ?? [],
       };

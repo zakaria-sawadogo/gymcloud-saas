@@ -14,6 +14,7 @@ interface JwtPayload {
   roleCode: string;
   salleId: string | null;
   proprietaireId: string | null;
+  countryId?: string | null;
   additionalRoleCodes?: string[];
 }
 
@@ -89,6 +90,7 @@ export class AuthService {
       salleId,
       user.proprietaireProfile?.id ?? null,
       user.additionalRoles.map((ar: { role: { code: string } }) => ar.role.code),
+      user.countryId,
     );
   }
 
@@ -116,6 +118,7 @@ export class AuthService {
       payload.salleId,
       payload.proprietaireId,
       payload.additionalRoleCodes ?? [],
+      payload.countryId ?? null,
     );
   }
 
@@ -344,8 +347,9 @@ export class AuthService {
     salleId: string | null,
     proprietaireId: string | null,
     additionalRoleCodes: string[] = [],
+    countryId: string | null = null,
   ) {
-    const payload: JwtPayload = { sub: userId, roleCode, salleId, proprietaireId, additionalRoleCodes };
+    const payload: JwtPayload = { sub: userId, roleCode, salleId, proprietaireId, countryId, additionalRoleCodes };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_ACCESS_SECRET,

@@ -16,6 +16,7 @@ describe('AbilityFactory', () => {
       roleCode: 'GESTIONNAIRE',
       salleId: 'salle-1',
       proprietaireId: null,
+      countryId: null,
       isGlobalAccess: false,
       additionalRoleCodes: [],
       ...overrides,

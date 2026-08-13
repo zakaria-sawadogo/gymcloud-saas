@@ -147,8 +147,16 @@ export class SallesService {
     });
   }
 
-  async findAll() {
+  /**
+   * §14.x — Corrige une limitation documentée depuis longtemps dans le
+   * code : SUPERVISEUR_PAYS voyait toute la plateforme, jamais filtré
+   * par son pays malgré le nom du rôle. countryId optionnel : les
+   * autres rôles à accès global (SUPER_ADMIN, ADMIN_GYMCLOUD...)
+   * continuent de tout voir en ne passant rien.
+   */
+  async findAll(countryId?: string | null) {
     return this.prisma.salle.findMany({
+      where: countryId ? { countryId } : undefined,
       orderBy: { createdAt: 'desc' },
       include: { proprietaire: { include: { user: { select: { firstName: true, lastName: true } } } } },
     });

@@ -191,12 +191,13 @@ export class AbilityFactory {
         break;
 
       case 'SUPERVISEUR_PAYS':
-        // ⚠️ Limitation connue : les droits ci-dessous sont globaux, pas
-        // encore filtrés par le countryId du superviseur — un vrai
-        // filtrage par pays nécessiterait d'adapter chaque service
-        // (findAll des salles/propriétaires) pour croiser avec
-        // User.countryId. À court terme, le superviseur voit donc toute
-        // la plateforme comme un lecteur, pas seulement son pays.
+        // §14.x — countryId (User.countryId) désormais transmis dans le
+        // JWT et utilisé pour filtrer GET /salles (SallesController) —
+        // un superviseur ne voit que les salles de son pays, plus toute
+        // la plateforme. Reste à étendre si d'autres listes globales
+        // (ex: liste des propriétaires) doivent un jour être filtrées
+        // de la même façon — non fait ici, hors périmètre de cette
+        // correction précise.
         can('read', 'Salle');
         can('read', 'User');
         can('read', 'SaasSubscription');

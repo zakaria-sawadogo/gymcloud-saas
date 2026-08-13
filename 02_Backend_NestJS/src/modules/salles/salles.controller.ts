@@ -82,11 +82,15 @@ export class SallesController {
   @Get()
   @ApiOperation({
     summary:
-      'Liste des salles — vue globale pour SUPER_ADMIN, vue consolidée pour PROPRIETAIRE (§2.3)',
+      'Liste des salles — vue globale pour SUPER_ADMIN, vue consolidée pour PROPRIETAIRE (§2.3), filtrée par pays pour SUPERVISEUR_PAYS (§14.x)',
   })
   async findAll(@CurrentUser() user: TenantContext) {
     if (user.isGlobalAccess) {
-      return this.sallesService.findAll();
+      // §14.x — seul SUPERVISEUR_PAYS a un countryId renseigné parmi
+      // les rôles à accès global ; les autres (SUPER_ADMIN,
+      // ADMIN_GYMCLOUD...) passent undefined et voient tout.
+      const countryFilter = user.roleCode === 'SUPERVISEUR_PAYS' ? user.countryId : undefined;
+      return this.sallesService.findAll(countryFilter);
     }
     if (!user.proprietaireId) {
       return []; // GESTIONNAIRE/COACH/ADHERENT n'ont pas de vue "toutes les salles"
