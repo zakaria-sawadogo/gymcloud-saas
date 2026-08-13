@@ -222,10 +222,10 @@ export class AdherentsController {
   }
 
   @Patch(':id/reactivate')
-  @RequirePermission('manage', 'Adherent')
-  @ApiOperation({ summary: 'Réactiver un adhérent suspendu' })
+  @RequirePermission('read', 'Adherent') // §14.x — garde faible volontaire : la vérification fine du rôle se fait dans le service, pas ici (voir AdherentsService.reactivate)
+  @ApiOperation({ summary: 'Réactiver un adhérent suspendu — Responsable Support inclus (§14.x)' })
   reactivate(@Param('id') id: string, @CurrentUser() user: TenantContext) {
-    return this.adherentsService.reactivate(id, user.userId);
+    return this.adherentsService.reactivate(id, user);
   }
 
   // §4.2 — Compte (connexion à l'application) — distinct du statut

@@ -515,7 +515,20 @@ export class AdherentsService {
    * mais devra tout de même se réabonner pour accéder à la salle,
    * cohérent avec le contrôle fait par AccessControlService.checkIn).
    */
-  async reactivate(adherentId: string, actorUserId: string) {
+  /**
+   * §14.x — Vérification fine du rôle ici plutôt qu'au niveau CASL du
+   * controller (garde volontairement faible sur la route, voir
+   * AdherentsController.reactivate) : Responsable Support peut
+   * réactiver un adhérent suspendu par erreur, sans avoir hérité de
+   * la permission large 'manage Adherent' (qui couvrirait aussi
+   * créer/modifier/encaisser — jamais l'intention pour ce rôle).
+   */
+  async reactivate(adherentId: string, actor: TenantContext) {
+    const allowedRoles = ['SUPER_ADMIN', 'PROPRIETAIRE', 'GESTIONNAIRE', 'RESPONSABLE_SUPPORT'];
+    if (!allowedRoles.includes(actor.roleCode)) {
+      throw new ForbiddenException('Vous n\'avez pas le droit de réactiver un adhérent');
+    }
+
     const activeSubscription = await this.prisma.adherentAbonnement.findFirst({
       where: { adherentId, status: { in: ['ACTIF', 'EN_GRACE'] } },
       orderBy: { endDate: 'desc' },
@@ -527,7 +540,7 @@ export class AdherentsService {
       data: { status: newStatus },
     });
     await this.audit.log({
-      userId: actorUserId,
+      userId: actor.userId,
       salleId: adherent.salleId,
       action: 'adherent.reactivate',
       entityType: 'AdherentProfile',
