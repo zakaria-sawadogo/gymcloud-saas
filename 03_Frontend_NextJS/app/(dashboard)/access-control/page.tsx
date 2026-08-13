@@ -7,7 +7,7 @@ import { useApi } from '@/hooks/use-api';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { Input, Select } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -17,7 +17,12 @@ import type { AccessLog, AdherentProfile } from '@/types';
 
 export default function AccessControlPage() {
   const { user } = useAuth();
-  const salleId = user?.salle?.id;
+  const [selectedSalleId, setSelectedSalleId] = useState('');
+  // §14.x — Responsable Support (et tout rôle sans salle fixe) doit
+  // choisir la salle, contrairement au gestionnaire dont la salle est
+  // déjà connue via son propre compte.
+  const { data: salles } = useApi<{ id: string; name: string }[]>(user?.salle?.id ? null : '/salles');
+  const salleId = user?.salle?.id || selectedSalleId || salles?.[0]?.id;
   const [qrCodeToken, setQrCodeToken] = useState('');
   const [identifiedAdherent, setIdentifiedAdherent] = useState<AdherentProfile | null>(null);
   const [scanResult, setScanResult] = useState<{ direction: string; message: string; isError?: boolean } | null>(
@@ -77,6 +82,16 @@ export default function AccessControlPage() {
     await processScan(qrCodeToken);
   };
 
+  const handleForceClose = async (accessLogId: string) => {
+    if (!confirm('Forcer la sortie maintenant ? À utiliser uniquement pour une session réellement bloquée.')) return;
+    try {
+      await apiClient.patch(`/access-control/${accessLogId}/force-close`, {});
+      refetchOccupancy();
+    } catch (err) {
+      alert(err instanceof ApiClientError ? err.message : 'Une erreur est survenue');
+    }
+  };
+
   const handleCameraScan = (token: string) => {
     setIsCameraOpen(false);
     processScan(token);
@@ -123,7 +138,19 @@ export default function AccessControlPage() {
 
   return (
     <div>
-      <h1 className="font-display mb-6 text-2xl font-semibold text-ink-900">Contrôle d'accès</h1>
+      <h1 className="font-display mb-2 text-2xl font-semibold text-ink-900">Contrôle d'accès</h1>
+
+      {!user?.salle?.id && salles && salles.length > 0 && (
+        <div className="mb-6 max-w-xs">
+          <Select value={selectedSalleId || salles[0]?.id} onChange={(e) => setSelectedSalleId(e.target.value)}>
+            {salles.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
@@ -212,7 +239,16 @@ export default function AccessControlPage() {
                   <span className="text-sm font-medium text-ink-900">
                     {log.adherent?.user.firstName} {log.adherent?.user.lastName}
                   </span>
-                  <span className="text-xs text-ink-400">Entré à {formatDateTime(log.checkInAt)}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-ink-400">Entré à {formatDateTime(log.checkInAt)}</span>
+                    <button
+                      onClick={() => handleForceClose(log.id)}
+                      className="text-xs text-ink-400 underline hover:text-red-600"
+                      title="Session bloquée (téléphone perdu, oubli de scan sortie) — force la sortie maintenant"
+                    >
+                      Forcer la sortie
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

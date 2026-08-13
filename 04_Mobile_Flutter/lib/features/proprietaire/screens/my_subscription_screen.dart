@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/currency_format.dart';
+import '../../shared/logout_button.dart';
 import '../proprietaire_repository.dart';
 import 'change_plan_screen.dart';
 
@@ -177,7 +178,10 @@ class _MySubscriptionScreenState extends State<MySubscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mon abonnement')),
+      appBar: AppBar(
+        title: const Text('Mon abonnement'),
+        actions: const [LogoutButton()],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

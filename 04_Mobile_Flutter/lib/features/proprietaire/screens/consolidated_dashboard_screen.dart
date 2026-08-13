@@ -6,12 +6,8 @@ import '../../../core/utils/currency_format.dart';
 import '../../../core/widgets/stat_card.dart';
 import '../proprietaire_repository.dart';
 import 'salle_detail_screen.dart';
-import '../../shared/logout_button.dart';
 import '../../shared/notification_bell.dart';
-import '../../shared/profile_screen.dart';
-import 'my_subscription_screen.dart';
-import 'request_salle_screen.dart';
-import 'change_plan_screen.dart';
+import '../../shared/logout_button.dart';
 import 'request_salle_screen.dart';
 
 /// Vue consolidée multi-salles (§2.3, §11) — équivalent mobile de
@@ -66,57 +62,7 @@ class _ConsolidatedDashboardScreenState extends State<ConsolidatedDashboardScree
     return Scaffold(
       appBar: AppBar(
         title: const Text('Vue consolidée'),
-        actions: [
-          const NotificationBell(),
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            tooltip: 'Profil',
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
-          ),
-          IconButton(
-            icon: const Icon(Icons.layers_outlined),
-            tooltip: 'Mon abonnement',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MySubscriptionScreen()),
-            ),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Plus',
-            onSelected: (value) async {
-              if (value == 'change-plan') {
-                final messenger = ScaffoldMessenger.of(context);
-                try {
-                  final subscription = await _repo.getMySubscription();
-                  final saasPlan = subscription['saasPlan'] as Map<String, dynamic>;
-                  if (!mounted) return;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ChangePlanScreen(
-                        repo: _repo,
-                        currentSubscriptionId: subscription['id'] as String,
-                        currentPlanId: saasPlan['id'] as String,
-                      ),
-                    ),
-                  );
-                } catch (e) {
-                  messenger.showSnackBar(SnackBar(content: Text(e.toString())));
-                }
-              } else if (value == 'request-salle') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => RequestSalleScreen(repo: _repo)),
-                );
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'change-plan', child: Text('Changer de plan')),
-              PopupMenuItem(value: 'request-salle', child: Text('Demander une salle')),
-            ],
-          ),
-          const LogoutButton(),
-        ],
+        actions: const [NotificationBell(), LogoutButton()],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

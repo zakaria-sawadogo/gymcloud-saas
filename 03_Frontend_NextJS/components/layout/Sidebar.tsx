@@ -92,6 +92,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   RESPONSABLE_SUPPORT: [
     { label: 'Salles', href: '/salles', icon: Building2 },
     { label: 'Propriétaires', href: '/proprietaires', icon: UserCog },
+    { label: 'Contrôle d\'accès', href: '/access-control', icon: QrCode },
   ],
   RESPONSABLE_FINANCE: [
     { label: 'Facturation SaaS', href: '/facturation-saas', icon: CreditCard },

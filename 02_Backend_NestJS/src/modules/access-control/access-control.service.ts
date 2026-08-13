@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TenantContext } from '../../common/middleware/tenant.middleware';
 
 const AUTO_CLOSE_AFTER_HOURS = 6; // durée max d'une session avant fermeture automatique (§6.8)
 
@@ -248,5 +249,44 @@ export class AccessControlService {
 
     this.logger.log(`${stale.length} session(s) fermée(s) automatiquement (§6.8)`);
     return { closed: stale.length };
+  }
+
+  /**
+   * §14.x — Fermeture manuelle d'une session précise, sans attendre
+   * le prochain passage du job planifié (§6.8 ci-dessus) — utile pour
+   * Responsable Support qui aide un adhérent en direct (téléphone
+   * perdu, oubli de scan sortie signalé par appel/message), plutôt
+   * que de lui faire attendre jusqu'à 6h. Vérification fine du rôle
+   * ici plutôt qu'au niveau CASL du controller (même principe que
+   * AdherentsService.reactivate) : Support n'a que 'read AccessLog',
+   * jamais 'manage', pour ne pas hériter d'actions plus larges sur le
+   * contrôle d'accès.
+   */
+  async forceCloseSession(accessLogId: string, actor: TenantContext) {
+    const allowedRoles = ['SUPER_ADMIN', 'GESTIONNAIRE', 'RESPONSABLE_SUPPORT'];
+    if (!allowedRoles.includes(actor.roleCode)) {
+      throw new ForbiddenException('Vous n\'avez pas le droit de forcer la fermeture d\'une session');
+    }
+
+    const log = await this.prisma.accessLog.findUnique({ where: { id: accessLogId } });
+    if (!log) throw new NotFoundException('Session introuvable');
+    if (log.checkOutAt !== null) {
+      throw new BadRequestException('Cette session est déjà fermée');
+    }
+
+    const updated = await this.prisma.accessLog.update({
+      where: { id: accessLogId },
+      data: { checkOutAt: new Date(), autoClosed: true },
+    });
+
+    await this.audit.log({
+      userId: actor.userId,
+      salleId: log.salleId,
+      action: 'access_log.force_close',
+      entityType: 'AccessLog',
+      entityId: accessLogId,
+    });
+
+    return updated;
   }
 }

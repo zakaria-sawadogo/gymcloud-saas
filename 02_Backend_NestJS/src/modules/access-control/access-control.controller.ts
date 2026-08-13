@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AccessControlService } from './access-control.service';
 import { ScanQrDto, ManualAccessDto, SelfCheckinDto } from './dto/access-control.dto';
@@ -86,5 +86,15 @@ export class AccessControlController {
       }
     }
     return this.accessControlService.adherentHistory(adherentId);
+  }
+
+  @Patch(':accessLogId/force-close')
+  @RequirePermission('read', 'AccessLog') // §14.x — garde faible volontaire, vérification fine du rôle dans le service (voir AccessControlService.forceCloseSession)
+  @ApiOperation({
+    summary:
+      "Forcer la fermeture d'une session d'accès bloquée (§14.x) — Responsable Support inclus, sans attendre le job planifié (§6.8)",
+  })
+  forceCloseSession(@Param('accessLogId') accessLogId: string, @CurrentUser() user: TenantContext) {
+    return this.accessControlService.forceCloseSession(accessLogId, user);
   }
 }
