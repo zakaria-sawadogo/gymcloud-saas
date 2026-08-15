@@ -10,7 +10,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_dev_only}
       POSTGRES_DB: gymcloud
     ports:
-      - '5432:5432'
+      # §14.x — restreint à localhost (127.0.0.1) : PostgreSQL n'a
+      # jamais à être joignable depuis l'extérieur, seuls les
+      # conteneurs du réseau Docker interne (api) doivent y accéder —
+      # ils passent par le nom de service 'postgres', pas par ce port
+      # publié sur l'hôte, donc aucun risque de casser quoi que ce
+      # soit en le restreignant.
+      - '127.0.0.1:5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     # Important : rls_policies.sql N'EST PAS monté ici en script d'init —
@@ -31,7 +37,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379' # §14.x — même raisonnement que PostgreSQL ci-dessus
     volumes:
       - redis_data:/data
     healthcheck:
@@ -49,8 +55,15 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-gymcloud_admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme_dev_only}
     ports:
-      - '9000:9000'   # API S3
-      - '9001:9001'   # Console web
+      # §14.x — trouvé en creusant le signalement Redis/PostgreSQL :
+      # la console web d'admin MinIO (9001) était elle aussi exposée
+      # publiquement — un vrai risque, une interface web d'admin
+      # accessible depuis Internet est plus directement exploitable
+      # qu'un simple port de base de données. L'API se connecte déjà
+      # via 'http://minio:9000' (réseau Docker interne), jamais via
+      # ces ports publiés — restreindre ne casse rien.
+      - '127.0.0.1:9000:9000'   # API S3
+      - '127.0.0.1:9001:9001'   # Console web
     volumes:
       - minio_data:/data
 

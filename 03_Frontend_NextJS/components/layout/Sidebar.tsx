@@ -46,6 +46,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Plans SaaS', href: '/plans-saas', icon: Layers },
     { label: 'Facturation SaaS', href: '/facturation-saas', icon: CreditCard },
     { label: 'Personnel interne', href: '/personnel-interne', icon: ShieldCheck },
+    { label: 'Contrôle d\'accès', href: '/access-control', icon: QrCode },
     { label: 'Journal global', href: '/journal-global', icon: History },
     { label: 'Pays', href: '/pays', icon: Globe },
     { label: 'Contacts', href: '/contacts', icon: Mail },
